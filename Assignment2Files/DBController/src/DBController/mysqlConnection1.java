@@ -14,7 +14,7 @@ public class mysqlConnection1 {
 	{
 		try 
         {
-			Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/sys?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false", "root", "Linoycoh12@");
+			Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/bistro?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false", "root", "Dy1908");
 			// Rootroot
             // Connection conn = DriverManager.getConnection("jdbc:mysql://192.168.3.68/test","root","Root");
 
@@ -32,7 +32,7 @@ public class mysqlConnection1 {
 	public static void updateTableReservation(Connection con1){
 		PreparedStatement stmt;
 		try {
-			stmt = con1.prepareStatement("UPDATE reservation SET order_date = ? SET number_of_guests = ?;");
+			stmt = con1.prepareStatement("UPDATE reservation SET order_date = ? , number_of_guests = ?;");
 			Scanner input = new Scanner(System.in); 
 			System.out.print("Enter the order date name: ");
 			String a = input.nextLine();

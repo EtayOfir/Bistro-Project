@@ -6,6 +6,7 @@ package server;
 import java.io.*;
 import ocsf.server.*;
 import DBController.*;
+import ocsf.server.*;
 /**
  * This class overrides some of the methods in the abstract 
  * superclass in order to give more functionality to the server.
@@ -50,8 +51,13 @@ public class EchoServer extends AbstractServer
     (Object msg, ConnectionToClient client)
   {
 	    System.out.println("Message received: " + msg + " from " + client);
-	    this.sendToAllClients(msg);
-	  }
+	    //this.sendToAllClients(msg);
+	    try {
+			client.sendToClient(msg);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+   } 
 
     
   /**
