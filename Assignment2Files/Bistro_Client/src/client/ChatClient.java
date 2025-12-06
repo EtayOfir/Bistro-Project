@@ -45,10 +45,27 @@ public class ChatClient extends AbstractClient
     this.clientUI = clientUI;
     openConnection();
   }
-
   
   //Instance methods ************************************************
     
+  /**
+   * Hook method called when connection is established to the server
+   */
+  @Override
+  protected void connectionEstablished() {
+    System.out.println("DEBUG: ChatClient.connectionEstablished() called");
+    clientUI.display("Connected to server");
+  }
+  
+  /**
+   * Hook method called when connection is closed
+   */
+  @Override
+  protected void connectionClosed() {
+    System.out.println("DEBUG: ChatClient.connectionClosed() called");
+    clientUI.display("Disconnected from server");
+  }
+  
   /**
    * This method handles all data that comes in from the server.
    *
@@ -56,7 +73,7 @@ public class ChatClient extends AbstractClient
    */
   public void handleMessageFromServer(Object msg) 
   {
-	  
+    System.out.println("DEBUG: Received message from server: " + msg);
     clientUI.display((String) msg);
   }
 
@@ -69,7 +86,8 @@ public class ChatClient extends AbstractClient
   {
     try
     {
-    	sendToServer(message);
+      System.out.println("DEBUG: Sending message to server: " + message);
+      sendToServer(message);
     }
     catch(IOException e)
     {
