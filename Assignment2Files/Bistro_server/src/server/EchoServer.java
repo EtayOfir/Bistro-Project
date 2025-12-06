@@ -226,7 +226,7 @@ public class EchoServer extends AbstractServer {
 
 	        String ans;  // will hold the string we send back to the client
 
-	        // ---------- GET RESERVATION ----------
+	        // GET RESERVATION 
 	        if (messageStr.startsWith("#GET_RESERVATION")) {
 	            // format: #GET_RESERVATION <orderNum>
 	            String[] parts = messageStr.split("\\s+");
@@ -237,7 +237,7 @@ public class EchoServer extends AbstractServer {
 	                ans = getReservationStringFromDB(orderNum);   // defined below
 	            }
 
-	        // ---------- UPDATE RESERVATION ----------
+	        // UPDATE RESERVATION
 	        } else if (messageStr.startsWith("#UPDATE_RESERVATION")) {
 	            // format: #UPDATE_RESERVATION <orderNum> <numGuests> <orderDate>
 	            String[] parts = messageStr.split("\\s+");
@@ -253,7 +253,7 @@ public class EchoServer extends AbstractServer {
 	                ans = getReservationStringFromDB(orderNum);
 	            }
 
-	        // ---------- OTHER COMMANDS ----------
+	        // OTHER COMMANDS
 	        } else if ("add to db".equals(messageStr)) {
 	            if (conn == null) {
 	                conn = mysqlConnection1.getDBConnection();
@@ -265,7 +265,7 @@ public class EchoServer extends AbstractServer {
 	            }
 
 	        } else {
-	            // default echo behaviour
+	            // default echo behavior
 	            ans = "Message received: " + messageStr;
 	        }
 
