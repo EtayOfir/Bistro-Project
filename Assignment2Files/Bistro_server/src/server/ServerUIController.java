@@ -54,16 +54,16 @@ public class ServerUIController {
     private ProgressIndicator loadingIndicator;
     
     @FXML
-    private TableView<ClientInfo> clientsTableView;
+    private TableView<GetClientInfo> clientsTableView;
     
     @FXML
-    private TableColumn<ClientInfo, String> clientIPColumn;
+    private TableColumn<GetClientInfo, String> clientIPColumn;
     
     @FXML
-    private TableColumn<ClientInfo, String> clientNameColumn;
+    private TableColumn<GetClientInfo, String> clientNameColumn;
     
     @FXML
-    private TableColumn<ClientInfo, String> connectionTimeColumn;
+    private TableColumn<GetClientInfo, String> connectionTimeColumn;
 
     private EchoServer echoServer;
     private DateTimeFormatter dateTimeFormatter;
@@ -128,7 +128,7 @@ public class ServerUIController {
     /**
      * Add a client to the table view
      */
-    public void addClientToTable(ClientInfo clientInfo) {
+    public void addClientToTable(GetClientInfo clientInfo) {
         Platform.runLater(() -> {
             if (clientsTableView != null && clientsTableView.getItems() != null) {
                 clientsTableView.getItems().add(clientInfo);
@@ -142,7 +142,7 @@ public class ServerUIController {
     /**
      * Remove a client from the table view
      */
-    public void removeClientFromTable(ClientInfo clientInfo) {
+    public void removeClientFromTable(GetClientInfo clientInfo) {
         Platform.runLater(() -> {
             clientsTableView.getItems().remove(clientInfo);
         });
