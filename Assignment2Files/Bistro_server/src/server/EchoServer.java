@@ -6,6 +6,7 @@ package server;
 import java.io.*;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.time.LocalDate;
 
 import ocsf.server.*;
 import DBController.*;
@@ -59,7 +60,18 @@ public class EchoServer extends AbstractServer {
 		case "add to db":
 			ans =mysqlConnection1.testSetInfo(conn);
 			break;
-
+		case "Update":
+			ans=mysqlConnection1.testUpdateInfo(conn, 4, LocalDate.now(), 1);//place holder for testing
+			break;
+		case "Print":
+			ans=mysqlConnection1.testPrintTable(conn);;
+			break;
+		case "Status":
+			ans= getStatus(client);
+			break;
+		default:
+			System.err.println("no such command!");
+			break;
 		}
 
 		// this.sendToAllClients(msg);
@@ -113,6 +125,14 @@ public class EchoServer extends AbstractServer {
 		} catch (Exception ex) {
 			System.out.println("ERROR - Could not listen for clients!");
 		}
+	}
+	
+	public static String getStatus(ConnectionToClient client) {
+		StringBuilder status=new StringBuilder();
+		status.append("Status:\n");
+		status.append("Client IP: ").append(client.getInetAddress()).append("\n");
+		status.append("HostName: ").append(client.getInetAddress().getCanonicalHostName()).append("\n");
+		return status.toString();
 	}
 }
 //End of EchoServer class
