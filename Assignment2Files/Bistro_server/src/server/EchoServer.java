@@ -364,10 +364,43 @@ public class EchoServer extends AbstractServer {
 	 * listening for connections.
 	 */
 	protected void serverStopped() {
-		System.out.println("Server has stopped listening for connections.");
-		if (uiController != null) {
-			uiController.addLog("Server stopped listening for connections.");
-		}
+	    System.out.println("Server has stopped listening for connections.");
+	    if (uiController != null) {
+	        uiController.addLog("Server stopped listening for connections.");
+	    }
+
+	    // Cleanly remove all connected clients when server stops
+	    try {
+	        // Snapshot to avoid ConcurrentModification
+	        java.util.List<ConnectionToClient> clientsSnapshot = new java.util.ArrayList<>(connectedClients.keySet());
+	        for (ConnectionToClient client : clientsSnapshot) {
+	            try {
+	                // Prevent double processing and mark as disconnected
+	                if (client.getInfo("Disconnected") == null) {
+	                    client.setInfo("Disconnected", Boolean.TRUE);
+	                }
+	                // Close client connection if still open
+	                try {
+	                    client.close();
+	                } catch (IOException ignore) {}
+
+	                // Remove and update UI
+	                GetClientInfo removedClient = connectedClients.remove(client);
+	                if (removedClient != null && uiController != null) {
+	                    uiController.addLog("Client removed due to server stop: " + removedClient.getClientIP());
+	                    uiController.removeClientFromTable(removedClient);
+	                }
+	            } catch (Exception e) {
+	                System.err.println("ERROR disconnecting client on server stop: " + e.getMessage());
+	            }
+	        }
+	        // Update count and ensure map is clear
+	        if (uiController != null) {
+	            uiController.updateClientCount(connectedClients.size());
+	        }
+	    } catch (Exception e) {
+	        System.err.println("ERROR during serverStopped cleanup: " + e.getMessage());
+	    }
 	}
 	
 	/**
@@ -403,54 +436,45 @@ public class EchoServer extends AbstractServer {
 	@Override
 	protected void clientDisconnected(ConnectionToClient client) {
 	    System.out.println("Client disconnected: " + client);
-	    // Use the centralized removal method so UI + map are always in sync
-	    removeConnectedClient(client, "Client disconnected");
-	
-	    // Remove from client map
-		GetClientInfo removedClient = connectedClients.remove(client);
-		
-		// Update UI
-		if (uiController != null && removedClient != null) {
-			uiController.addLog("Client disconnected: " + removedClient.getClientIP());
-			uiController.updateClientCount(connectedClients.size());
-			uiController.removeClientFromTable(removedClient);
-		}
+	    // Prevent double-processing if exception hook already handled it
+	    Object already = client.getInfo("Disconnected");
+	    if (already == null) {
+	        client.setInfo("Disconnected", Boolean.TRUE);
+	        System.out.println("Processing disconnection for: " + client);
+	        // Use the centralized removal method so UI + map are always in sync
+	        removeConnectedClient(client, "Client disconnected");
+	    } else {
+	        System.out.println("Skip duplicate disconnection handling for: " + client);
+	    }
 	}
 	
 	@Override
 	synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
 		System.out.println("\n=== EXCEPTION HOOK CALLED ===");
-		try {
-			// Try to get client IP, but it might be null if socket is closed
-			String clientIP = null;
+		// Prevent double-processing if disconnected hook will run too
+		Object already = client.getInfo("Disconnected");
+		if (already == null) {
+			client.setInfo("Disconnected", Boolean.TRUE);
 			try {
-				clientIP = client.getInetAddress().getHostAddress();
-			} catch (Exception e) {
-				clientIP = "[SOCKET_CLOSED]";
-			}
-			
-			System.out.println("[EXCEPTION] clientException() called for: " + clientIP);
-			System.out.println("[EXCEPTION] Exception type: " + exception.getClass().getSimpleName());
-			System.out.println("[EXCEPTION] Exception message: " + exception.getMessage());
-			System.out.println("[DEBUG] Current connected clients BEFORE removal: " + connectedClients.size());
-			System.out.println("[DEBUG] Client object: " + System.identityHashCode(client));
-			System.out.println("[DEBUG] Map keys before removal: ");
-			for (ConnectionToClient c : connectedClients.keySet()) {
+				String clientIP = null;
 				try {
-					System.out.println("  - " + System.identityHashCode(c) + ": " + c.getInetAddress().getHostAddress());
+					clientIP = client.getInetAddress().getHostAddress();
 				} catch (Exception e) {
-					System.out.println("  - " + System.identityHashCode(c) + ": [CLOSED]");
+					clientIP = "[SOCKET_CLOSED]";
 				}
+				System.out.println("[EXCEPTION] clientException() called for: " + clientIP);
+				System.out.println("[EXCEPTION] Exception type: " + exception.getClass().getSimpleName());
+				System.out.println("[EXCEPTION] Exception message: " + exception.getMessage());
+				System.out.println("[DEBUG] Current connected clients BEFORE removal: " + connectedClients.size());
+				// Remove client from the map by reference; socket may be closed
+				removeConnectedClientByReference(client, "Client disconnected");
+				System.out.println("[DEBUG] Current connected clients AFTER removal: " + connectedClients.size());
+			} catch (Exception e) {
+				System.err.println("ERROR in clientException: " + e.getMessage());
+				e.printStackTrace();
 			}
-			
-			// Remove client from the map - this is the key action
-			// We can still remove it even if socket is closed
-			removeConnectedClientByReference(client, "Client disconnected");
-			
-			System.out.println("[DEBUG] Current connected clients AFTER removal: " + connectedClients.size());
-		} catch (Exception e) {
-			System.err.println("ERROR in clientException: " + e.getMessage());
-			e.printStackTrace();
+		} else {
+			System.out.println("Skip duplicate exception handling for: " + client);
 		}
 		System.out.println("=== EXCEPTION HOOK END ===\n");
 	}

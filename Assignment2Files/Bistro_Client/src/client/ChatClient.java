@@ -65,6 +65,16 @@ public class ChatClient extends AbstractClient
     System.out.println("DEBUG: ChatClient.connectionClosed() called");
     clientUI.display("Disconnected from server");
   }
+
+  /**
+   * Hook method called when an exception occurs on the connection.
+   * This typically indicates an unexpected server crash or network failure.
+   */
+  @Override
+  protected void connectionException(Exception exception) {
+    System.out.println("DEBUG: ChatClient.connectionException() called: " + exception);
+    clientUI.display("Lost connection to server");
+  }
   
   /**
    * This method handles all data that comes in from the server.
