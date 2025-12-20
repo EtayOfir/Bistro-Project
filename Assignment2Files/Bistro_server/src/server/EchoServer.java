@@ -227,16 +227,7 @@ public class EchoServer extends AbstractServer {
 					&& conn == null) {
 				conn = mysqlConnection1.getDBConnection();
 			}
-			if (messageStr.equals("test")) {
-				try {
-					conn = mysqlConnection1.getDBConnection();
-					mysqlConnection1.testInsertSubscriber(conn);
-
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-
-			}
+		
 			String ans; // will hold the string we send back to the client
 
 			// GET RESERVATION
