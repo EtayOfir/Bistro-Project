@@ -56,25 +56,35 @@ public class mysqlConnection1 {
 		return rs;
 	}
 
-	public static String testSetInfo(Connection conn) {
-	    String sql = "INSERT INTO bistro.reservation " +
-	                 "(order_date, number_of_guests, confirmation_code, subscriber_id, date_of_placing_order) " +
+
+	
+	public static void testInsertSubscriber(Connection conn, String fullName,String phoneNumber,String email,String userName,String qrCode) {
+	    String sql = "INSERT INTO Subscribers (FullName, PhoneNumber, Email, UserName, QRCode) " +
 	                 "VALUES (?, ?, ?, ?, ?)";
 
-	    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+	    try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+	        
+	        pstmt.setString(1, fullName);      // FullName [cite: 86]
+	        pstmt.setString(2, phoneNumber);        // PhoneNumber [cite: 86]
+	        pstmt.setString(3, email);  // Email [cite: 86]
+	        pstmt.setString(4, userName);           // UserName [cite: 86]
+	        pstmt.setString(5, qrCode);        // QRCode [cite: 85]
 
-	        stmt.setDate(1, java.sql.Date.valueOf("2025-01-01")); // DATE column
-	        stmt.setInt(2, 1);
-	        stmt.setInt(3, 555);
-	        stmt.setInt(4, 14);
-	        stmt.setDate(5, java.sql.Date.valueOf("2025-01-01"));
+	        int affectedRows = pstmt.executeUpdate();
 
-	        int rows = stmt.executeUpdate(); // INSERT => executeUpdate
-	        return rows == 1 ? "Successfully entered to db" : "Insert failed";
+	        if (affectedRows > 0) {
+	            try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
+	                if (generatedKeys.next()) {
+	                    System.out.println("Success! New Subscriber ID: " + generatedKeys.getLong(1));
+	                }
+	            }
+	        } else {
+	            System.out.println("Insert failed, no rows affected.");
+	        }
 
 	    } catch (SQLException e) {
+	        System.err.println("SQL Error: " + e.getMessage());
 	        e.printStackTrace();
-	        return "DB error: " + e.getMessage();
 	    }
 	}
 
@@ -83,8 +93,8 @@ public class mysqlConnection1 {
 		Connection conn = null;
 		try {
 			conn = DriverManager.getConnection(
-					"jdbc:mysql://localhost:3306/bistro?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false",
-					"root", "Dy19");
+					"jdbc:mysql://localhost:3306/bistrodb?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false",
+					"root", "Dy1908");
 			// Dy1908
 			System.out.println("Database connection established successfully");
 		} catch (SQLException e) {

@@ -49,6 +49,7 @@ public class ClientConsole implements ChatIF
     } 
     catch(IOException exception) 
     {
+    	
       System.out.println("Error: Can't setup connection!"
                 + " Terminating client.");
       System.exit(1);
@@ -105,16 +106,16 @@ public class ClientConsole implements ChatIF
    */
   public static void main(String[] args) 
   {
-    String host = "192.168.1.112";
+    String host = "localhost";
     int port = 0;  //The port number
 
     try
     {
-      host = args[0];
+      host = "localhost";
     }
     catch(ArrayIndexOutOfBoundsException e)
     {
-      host = "192.168.1.112";
+      host = "localhost";
     }
     ClientConsole chat= new ClientConsole(host, DEFAULT_PORT);
     chat.accept();  //Wait for console data
