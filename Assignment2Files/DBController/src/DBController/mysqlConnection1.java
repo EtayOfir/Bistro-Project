@@ -1,99 +1,45 @@
 package DBController;
 
-import java.sql.Connection;
-import java.sql.Date;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Scanner;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
-public class mysqlConnection1 {
-	Connection conn = getDBConnection();
+import javax.sql.DataSource;
 
-	public static void main(String[] args) {
-		Connection conn = getDBConnection();
-		// Rootroot
-		// Connection conn =
-		// DriverManager.getConnection("jdbc:mysql://192.168.3.68/test","root","Root");
+public final class mysqlConnection1 {
 
-		//System.out.println("SQL connection succeed");
-		// updateTableFlights(conn);
+    private static final HikariDataSource dataSource;
 
-	}
+    static {
+        HikariConfig config = new HikariConfig();
 
-	public static void updateTableReservation(Connection con1) {
-		PreparedStatement stmt;
-		try {
-			stmt = con1.prepareStatement("UPDATE reservation SET order_date = ? , number_of_guests = ?;");
-			Scanner input = new Scanner(System.in);
-			System.out.print("Enter the order date name: ");
-			String a = input.nextLine();
+        config.setJdbcUrl(
+                "jdbc:mysql://localhost:3306/bistro" +
+                "?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false"
+        );
+        config.setUsername("root");
+        // config.setPassword("Dy1908");
+        config.setPassword("Rootroot");
+        // Pool tuning (safe defaults for a course project)
+        config.setMaximumPoolSize(10);
+        config.setMinimumIdle(2);
+        config.setConnectionTimeout(10_000); // 10s wait for a connection
+        config.setIdleTimeout(300_000);      // 5min
+        config.setMaxLifetime(1_800_000);    // 30min
 
-			System.out.print("Enter the number of guests: ");
-			String b = input.nextLine();
+        dataSource = new HikariDataSource(config);
+        System.out.println("HikariCP pool initialized ✓");
+    }
 
-			stmt.setString(1, a);
-			stmt.setString(2, b);
-			stmt.executeUpdate();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-	}
+    private mysqlConnection1() {}
 
-	public ResultSet testgetInfo(Connection conn) {
+    public static DataSource getDataSource() {
+        return dataSource;
+    }
 
-		ResultSet rs = null;
-		PreparedStatement stmt;
-		try {
-			stmt = conn.prepareStatement("SELECT * from reservation");
-			rs = stmt.executeQuery();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-
-		return rs;
-	}
-
-	public static String testSetInfo(Connection conn) {
-	    String sql = "INSERT INTO bistro.reservation " +
-	                 "(order_date, number_of_guests, confirmation_code, subscriber_id, date_of_placing_order) " +
-	                 "VALUES (?, ?, ?, ?, ?)";
-
-	    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-	        stmt.setDate(1, java.sql.Date.valueOf("2025-01-01")); // DATE column
-	        stmt.setInt(2, 1);
-	        stmt.setInt(3, 555);
-	        stmt.setInt(4, 14);
-	        stmt.setDate(5, java.sql.Date.valueOf("2025-01-01"));
-
-	        int rows = stmt.executeUpdate(); // INSERT => executeUpdate
-	        return rows == 1 ? "Successfully entered to db" : "Insert failed";
-
-	    } catch (SQLException e) {
-	        e.printStackTrace();
-	        return "DB error: " + e.getMessage();
-	    }
-	}
-
-	public static Connection getDBConnection() {
-
-		Connection conn = null;
-		try {
-			conn = DriverManager.getConnection(
-					"jdbc:mysql://localhost:3306/bistro?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false",
-					"root", "Dy19");
-			// Dy1908
-			System.out.println("Database connection established successfully");
-		} catch (SQLException e) {
-			System.err.println("Failed to connect to database: " + e.getMessage());
-			e.printStackTrace();
-			// Return null to indicate failed connection - caller should handle this
-		}
-
-		return conn;
-	}
-
+    public static void shutdownPool() {
+        if (dataSource != null) {
+            dataSource.close();
+            System.out.println("HikariCP pool shut down ✓");
+        }
+    }
 }
