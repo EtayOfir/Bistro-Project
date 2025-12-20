@@ -14,15 +14,22 @@ import ocsf.server.*;
 import DBController.*;
 
 /**
- * This class overrides some of the methods in the abstract superclass in order
- * to give more functionality to the server.
- *
- * @author Dr Timothy C. Lethbridge
- * @author Dr Robert Lagani&egrave;re
- * @author Fran&ccedil;ois B&eacute;langer
- * @author Paul Holden
- * @version July 2000
+ * Main TCP server of the Bistro system (Phase 1).
+ * <p>
+ * This server is responsible for:
+ * <ul>
+ *     <li>Accepting and managing multiple client connections</li>
+ *     <li>Receiving client commands using a simple text-based protocol</li>
+ *     <li>Delegating database operations to DAO classes (e.g., {@link ReservationDAO})</li>
+ *     <li>Returning responses to clients in a consistent response format</li>
+ * </ul>
+ * <p>
+ * Database access is performed through a connection pool (HikariCP) initialized via
+ * {@link mysqlConnection1#getDataSource()}, and accessed via {@link ReservationDAO}.
+ * <p>
+ * The server also tracks connected clients and updates the GUI (if a UI controller is attached).
  */
+
 public class EchoServer extends AbstractServer {
 	// Class variables *************************************************
 
@@ -31,12 +38,16 @@ public class EchoServer extends AbstractServer {
 	 */
 	final public static int DEFAULT_PORT = 5555;
 	
-	// UI Controller reference
+	/** Optional UI controller for logging and client table updates (server GUI). */
 	private ServerUIController uiController;
 	
-	// Client tracking
+	/** Tracks currently connected clients and their metadata for UI display. */
 	private Map<ConnectionToClient, GetClientInfo> connectedClients;
+
+	/** Date-time formatter used for connection logging. */
 	private DateTimeFormatter dateTimeFormatter;
+
+	/** DAO used to perform reservation-related DB operations (uses pooled connections). */
 	private ReservationDAO reservationDAO;
 
 	// Constructors ****************************************************
@@ -202,6 +213,26 @@ public class EchoServer extends AbstractServer {
 			System.err.println("Error disconnecting client: " + e.getMessage());
 		}
 	}
+	
+	/**
+	 * Handles a message received from a client connection.
+	 * <p>
+	 * Messages use a command-based protocol (whitespace-separated):
+	 * <ul>
+	 *     <li>{@code #GET_RESERVATION <orderNumber>}</li>
+	 *     <li>{@code #UPDATE_RESERVATION <orderNumber> <numGuests> <yyyy-MM-dd>}</li>
+	 * </ul>
+	 * <p>
+	 * Responses are sent back to the client as a single string:
+	 * <ul>
+	 *     <li>{@code RESERVATION|...} on success</li>
+	 *     <li>{@code RESERVATION_NOT_FOUND} when no matching record exists</li>
+	 *     <li>{@code ERROR|...} for invalid requests or server-side failures</li>
+	 * </ul>
+	 *
+	 * @param msg    the received message object (expected to be a String)
+	 * @param client the client connection that sent the message
+	 */
 	@Override
 	public void handleMessageFromClient(Object msg, ConnectionToClient client) {
 	    String messageStr = String.valueOf(msg);
@@ -281,8 +312,13 @@ public class EchoServer extends AbstractServer {
 	}
 
 	/**
-	 * Convert Reservation object to your existing wire/protocol format:
-	 * RESERVATION|orderNum|numGuests|orderDate|confCode|subscriberId|placingDate
+	 * Converts a {@link Reservation} into the wire protocol format returned to the client.
+	 * <p>
+	 * Format:
+	 * {@code RESERVATION|orderNum|numGuests|orderDate|confCode|subscriberId|placingDate}
+	 *
+	 * @param r reservation entity to serialize
+	 * @return protocol string representing the reservation
 	 */
 	private String reservationToProtocolString(DBController.Reservation r) {
 	    return "RESERVATION|" +
@@ -294,6 +330,16 @@ public class EchoServer extends AbstractServer {
 	            r.getPlacingDate();
 	}
 	
+	/**
+	 * Calls a method on the server UI controller via reflection.
+	 * <p>
+	 * This helper is used to avoid tight coupling between the server and the UI layer.
+	 * If no UI controller is attached, this method does nothing.
+	 *
+	 * @param methodName     name of the UI method to invoke
+	 * @param parameterTypes parameter types of the method signature
+	 * @param parameters     argument values passed to the method
+	 */
 	private void callUIMethod(String methodName, Class<?>[] parameterTypes, Object[] parameters) {
 		if (uiController == null) {
 			return;
@@ -308,8 +354,11 @@ public class EchoServer extends AbstractServer {
 	}
 
 	/**
-	 * This method overrides the one in the superclass. Called when the server
-	 * starts listening for connections.
+	 * Called when the server begins listening for client connections.
+	 * <p>
+	 * Initializes the DAO layer and prepares database access using the connection pool.
+	 * If initialization fails, the server keeps running but DB-related commands will
+	 * return {@code ERROR|DB_POOL_NOT_READY}.
 	 */
 	@Override
 	protected void serverStarted() {
@@ -327,8 +376,14 @@ public class EchoServer extends AbstractServer {
 
 
 	/**
-	 * This method overrides the one in the superclass. Called when the server stops
-	 * listening for connections.
+	 * Called when the server stops listening.
+	 * <p>
+	 * Performs cleanup:
+	 * <ul>
+	 *     <li>Disconnects all connected clients</li>
+	 *     <li>Updates UI state</li>
+	 *     <li>Shuts down the database connection pool</li>
+	 * </ul>
 	 */
 	@Override
 	protected void serverStopped() {
@@ -373,8 +428,10 @@ public class EchoServer extends AbstractServer {
 	}
 	
 	/**
-	 * Hook method called when a client connects to the server.
-	 * Tracks the connected client and updates the UI.
+	 * Called when a client successfully connects to the server.
+	 * Adds the client to the tracking map and updates the UI.
+	 *
+	 * @param client the newly connected client
 	 */
 	@Override
 	synchronized protected void clientConnected(ConnectionToClient client) {
@@ -399,8 +456,10 @@ public class EchoServer extends AbstractServer {
 	}
 	
 	/**
-	 * Hook method called when a client disconnects from the server.
-	 * Removes the client from tracking and updates the UI.
+	 * Called when a client disconnects normally.
+	 * Removes the client from the tracking map and updates the UI.
+	 *
+	 * @param client the disconnected client
 	 */
 	@Override
 	protected void clientDisconnected(ConnectionToClient client) {
@@ -417,6 +476,13 @@ public class EchoServer extends AbstractServer {
 	    }
 	}
 	
+	/**
+	 * Called when a client connection throws an exception (e.g., network failure).
+	 * Ensures the client is removed from tracking and prevents duplicate cleanup.
+	 *
+	 * @param client    the client that caused the exception
+	 * @param exception the thrown exception
+	 */
 	@Override
 	synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
 		System.out.println("\n=== EXCEPTION HOOK CALLED ===");
@@ -449,7 +515,9 @@ public class EchoServer extends AbstractServer {
 	}
 	
 	/**
-	 * Set the UI controller reference
+	 * Attaches the server UI controller to enable logging and client monitoring.
+	 *
+	 * @param controller UI controller instance (may be null to disable UI updates)
 	 */
 	public void setUIController(ServerUIController controller) {
 		this.uiController = controller;
