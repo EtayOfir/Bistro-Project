@@ -14,57 +14,53 @@
 
     <children>
 
-        <!-- Static label -->
-        <Label layoutX="40.0" layoutY="38.0" text="Order Number" />
+        <Label layoutX="40.0" layoutY="38.0" text="Reservation ID" />
 
-        <!-- User enters order number here -->
-        <TextField fx:id="orderNumberInput"
+        <TextField fx:id="reservationIdInput"
                    layoutX="40.0" layoutY="64.0"
-                   promptText="Enter order number" />
+                   promptText="Enter ID" />
 
-        <!-- Dynamic label showing the loaded order number from DB -->
-        <Label fx:id="orderNumber"
+        <Label fx:id="reservationIdLabel"
                layoutX="250.0" layoutY="38.0"
                text="-" />
 
-        <!-- Button: Show Reservation -->
         <Button fx:id="showReservation"
                 layoutX="40.0" layoutY="101.0"
                 mnemonicParsing="false"
                 text="Show Reservation"
                 onAction="#onShowReservationClicked" />
 
-        <!-- Order Date -->
-        <Label layoutX="40.0" layoutY="157.0" text="Order Date" />
-        <TextField fx:id="orderDateField"
-                   layoutX="40.0" layoutY="191.0"
-                   prefWidth="150.0" />
+        <Label layoutX="40.0" layoutY="157.0" text="Date (yyyy-MM-dd)" />
+        <TextField fx:id="reservationDateField"
+                   layoutX="40.0" layoutY="180.0"
+                   prefWidth="130.0" />
 
-        <!-- Number Of Guests -->
-        <Label layoutX="254.0" layoutY="157.0" text="Number Of Guests" />
+        <Label layoutX="190.0" layoutY="157.0" text="Time (HH:mm:ss)" />
+        <TextField fx:id="reservationTimeField"
+                   layoutX="190.0" layoutY="180.0"
+                   prefWidth="130.0" />
+
+        <Label layoutX="340.0" layoutY="157.0" text="Number Of Guests" />
         <TextField fx:id="numberOfGuestsField"
-                   layoutX="254.0" layoutY="191.0"
+                   layoutX="340.0" layoutY="180.0"
                    prefWidth="80.0" />
 
-        <!-- Update button -->
         <Button fx:id="update"
-                layoutX="461.0" layoutY="191.0"
+                layoutX="461.0" layoutY="180.0"
                 mnemonicParsing="false"
                 text="Update"
                 onAction="#onUpdateReservationClicked" />
 
-        <!-- Reservation details text area -->
         <TextArea fx:id="reservationDetailsTextArea"
                   layoutX="40.0" layoutY="246.0"
                   prefHeight="180.0" prefWidth="667.0" />
 
-        <!-- Exit button -->
         <Button fx:id="exit"
-        layoutX="672.0"
-        layoutY="444.0"
-        mnemonicParsing="false"
-        text="Exit"
-        onAction="#onExitClicked" />
+                layoutX="672.0"
+                layoutY="444.0"
+                mnemonicParsing="false"
+                text="Exit"
+                onAction="#onExitClicked" />
 
     </children>
 </Pane>

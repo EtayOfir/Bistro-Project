@@ -1,64 +1,74 @@
 package DBController;
 
+import java.sql.Date;
+import java.sql.Time;
+
 /**
  * Represents a reservation entity in the Bistro system.
  * <p>
- * This class is a plain data holder that encapsulates all relevant
- * information related to a reservation as stored in the database.
+ * This class corresponds to the 'ActiveReservations' table in the database.
+ * It acts as a data transfer object (DTO) that encapsulates all relevant
+ * information regarding a scheduled reservation.
  * <p>
- * Instances of this class are created by the DAO layer and transferred
- * to other layers of the system without containing any business logic.
+ * Instances of this class are immutable (read-only) once created, ensuring
+ * data consistency when passed between the DAO and the Controller layers.
  */
 public class Reservation {
-	/** Unique order number identifying the reservation */
-    private final String orderNumber;
 
-    /** Number of guests included in the reservation */
+    /** Unique identifier (Primary Key) of the reservation in the database */
+    private final int reservationId;
+
+    /** Number of guests (diners) included in the reservation */
     private final int numberOfGuests;
 
-    /** Reservation date in the format yyyy-MM-dd */
-    private final String orderDate;
+    /** The specific date of the reservation */
+    private final Date reservationDate;
 
-    /** Confirmation code provided to the client */
+    /** The specific time of the reservation */
+    private final Time reservationTime;
+
+    /** Unique confirmation code provided to the client for identification */
     private final String confirmationCode;
 
-    /** Identifier of the subscriber who placed the reservation (may be null) */
-    private final String subscriberId;
+    /** Identifier of the subscriber who placed the reservation (0 or -1 if casual) */
+    private final int subscriberId;
 
-    /** Date on which the reservation was placed */
-    private final String placingDate;
-    
     /**
      * Constructs a new {@code Reservation} object with all relevant reservation data.
+     * <p>
+     * This constructor is typically used by the DAO layer when mapping a
+     * ResultSet row to a Java object.
      *
-     * @param orderNumber      unique order number of the reservation
-     * @param numberOfGuests  number of guests for the reservation
-     * @param orderDate       date of the reservation (yyyy-MM-dd)
-     * @param confirmationCode confirmation code assigned to the reservation
-     * @param subscriberId    identifier of the subscriber who placed the reservation
-     * @param placingDate     date on which the reservation was created
+     * @param reservationId    the unique database ID of the reservation
+     * @param numberOfGuests   number of diners
+     * @param reservationDate  the date of the visit (java.sql.Date)
+     * @param reservationTime  the time of the visit (java.sql.Time)
+     * @param confirmationCode the unique string code for the user
+     * @param subscriberId     the ID of the subscriber (if applicable)
      */
-    public Reservation(String orderNumber, int numberOfGuests, String orderDate,
-                       String confirmationCode, String subscriberId, String placingDate) {
-        this.orderNumber = orderNumber;
+    public Reservation(int reservationId, int numberOfGuests, Date reservationDate,
+                       Time reservationTime, String confirmationCode, int subscriberId) {
+        this.reservationId = reservationId;
         this.numberOfGuests = numberOfGuests;
-        this.orderDate = orderDate;
+        this.reservationDate = reservationDate;
+        this.reservationTime = reservationTime;
         this.confirmationCode = confirmationCode;
         this.subscriberId = subscriberId;
-        this.placingDate = placingDate;
     }
 
     /**
-     * Returns the unique order number of the reservation.
+     * Returns the unique identifier of the reservation.
+     * Maps to the 'ReservationID' column.
      *
-     * @return the reservation order number
+     * @return the reservation ID
      */
-    public String getOrderNumber() {
-        return orderNumber;
+    public int getReservationId() {
+        return reservationId;
     }
 
     /**
      * Returns the number of guests included in the reservation.
+     * Maps to the 'NumOfDiners' column.
      *
      * @return number of guests
      */
@@ -67,18 +77,30 @@ public class Reservation {
     }
 
     /**
-     * Returns the date of the reservation.
+     * Returns the scheduled date of the reservation.
+     * Maps to the 'ReservationDate' column.
      *
-     * @return reservation date in the format yyyy-MM-dd
+     * @return the reservation date
      */
-    public String getOrderDate() {
-        return orderDate;
+    public Date getReservationDate() {
+        return reservationDate;
+    }
+
+    /**
+     * Returns the scheduled time of the reservation.
+     * Maps to the 'ReservationTime' column.
+     *
+     * @return the reservation time
+     */
+    public Time getReservationTime() {
+        return reservationTime;
     }
 
     /**
      * Returns the confirmation code assigned to the reservation.
+     * Maps to the 'ConfirmationCode' column.
      *
-     * @return confirmation code
+     * @return unique confirmation string
      */
     public String getConfirmationCode() {
         return confirmationCode;
@@ -86,19 +108,11 @@ public class Reservation {
 
     /**
      * Returns the subscriber identifier associated with the reservation.
+     * Maps to the 'SubscriberID' column.
      *
-     * @return subscriber identifier, or {@code null} if the reservation was made by a guest
+     * @return subscriber ID
      */
-    public String getSubscriberId() {
+    public int getSubscriberId() {
         return subscriberId;
-    }
-
-    /**
-     * Returns the date on which the reservation was placed.
-     *
-     * @return placing date
-     */
-    public String getPlacingDate() {
-        return placingDate;
     }
 }
