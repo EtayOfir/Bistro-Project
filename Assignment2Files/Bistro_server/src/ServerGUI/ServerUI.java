@@ -1,10 +1,11 @@
-package server;
+package ServerGUI;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
+import server.EchoServer;
 
 /**
  * Main JavaFX Application class for Server UI

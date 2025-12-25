@@ -14,6 +14,7 @@ import java.util.Map;
 
 import ocsf.server.*;
 import DBController.*;
+import ServerGUI.ServerUIController;
 
 /**
  * Main TCP server of the Bistro system (Phase 1).
