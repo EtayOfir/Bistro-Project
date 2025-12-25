@@ -1,99 +1,83 @@
 package DBController;
 
-import java.sql.Connection;
-import java.sql.Date;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Scanner;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
-public class mysqlConnection1 {
-	Connection conn = getDBConnection();
+import javax.sql.DataSource;
 
-	public static void main(String[] args) {
-		Connection conn = getDBConnection();
-		// Rootroot
-		// Connection conn =
-		// DriverManager.getConnection("jdbc:mysql://192.168.3.68/test","root","Root");
+/**
+ * Manages the database connection pool for the Bistro system using HikariCP.
+ * <p>
+ * This class is responsible for initializing and maintaining a single
+ * {@link HikariDataSource} instance that serves as a connection pool.
+ * The pool is created once when the server starts and is shared across
+ * all DAO classes.
+ * <p>
+ * Database connections are obtained on demand from the pool and are
+ * automatically returned to the pool when closed, ensuring efficient,
+ * safe, and scalable database access without opening a new connection
+ * for each request.
+ * <p>
+ * This class follows the utility-class design pattern and cannot be instantiated.
+ */
+public final class mysqlConnection1 {
 
-		//System.out.println("SQL connection succeed");
-		// updateTableFlights(conn);
+    /** The shared HikariCP data source (connection pool) */
+    private static final HikariDataSource dataSource;
 
-	}
+    /*
+     * Static initialization block that configures and initializes
+     * the HikariCP connection pool.
+     */
+    static {
+        HikariConfig config = new HikariConfig();
 
-	public static void updateTableReservation(Connection con1) {
-		PreparedStatement stmt;
-		try {
-			stmt = con1.prepareStatement("UPDATE reservation SET order_date = ? , number_of_guests = ?;");
-			Scanner input = new Scanner(System.in);
-			System.out.print("Enter the order date name: ");
-			String a = input.nextLine();
+        // JDBC connection configuration
+        config.setJdbcUrl(
+                "jdbc:mysql://localhost:3306/bistro" +
+                "?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false"
+        );
+        config.setUsername("root");
+        // config.setPassword("Dy1908");
+        config.setPassword("Rootroot");
 
-			System.out.print("Enter the number of guests: ");
-			String b = input.nextLine();
+        // Pool tuning parameters
+        config.setMaximumPoolSize(10);
+        config.setMinimumIdle(2);
+        config.setConnectionTimeout(10_000); // 10 seconds
+        config.setIdleTimeout(300_000);      // 5 minutes
+        config.setMaxLifetime(1_800_000);    // 30 minutes
 
-			stmt.setString(1, a);
-			stmt.setString(2, b);
-			stmt.executeUpdate();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-	}
+        dataSource = new HikariDataSource(config);
+        System.out.println("HikariCP pool initialized ✓");
+    }
 
-	public ResultSet testgetInfo(Connection conn) {
+    /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
+    private mysqlConnection1() {}
 
-		ResultSet rs = null;
-		PreparedStatement stmt;
-		try {
-			stmt = conn.prepareStatement("SELECT * from reservation");
-			rs = stmt.executeQuery();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
+    /**
+     * Returns the shared {@link DataSource} used to obtain database connections.
+     * <p>
+     * DAO classes should call this method to acquire connections from the pool.
+     *
+     * @return the configured {@link DataSource} instance
+     */
+    public static DataSource getDataSource() {
+        return dataSource;
+    }
 
-		return rs;
-	}
-
-	public static String testSetInfo(Connection conn) {
-	    String sql = "INSERT INTO bistro.reservation " +
-	                 "(order_date, number_of_guests, confirmation_code, subscriber_id, date_of_placing_order) " +
-	                 "VALUES (?, ?, ?, ?, ?)";
-
-	    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-	        stmt.setDate(1, java.sql.Date.valueOf("2025-01-01")); // DATE column
-	        stmt.setInt(2, 1);
-	        stmt.setInt(3, 555);
-	        stmt.setInt(4, 14);
-	        stmt.setDate(5, java.sql.Date.valueOf("2025-01-01"));
-
-	        int rows = stmt.executeUpdate(); // INSERT => executeUpdate
-	        return rows == 1 ? "Successfully entered to db" : "Insert failed";
-
-	    } catch (SQLException e) {
-	        e.printStackTrace();
-	        return "DB error: " + e.getMessage();
-	    }
-	}
-
-	public static Connection getDBConnection() {
-
-		Connection conn = null;
-		try {
-			conn = DriverManager.getConnection(
-					"jdbc:mysql://localhost:3306/bistro?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false",
-					"root", "Dy19");
-			// Dy1908
-			System.out.println("Database connection established successfully");
-		} catch (SQLException e) {
-			System.err.println("Failed to connect to database: " + e.getMessage());
-			e.printStackTrace();
-			// Return null to indicate failed connection - caller should handle this
-		}
-
-		return conn;
-	}
-
+    /**
+     * Shuts down the connection pool and releases all database resources.
+     * <p>
+     * This method should be called when the server is stopping to ensure
+     * a clean shutdown of database connections.
+     */
+    public static void shutdownPool() {
+        if (dataSource != null) {
+            dataSource.close();
+            System.out.println("HikariCP pool shut down ✓");
+        }
+    }
 }
