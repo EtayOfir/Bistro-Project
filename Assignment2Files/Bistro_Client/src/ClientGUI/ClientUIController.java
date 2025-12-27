@@ -89,9 +89,10 @@ public class ClientUIController implements ChatIF {
         applyRolePermissions();
     }
     private void applyRolePermissions() {
-        boolean canUpdate = loggedInRole != null &&
-            ("Manager".equalsIgnoreCase(loggedInRole)
-                    || "Representative".equalsIgnoreCase(loggedInRole));
+//        boolean canUpdate = loggedInRole != null &&
+//            ("Manager".equalsIgnoreCase(loggedInRole)
+//                    || "Representative".equalsIgnoreCase(loggedInRole));
+    	boolean canUpdate = loggedInRole != null && !loggedInRole.isBlank();
 
 
         // only Manager / Representative can update
