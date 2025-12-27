@@ -13,7 +13,9 @@ public class ClientUI extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         // Look for ClientUIView.fxml in the same package (ClientGUI)
-        URL fxmlLocation = ClientUI.class.getResource("ClientUIView.fxml");
+        //URL fxmlLocation = ClientUI.class.getResource("ClientUIView.fxml");
+        URL fxmlLocation = ClientUI.class.getResource("UserLoginUIView.fxml");
+
         System.out.println("FXML URL = " + fxmlLocation);  // debug
 
         if (fxmlLocation == null) {
@@ -26,10 +28,10 @@ public class ClientUI extends Application {
         FXMLLoader loader = new FXMLLoader(fxmlLocation);
         Parent root = loader.load();
 
-        ClientUIController controller = loader.getController();
-        controller.initClient("localhost", 5555); // your server host/port
+        //ClientUIController controller = loader.getController();
+        //controller.initClient("localhost", 5555); // your server host/port
 
-        primaryStage.setTitle("Reservation Client");
+        primaryStage.setTitle("User Login");
         primaryStage.setScene(new Scene(root));
         primaryStage.show();
     }

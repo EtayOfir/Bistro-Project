@@ -1,5 +1,6 @@
 package ClientGUI;
 
+
 import java.io.IOException;
 
 import client.ChatClient;
@@ -67,6 +68,11 @@ public class ClientUIController implements ChatIF {
     @FXML
     private TextArea reservationDetailsTextArea;
 
+    @FXML
+    private void initialize() {
+      applyRolePermissions();
+    }
+  
     // Internal variable to track current ID
     /** Stores the ID of the reservation currently being displayed/edited. */
     private String currentReservationId;
@@ -74,6 +80,35 @@ public class ClientUIController implements ChatIF {
     // Client
     /** The network client instance used to communicate with the server. */
     private ChatClient chatClient;
+    private String loggedInUser;
+    private String loggedInRole;
+
+    public void setUserContext(String username, String role) {
+        this.loggedInUser = username;
+        this.loggedInRole = role;
+        applyRolePermissions();
+    }
+    private void applyRolePermissions() {
+        boolean canUpdate = loggedInRole != null &&
+            ("Manager".equalsIgnoreCase(loggedInRole)
+                    || "Representative".equalsIgnoreCase(loggedInRole));
+
+
+        // only Manager / Representative can update
+        if (update != null) update.setDisable(!canUpdate);
+      
+        if (numberOfGuestsField != null) numberOfGuestsField.setEditable(canUpdate);
+        if (reservationDateField != null) reservationDateField.setEditable(canUpdate);
+        if (reservationTimeField != null) reservationTimeField.setEditable(canUpdate);
+
+
+        if (reservationDetailsTextArea != null && loggedInRole != null && loggedInUser != null) {
+            reservationDetailsTextArea.appendText(
+                    "Logged in as " + loggedInRole + " (" + loggedInUser + ")\n"
+            );
+        }
+    }
+
     
     /**
      * Initializes the network client connection.
