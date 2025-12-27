@@ -228,7 +228,7 @@ public class EchoServer extends AbstractServer {
 				conn = mysqlConnection1.getDBConnection();
 			}
 		
-			String ans; // will hold the string we send back to the client
+			String ans=null; // will hold the string we send back to the client
 
 			// GET RESERVATION
 			if (messageStr.startsWith("#GET_RESERVATION")) {
@@ -262,9 +262,7 @@ public class EchoServer extends AbstractServer {
 				if (conn == null) {
 					conn = mysqlConnection1.getDBConnection();
 				}
-				if (conn != null) {
-					ans = mysqlConnection1.testSetInfo(conn);
-				} else {
+				 else {
 					ans = "Database connection failed - MySQL server may not be running";
 				}
 
