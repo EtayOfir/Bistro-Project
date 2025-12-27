@@ -1,5 +1,6 @@
 package ClientGUI;
 
+
 import java.io.IOException;
 
 import client.ChatClient;
@@ -44,6 +45,30 @@ public class ClientUIController implements ChatIF {
 
     // Client
     private ChatClient chatClient;
+    private String loggedInUser;
+    private String loggedInRole;
+
+    public void setUserContext(String username, String role) {
+        this.loggedInUser = username;
+        this.loggedInRole = role;
+        applyRolePermissions();
+    }
+    private void applyRolePermissions() {
+        boolean canUpdate = "Manager".equalsIgnoreCase(loggedInRole)
+                         || "Representative".equalsIgnoreCase(loggedInRole);
+
+        // רק מנהל/נציג יכולים לעדכן
+        if (update != null) update.setDisable(!canUpdate);
+
+        if (numberOfGuestsField != null) numberOfGuestsField.setEditable(canUpdate);
+        if (orderDateField != null) orderDateField.setEditable(canUpdate);
+
+        if (reservationDetailsTextArea != null && loggedInRole != null && loggedInUser != null) {
+            reservationDetailsTextArea.appendText(
+                    "Logged in as " + loggedInRole + " (" + loggedInUser + ")\n"
+            );
+        }
+    }
 
     public void initClient(String host, int port) {
         try {

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<StackPane xmlns="http://javafx.com/javafx"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="ClientGUI.UserLoginUIController"
+           style="-fx-background-color: #f6f7fb;">
+
+    <!-- Card -->
+    <VBox spacing="14" alignment="TOP_CENTER" maxWidth="380"
+          style="-fx-background-color: white;
+                 -fx-background-radius: 14;
+                 -fx-border-color: #e6e6e6;
+                 -fx-border-radius: 14;
+                 -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.12), 18, 0, 0, 6);">
+
+        <padding>
+            <Insets top="26" right="26" bottom="22" left="26"/>
+        </padding>
+
+        <Label text="Bistro Reservation System"
+               style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+
+        <Label text="Sign in to continue"
+               style="-fx-text-fill: #6b7280; -fx-font-size: 12;"/>
+
+        <Separator />
+
+        <GridPane hgap="10" vgap="10">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="35"/>
+                <ColumnConstraints percentWidth="65"/>
+            </columnConstraints>
+
+            <Label text="Username:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+            <TextField fx:id="usernameField" promptText="Enter username"
+                       GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+            <Label text="Password:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+            <PasswordField fx:id="passwordField" promptText="Enter password"
+                           GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+            <Label text="Role:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+            <ComboBox fx:id="roleCombo" promptText="Choose role"
+                      GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+        </GridPane>
+
+        <HBox spacing="10" alignment="CENTER_RIGHT">
+            <Button text="Exit" onAction="#onExitClicked"
+                    style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;"/>
+            <Button text="Login" onAction="#onLoginClicked"
+                    style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;"/>
+        </HBox>
+
+        <Label fx:id="statusLabel" textFill="red" wrapText="true"/>
+    </VBox>
+</StackPane>
