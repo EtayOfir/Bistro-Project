@@ -4,27 +4,33 @@
 package server;
 
 import java.io.*;
-import java.sql.Connection;
-import java.sql.ResultSet;
+import java.sql.Date;
+import java.sql.Time;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+
 
 import ocsf.server.*;
 import DBController.*;
+import ServerGUI.ServerUIController;
 
 /**
- * This class overrides some of the methods in the abstract superclass in order
- * to give more functionality to the server.
- *
- * @author Dr Timothy C. Lethbridge
- * @author Dr Robert Lagani&egrave;re
- * @author Fran&ccedil;ois B&eacute;langer
- * @author Paul Holden
- * @version July 2000
+ * Main TCP server of the Bistro system (Phase 1).
+ * <p>
+ * This server is responsible for:
+ * <ul>
+ * <li>Accepting and managing multiple client connections</li>
+ * <li>Receiving client commands using a simple text-based protocol</li>
+ * <li>Delegating database operations to DAO classes (e.g., {@link ReservationDAO})</li>
+ * <li>Returning responses to clients in a consistent response format</li>
+ * </ul>
+ * <p>
+ * Database access is performed through a connection pool (HikariCP) initialized via
+ * {@link mysqlConnection1#getDataSource()}, and accessed via {@link ReservationDAO}.
+ * <p>
+ * The server also tracks connected clients and updates the GUI (if a UI controller is attached).
  */
 public class EchoServer extends AbstractServer {
 	// Class variables *************************************************
@@ -33,15 +39,19 @@ public class EchoServer extends AbstractServer {
 	 * The default port to listen on.
 	 */
 	final public static int DEFAULT_PORT = 5555;
-	Connection conn;
 	
-	// UI Controller reference
+	/** Optional UI controller for logging and client table updates (server GUI). */
 	private ServerUIController uiController;
 	
-	// Client tracking
+	/** Tracks currently connected clients and their metadata for UI display. */
 	private Map<ConnectionToClient, GetClientInfo> connectedClients;
+
+	/** Date-time formatter used for connection logging. */
 	private DateTimeFormatter dateTimeFormatter;
-	
+
+	/** DAO used to perform reservation-related DB operations (uses pooled connections). */
+	private ReservationDAO reservationDAO;
+
 	// Constructors ****************************************************
 
 	/**
@@ -52,13 +62,13 @@ public class EchoServer extends AbstractServer {
 	public EchoServer(int port) {
 
 		super(port);
-		conn = null; // Defer database connection until needed
 		this.connectedClients = new HashMap<>();
 		this.dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 	}
 
 	// Instance methods ************************************************
 
+	
 	private void ensureClientRemoved(ConnectionToClient client) {
 		if (client == null) return;
 		
@@ -75,412 +85,325 @@ public class EchoServer extends AbstractServer {
 		}
 	}
 	
+	
 	/**
-	 * Remove a connected client by reference (when socket might be closed)
-	 * @param client the ConnectionToClient to remove
-	 * @param message the message to log
-	 */
-	private synchronized void removeConnectedClientByReference(ConnectionToClient client, String message) {
-		if (client == null) {
-			System.err.println("ERROR: removeConnectedClientByReference called with null client");
-			return;
-		}
+     * Removes a connected client from the internal tracking map and updates the UI.
+     * <p>
+     * This method handles both removal by object reference and fallback removal by IP
+     * if the socket is already closed.
+     *
+     * @param client  the ConnectionToClient to remove
+     * @param message the reason for removal (for logging)
+     */
+    private synchronized void removeConnectedClient(ConnectionToClient client, String message) {
+        if (client == null) {
+            System.err.println("ERROR: removeConnectedClient called with null client");
+            return;
+        }
+
+        try {
+            String clientIP = "Unknown";
+            try {
+                clientIP = client.getInetAddress().getHostAddress();
+            } catch (Exception e) {
+                // Socket might be closed
+                clientIP = "[Socket Closed]";
+            }
+
+            GetClientInfo removedClient = connectedClients.remove(client);
+
+            if (removedClient != null) {
+                // Update UI
+                if (uiController != null) {
+                    callUIMethod("addLog", new Class<?>[]{String.class}, new Object[]{message + ": " + removedClient.getClientIP()});
+                    callUIMethod("updateClientCount", new Class<?>[]{int.class}, new Object[]{connectedClients.size()});
+                    callUIMethod("removeClientFromTable", new Class<?>[]{GetClientInfo.class}, new Object[]{removedClient});
+                }
+                System.out.println("Client removed: " + removedClient.getClientIP());
+            } else {
+                // Fallback: Try to remove by IP if reference check failed (rare)
+                System.out.println("Client reference not found in map, attempting fallback removal...");
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR in removeConnectedClient: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 		
-		try {
-			System.out.println("[REMOVE_CLIENT_REF] Attempting to remove client by reference");
-			System.out.println("[REMOVE_CLIENT_REF] Total clients in map before removal: " + connectedClients.size());
-			
-			// Remove directly by reference - don't try to get IP
-			GetClientInfo removedClient = connectedClients.remove(client);
-			
-			if (removedClient != null) {
-				String clientIP = removedClient.getClientIP();
-				System.out.println("✓ [SUCCESS] Client removed from map: " + clientIP);
-				if (uiController != null) {
-					callUIMethod("addLog", new Class<?>[] { String.class }, 
-						new Object[] { message + ": " + clientIP });
-					callUIMethod("updateClientCount", new Class<?>[] { int.class }, 
-						new Object[] { connectedClients.size() });
-					callUIMethod("removeClientFromTable", new Class<?>[] { GetClientInfo.class }, 
-						new Object[] { removedClient });
-					System.out.println("✓ [SUCCESS] UI updated for client removal: " + clientIP);
-				}
-				System.out.println("✓ [SUCCESS] Client removed from list: " + clientIP + " (Total clients: " + connectedClients.size() + ")");
-			} else {
-				System.out.println("⚠ [WARNING] Client was not found in connected clients list by reference");
-				System.out.println("[DEBUG] Clients in map: " + connectedClients.keySet());
-				// This shouldn't happen, but if it does, log it
-				System.out.println("[DEBUG] HashMap size: " + connectedClients.size());
-			}
-		} catch (Exception e) {
-			System.err.println("ERROR in removeConnectedClientByReference: " + e.getMessage());
-			e.printStackTrace();
-		}
-	}
+	/**
+     * Disconnects a specific client by its ConnectionToClient reference.
+     * @param client the ConnectionToClient to disconnect
+     */
+    public void disconnectClient(ConnectionToClient client) {
+        try {
+            System.out.println("[MANUAL] Disconnecting client.");
+            client.close();
+        } catch (IOException e) {
+            System.err.println("Error disconnecting client: " + e.getMessage());
+        }
+    }
+	
+	/**
+     * Handles a message received from a client connection.
+     * <p>
+     * <b>Updated Protocol for ActiveReservations Schema:</b>
+     * <ul>
+     * <li>{@code #GET_RESERVATION <reservationID>}</li>
+     * <li>{@code #UPDATE_RESERVATION <reservationID> <numGuests> <yyyy-MM-dd> <HH:mm:ss>}</li>
+     * <li>{@code #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId>}</li>
+     * </ul>
+     * <p>
+     * Note: IDs are now integers. Dates and Times are separated.
+     *
+     * @param msg    the received message object (expected to be a String)
+     * @param client the client connection that sent the message
+     */
+    @Override
+    public void handleMessageFromClient(Object msg, ConnectionToClient client) {
+        String messageStr = String.valueOf(msg);
+        System.out.println("Message received: " + messageStr + " from " + client);
+
+        if (uiController != null) {
+            uiController.addLog("Message from client: " + messageStr);
+        }
+
+        String ans;
+
+        try {
+            String[] parts = messageStr.trim().split("\\s+");
+            String command = (parts.length > 0) ? parts[0] : "";
+
+            // Check if DB is ready
+            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command))
+                    && reservationDAO == null) {
+                client.sendToClient("ERROR|DB_POOL_NOT_READY");
+                return;
+            }
+
+            switch (command) {
+                case "#GET_RESERVATION": {
+                    // Format: #GET_RESERVATION <id>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT";
+                        break;
+                    }
+                    try {
+                        int resId = Integer.parseInt(parts[1]); // Convert ID to int
+                        Reservation r = reservationDAO.getReservationById(resId);
+                        ans = (r == null) ? "RESERVATION_NOT_FOUND" : reservationToProtocolString(r);
+                    } catch (NumberFormatException e) {
+                        ans = "ERROR|INVALID_ID_FORMAT";
+                    }
+                    break;
+                }
+
+                case "#UPDATE_RESERVATION": {
+                    // Format: #UPDATE_RESERVATION <id> <numGuests> <yyyy-MM-dd> <HH:mm:ss>
+                    if (parts.length < 5) {
+                        ans = "ERROR|BAD_FORMAT_UPDATE";
+                        break;
+                    }
+                    try {
+                        int id = Integer.parseInt(parts[1]);
+                        int guests = Integer.parseInt(parts[2]);
+                        Date date = Date.valueOf(parts[3]); // Expects yyyy-MM-dd
+                        Time time = Time.valueOf(parts[4]); // Expects HH:mm:ss
+
+                        boolean updated = reservationDAO.updateReservation(id, guests, date, time);
+                        ans = updated ? "RESERVATION_UPDATED" : "RESERVATION_NOT_FOUND";
+                    } catch (IllegalArgumentException e) {
+                        ans = "ERROR|INVALID_DATA_TYPE";
+                    }
+                    break;
+                }
+
+                case "#CREATE_RESERVATION": {
+                    // Format: #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId>
+                    // Note: We do NOT pass reservationID (it is auto-increment).
+                    if (parts.length < 6) {
+                        ans = "ERROR|BAD_FORMAT_CREATE";
+                        break;
+                    }
+
+                    try {
+                        int numGuests = Integer.parseInt(parts[1]);
+                        Date date = Date.valueOf(parts[2]);
+                        Time time = Time.valueOf(parts[3]);
+                        String confirmationCode = parts[4];
+                        int subscriberId = Integer.parseInt(parts[5]);
+
+                        // Create entity with ID 0 (DB will assign real ID)
+                        Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId);
+                        boolean inserted = reservationDAO.insertReservation(newRes);
+
+                        ans = inserted ? "RESERVATION_CREATED" : "ERROR|INSERT_FAILED";
+                    } catch (Exception e) {
+                        ans = "ERROR|DATA_PARSE_FAILURE";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                default:
+                    ans = "ERROR|UNKNOWN_COMMAND";
+                    break;
+            }
+
+            client.sendToClient(ans);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            try {
+                client.sendToClient("ERROR|" + e.getMessage());
+            } catch (IOException ignored) {
+            }
+
+            if (uiController != null) {
+                uiController.addLog("ERROR handling message: " + e.getMessage());
+            }
+        }
+    }
 
 	/**
-	 * Remove a connected client from tracking.
-	 * This is a centralized method to ensure consistent cleanup.
-	 * @param client the ConnectionToClient to remove
-	 * @param message the message to log
+     * Converts a {@link Reservation} into the wire protocol format returned to the client.
+     * <p>
+     * Format: {@code RESERVATION|<id>|<numGuests>|<date>|<time>|<confCode>|<subId>}
+     *
+     * @param r reservation entity to serialize
+     * @return protocol string representing the reservation
+     */
+    private String reservationToProtocolString(Reservation r) {
+        return "RESERVATION|" +
+                r.getReservationId() + "|" +
+                r.getNumberOfGuests() + "|" +
+                r.getReservationDate().toString() + "|" +
+                r.getReservationTime().toString() + "|" +
+                r.getConfirmationCode() + "|" +
+                r.getSubscriberId();
+    }
+	
+	/**
+     * Calls a method on the server UI controller via reflection.
+     * <p>
+     * This helper is used to avoid tight coupling between the server and the UI layer.
+     *
+     * @param methodName     name of the UI method to invoke
+     * @param parameterTypes parameter types of the method signature
+     * @param parameters     argument values passed to the method
+     */
+    private void callUIMethod(String methodName, Class<?>[] parameterTypes, Object[] parameters) {
+        if (uiController == null) return;
+        try {
+            java.lang.reflect.Method method = uiController.getClass().getMethod(methodName, parameterTypes);
+            method.invoke(uiController, parameters);
+        } catch (Exception e) {
+            System.err.println("ERROR calling UI method " + methodName + ": " + e.getMessage());
+        }
+    }
+
+	/**
+     * Called when the server begins listening for client connections.
+     * Initializes the DAO layer and prepares database access.
+     */
+    @Override
+    protected void serverStarted() {
+        System.out.println("Server listening for connections on port " + getPort());
+
+        try {
+            reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
+            if (uiController != null) uiController.addLog("Server started + DB pool ready");
+        } catch (Exception e) {
+            System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
+            if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
+            reservationDAO = null;
+        }
+    }
+
+
+	/**
+     * Called when the server stops listening.
+     * Performs cleanup of clients and database pool.
+     */
+    @Override
+    protected void serverStopped() {
+        System.out.println("Server has stopped listening for connections.");
+        if (uiController != null) {
+            uiController.addLog("Server stopped listening.");
+        }
+
+        // Cleanly disconnect all clients
+        try {
+            // Snapshot of keys to avoid ConcurrentModificationException
+            Object[] clients = connectedClients.keySet().toArray();
+            for (Object o : clients) {
+                ConnectionToClient client = (ConnectionToClient) o;
+                try {
+                    client.close();
+                } catch (Exception ignored) {
+                }
+            }
+            connectedClients.clear();
+        } catch (Exception e) {
+            System.err.println("Error cleaning clients on stop: " + e.getMessage());
+        }
+
+        mysqlConnection1.shutdownPool();
+    }
+	
+	/**
+     * Called when a client successfully connects to the server.
+     * Adds the client to the tracking map and updates the UI.
+     *
+     * @param client the newly connected client
+     */
+    @Override
+    synchronized protected void clientConnected(ConnectionToClient client) {
+        System.out.println("Client connected: " + client);
+
+        String clientIP = client.getInetAddress().getHostAddress();
+        String clientName = "Client-" + clientIP.replace(".", "-");
+        String connectionTime = LocalDateTime.now().format(dateTimeFormatter);
+
+        GetClientInfo clientInfo = new GetClientInfo(clientIP, clientName, connectionTime);
+        connectedClients.put(client, clientInfo);
+
+        if (uiController != null) {
+            uiController.addLog("New client connected: " + clientIP);
+            uiController.updateClientCount(connectedClients.size());
+            uiController.addClientToTable(clientInfo);
+        }
+    }
+	
+	/**
+	 * Called when a client disconnects normally.
+	 * Removes the client from the tracking map and updates the UI.
+	 *
+	 * @param client the disconnected client
 	 */
-	private synchronized void removeConnectedClient(ConnectionToClient client, String message) {
-		if (client == null) {
-			System.err.println("ERROR: removeConnectedClient called with null client");
-			return;
-		}
-		
-		try {
-			String clientIP = client.getInetAddress().getHostAddress();
-			System.out.println("[REMOVE_CLIENT] Attempting to remove client: " + clientIP);
-			System.out.println("[REMOVE_CLIENT] Total clients in map before removal: " + connectedClients.size());
-			
-			GetClientInfo removedClient = connectedClients.remove(client);
-			
-			if (removedClient != null) {
-				System.out.println("✓ [SUCCESS] Client removed from map: " + clientIP);
-				if (uiController != null) {
-					callUIMethod("addLog", new Class<?>[] { String.class }, 
-						new Object[] { message + ": " + clientIP });
-					callUIMethod("updateClientCount", new Class<?>[] { int.class }, 
-						new Object[] { connectedClients.size() });
-					callUIMethod("removeClientFromTable", new Class<?>[] { GetClientInfo.class }, 
-						new Object[] { removedClient });
-					System.out.println("✓ [SUCCESS] UI updated for client removal: " + clientIP);
-				}
-				System.out.println("✓ [SUCCESS] Client removed from list: " + clientIP + " (Total clients: " + connectedClients.size() + ")");
-			} else {
-				System.out.println("⚠ [WARNING] Client " + clientIP + " was not found in connected clients list");
-				System.out.println("[DEBUG] Clients in map: " + connectedClients.keySet());
-				// Try to find and remove by IP address as fallback
-				removeClientByIP(clientIP, message);
-			}
-		} catch (Exception e) {
-			System.err.println("ERROR in removeConnectedClient: " + e.getMessage());
-			e.printStackTrace();
-		}
-	}
+    @Override
+    protected void clientDisconnected(ConnectionToClient client) {
+        System.out.println("Client disconnected: " + client);
+        removeConnectedClient(client, "Client disconnected");
+    }
 	
 	/**
-	 * Fallback method to remove a client by IP address
+	 * Called when a client connection throws an exception (e.g., network failure).
+	 * Ensures the client is removed from tracking and prevents duplicate cleanup.
+	 *
+	 * @param client    the client that caused the exception
+	 * @param exception the thrown exception
 	 */
-	private synchronized void removeClientByIP(String clientIP, String message) {
-		System.out.println("[FALLBACK] Attempting to remove client by IP: " + clientIP);
-		ConnectionToClient clientToRemove = null;
-		for (ConnectionToClient c : connectedClients.keySet()) {
-			try {
-				if (c.getInetAddress().getHostAddress().equals(clientIP)) {
-					clientToRemove = c;
-					break;
-				}
-			} catch (Exception e) {
-				// Socket might be closed, skip this client
-			}
-		}
-		
-		if (clientToRemove != null) {
-			GetClientInfo removedClient = connectedClients.remove(clientToRemove);
-			if (removedClient != null && uiController != null) {
-				callUIMethod("addLog", new Class<?>[] { String.class }, 
-					new Object[] { message + ": " + clientIP });
-				callUIMethod("updateClientCount", new Class<?>[] { int.class }, 
-					new Object[] { connectedClients.size() });
-				callUIMethod("removeClientFromTable", new Class<?>[] { GetClientInfo.class }, 
-					new Object[] { removedClient });
-				System.out.println("✓ [FALLBACK SUCCESS] Client removed by IP: " + clientIP);
-			}
-		} else {
-			System.out.println("❌ [FALLBACK FAILED] Could not find client with IP: " + clientIP);
-		}
-	}
+    @Override
+    synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
+        System.out.println("Client exception: " + exception.getMessage());
+        removeConnectedClient(client, "Client crashed/disconnected");
+    }
 	
 	/**
-	 * Disconnect a specific client by its ConnectionToClient reference
-	 * @param client the ConnectionToClient to disconnect
-	 */
-	public void disconnectClient(ConnectionToClient client) {
-		try {
-			System.out.println("[MANUAL] Disconnecting client: " + client.getInetAddress().getHostAddress());
-			client.close();
-		} catch (IOException e) {
-			System.err.println("Error disconnecting client: " + e.getMessage());
-		}
-	}
-	@Override
-	public void handleMessageFromClient(Object msg, ConnectionToClient client) {
-
-	    String messageStr = String.valueOf(msg); // safe conversion
-	    System.out.println("Message received: " + messageStr + " from " + client);
-
-	    // Log to UI
-	    if (uiController != null) {
-	        uiController.addLog("Message from " + client.getInetAddress().getHostAddress() + ": " + messageStr);
-	    }
-
-	    try {
-	        // Make sure we have a DB connection when we need one
-	        if ((messageStr.startsWith("#GET_RESERVATION") || messageStr.startsWith("#UPDATE_RESERVATION"))
-	                && conn == null) {
-	            conn = mysqlConnection1.getDBConnection();
-	        }
-
-	        String ans;  // will hold the string we send back to the client
-
-	        //  GET RESERVATION 
-	        if (messageStr.startsWith("#GET_RESERVATION")) {
-	            // format: #GET_RESERVATION <orderNum>
-	            String[] parts = messageStr.split("\\s+");
-	            if (parts.length < 2 || conn == null) {
-	                ans = "RESERVATION_NOT_FOUND";
-	            } else {
-	                String orderNum = parts[1];
-	                ans = getReservationStringFromDB(orderNum);   // defined below
-	            }
-
-	        //  UPDATE RESERVATION 
-	        } else if (messageStr.startsWith("#UPDATE_RESERVATION")) {
-	            // format: #UPDATE_RESERVATION <orderNum> <numGuests> <orderDate>
-	            String[] parts = messageStr.split("\\s+");
-	            if (parts.length < 4 || conn == null) {
-	                ans = "ERROR|BAD_UPDATE_FORMAT_OR_NO_DB";
-	            } else {
-	                String orderNum  = parts[1];
-	                int numGuests    = Integer.parseInt(parts[2]);
-	                String orderDate = parts[3]; // yyyy-MM-dd
-
-	                updateReservationInDB(orderNum, numGuests, orderDate);  // defined below
-	                // After updating, send fresh data back in the same RESERVATION|... format
-	                ans = getReservationStringFromDB(orderNum);
-	            }
-
-	        // OTHER COMMANDS 
-	        } else if ("add to db".equals(messageStr)) {
-	            if (conn == null) {
-	                conn = mysqlConnection1.getDBConnection();
-	            }
-	            if (conn != null) {
-	                ans = mysqlConnection1.testSetInfo(conn);
-	            } else {
-	                ans = "Database connection failed - MySQL server may not be running";
-	            }
-
-	        } else {
-	            // default echo behaviour
-	            ans = "Message received: " + messageStr;
-	        }
-
-	        // ALWAYS send some answer
-	        client.sendToClient(ans);
-
-	    } catch (Exception e) {
-	        e.printStackTrace();
-	        try {
-	            client.sendToClient("ERROR|" + e.getMessage());
-	        } catch (IOException ignored) {}
-
-	        if (uiController != null) {
-	            uiController.addLog("ERROR handling message: " + e.getMessage());
-	        }
-	    }
-	}
-	
-	// UPDATE number_of_guests + order_date by order_number
-	private void updateReservationInDB(String orderNum, int numGuests, String orderDate) throws SQLException {
-	    String sql = "UPDATE reservation " +
-	                 "SET number_of_guests = ?, order_date = ? " +
-	                 "WHERE order_number = ?";
-
-	    try (PreparedStatement ps = conn.prepareStatement(sql)) {
-	        ps.setInt(1, numGuests);
-	        ps.setString(2, orderDate);  // yyyy-MM-dd
-	        ps.setString(3, orderNum);
-	        ps.executeUpdate();
-	    }
-	}
-	
-	private void callUIMethod(String methodName, Class<?>[] parameterTypes, Object[] parameters) {
-		if (uiController == null) {
-			return;
-		}
-		
-		try {
-			java.lang.reflect.Method method = uiController.getClass().getMethod(methodName, parameterTypes);
-			method.invoke(uiController, parameters);
-		} catch (Exception e) {
-			System.err.println("ERROR calling UI method " + methodName + ": " + e.getMessage());
-		}
-	}
-	
-	// SELECT reservation and format as: RESERVATION|orderNum|numGuests|orderDate|confCode|subscriberId|placingDate
-	private String getReservationStringFromDB(String orderNum) throws SQLException {
-	    String sql = "SELECT order_number, number_of_guests, order_date, " +
-	                 "       confirmation_code, subscriber_id, date_of_placing_order " +
-	                 "FROM reservation " +
-	                 "WHERE order_number = ?";
-
-	    try (PreparedStatement ps = conn.prepareStatement(sql)) {
-	        ps.setString(1, orderNum);
-
-	        try (ResultSet rs = ps.executeQuery()) {
-	            if (rs.next()) {
-	                String numGuests    = rs.getString("number_of_guests");
-	                String orderDate    = rs.getString("order_date");
-	                String confCode     = rs.getString("confirmation_code");
-	                String subscriberId = rs.getString("subscriber_id");
-	                String placingDate  = rs.getString("date_of_placing_order");
-
-	                return "RESERVATION|" + orderNum + "|" + numGuests + "|" + orderDate + "|" +
-	                        confCode + "|" + subscriberId + "|" + placingDate;
-	            } else {
-	                return "RESERVATION_NOT_FOUND";
-	            }
-	        }
-	    }
-	}
-
-	/**
-	 * This method overrides the one in the superclass. Called when the server
-	 * starts listening for connections.
-	 */
-	protected void serverStarted() {
-		System.out.println("Server listening for connections on port " + getPort());
-		
-		// Only log to UI if controller is set - it should be by now
-		if (uiController != null) {
-			// Add a small delay to ensure UI thread is ready
-			try {
-				Thread.sleep(100);
-			} catch (InterruptedException e) {
-				// Ignore
-			}
-			uiController.addLog("Server started on port " + getPort());
-		} else {
-			System.err.println("WARNING: uiController not set in serverStarted()");
-		}
-	}
-
-	/**
-	 * This method overrides the one in the superclass. Called when the server stops
-	 * listening for connections.
-	 */
-	protected void serverStopped() {
-	    System.out.println("Server has stopped listening for connections.");
-	    if (uiController != null) {
-	        uiController.addLog("Server stopped listening for connections.");
-	    }
-
-	    // Cleanly remove all connected clients when server stops
-	    try {
-	        // Snapshot to avoid ConcurrentModification
-	        java.util.List<ConnectionToClient> clientsSnapshot = new java.util.ArrayList<>(connectedClients.keySet());
-	        for (ConnectionToClient client : clientsSnapshot) {
-	            try {
-	                // Prevent double processing and mark as disconnected
-	                if (client.getInfo("Disconnected") == null) {
-	                    client.setInfo("Disconnected", Boolean.TRUE);
-	                }
-	                // Close client connection if still open
-	                try {
-	                    client.close();
-	                } catch (IOException ignore) {}
-
-	                // Remove and update UI
-	                GetClientInfo removedClient = connectedClients.remove(client);
-	                if (removedClient != null && uiController != null) {
-	                    uiController.addLog("Client removed due to server stop: " + removedClient.getClientIP());
-	                    uiController.removeClientFromTable(removedClient);
-	                }
-	            } catch (Exception e) {
-	                System.err.println("ERROR disconnecting client on server stop: " + e.getMessage());
-	            }
-	        }
-	        // Update count and ensure map is clear
-	        if (uiController != null) {
-	            uiController.updateClientCount(connectedClients.size());
-	        }
-	    } catch (Exception e) {
-	        System.err.println("ERROR during serverStopped cleanup: " + e.getMessage());
-	    }
-	}
-	
-	/**
-	 * Hook method called when a client connects to the server.
-	 * Tracks the connected client and updates the UI.
-	 */
-	@Override
-	synchronized protected void clientConnected(ConnectionToClient client) {
-		System.out.println("Client connected: " + client.getInetAddress().getHostAddress());
-		
-		// Create ClientInfo and add to map
-		String clientIP = client.getInetAddress().getHostAddress();
-		String clientName = "Client-" + clientIP.replace(".", "-");
-		String connectionTime = LocalDateTime.now().format(dateTimeFormatter);
-		
-		GetClientInfo clientInfo = new GetClientInfo(clientIP, clientName, connectionTime);
-		connectedClients.put(client, clientInfo);
-		
-		// Update UI
-		if (uiController != null) {
-			uiController.addLog("New client connected: " + clientIP);
-			uiController.updateClientCount(connectedClients.size());
-			uiController.addClientToTable(clientInfo);
-		} else {
-			System.err.println("ERROR: uiController is null!");
-		}
-	}
-	
-	/**
-	 * Hook method called when a client disconnects from the server.
-	 * Removes the client from tracking and updates the UI.
-	 */
-	@Override
-	protected void clientDisconnected(ConnectionToClient client) {
-	    System.out.println("Client disconnected: " + client);
-	    // Prevent double-processing if exception hook already handled it
-	    Object already = client.getInfo("Disconnected");
-	    if (already == null) {
-	        client.setInfo("Disconnected", Boolean.TRUE);
-	        System.out.println("Processing disconnection for: " + client);
-	        // Use the centralized removal method so UI + map are always in sync
-	        removeConnectedClient(client, "Client disconnected");
-	    } else {
-	        System.out.println("Skip duplicate disconnection handling for: " + client);
-	    }
-	}
-	
-	@Override
-	synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
-		System.out.println("\n=== EXCEPTION HOOK CALLED ===");
-		// Prevent double-processing if disconnected hook will run too
-		Object already = client.getInfo("Disconnected");
-		if (already == null) {
-			client.setInfo("Disconnected", Boolean.TRUE);
-			try {
-				String clientIP = null;
-				try {
-					clientIP = client.getInetAddress().getHostAddress();
-				} catch (Exception e) {
-					clientIP = "[SOCKET_CLOSED]";
-				}
-				System.out.println("[EXCEPTION] clientException() called for: " + clientIP);
-				System.out.println("[EXCEPTION] Exception type: " + exception.getClass().getSimpleName());
-				System.out.println("[EXCEPTION] Exception message: " + exception.getMessage());
-				System.out.println("[DEBUG] Current connected clients BEFORE removal: " + connectedClients.size());
-				// Remove client from the map by reference; socket may be closed
-				removeConnectedClientByReference(client, "Client disconnected");
-				System.out.println("[DEBUG] Current connected clients AFTER removal: " + connectedClients.size());
-			} catch (Exception e) {
-				System.err.println("ERROR in clientException: " + e.getMessage());
-				e.printStackTrace();
-			}
-		} else {
-			System.out.println("Skip duplicate exception handling for: " + client);
-		}
-		System.out.println("=== EXCEPTION HOOK END ===\n");
-	}
-	
-	/**
-	 * Set the UI controller reference
+	 * Attaches the server UI controller to enable logging and client monitoring.
+	 *
+	 * @param controller UI controller instance (may be null to disable UI updates)
 	 */
 	public void setUIController(ServerUIController controller) {
 		this.uiController = controller;
