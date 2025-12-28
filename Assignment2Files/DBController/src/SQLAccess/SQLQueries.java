@@ -239,4 +239,43 @@ public final class SQLQueries {
             "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id " +
             "FROM ActiveReservations " +
             "WHERE SubscriberID = ?";
+    /** Insert a new waiting list entry. */
+    public static final String INSERT_WAITING =
+            "INSERT INTO WaitingList (ContactInfo, NumOfDiners, ConfirmationCode, Status) VALUES (?, ?, ?, ?)";
+
+    /** Get one waiting list entry by WaitingID. */
+    public static final String GET_WAITING_BY_ID =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList WHERE WaitingID = ?";
+
+    /** Get one waiting list entry by ConfirmationCode. */
+    public static final String GET_WAITING_BY_CODE =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList WHERE ConfirmationCode = ?";
+
+    /** Get all waiting list entries ordered by EntryTime (oldest first). */
+    public static final String GET_ALL_WAITING =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList ORDER BY EntryTime ASC";
+
+    /** Get only active waiting list entries (Status = 'Waiting'). */
+    public static final String GET_ACTIVE_WAITING =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList WHERE Status = 'Waiting' ORDER BY EntryTime ASC";
+
+    /** Update a waiting list entry (contact, diners, status) by WaitingID. */
+    public static final String UPDATE_WAITING_BY_ID =
+            "UPDATE WaitingList SET ContactInfo = ?, NumOfDiners = ?, Status = ? WHERE WaitingID = ?";
+
+    /** Update only the status by ConfirmationCode. */
+    public static final String UPDATE_WAITING_STATUS_BY_CODE =
+            "UPDATE WaitingList SET Status = ? WHERE ConfirmationCode = ?";
+
+    /** Delete a waiting list entry by WaitingID. */
+    public static final String DELETE_WAITING_BY_ID =
+            "DELETE FROM WaitingList WHERE WaitingID = ?";
+
+    /** Delete a waiting list entry by ConfirmationCode. */
+    public static final String DELETE_WAITING_BY_CODE =
+            "DELETE FROM WaitingList WHERE ConfirmationCode = ?";
 }
