@@ -27,6 +27,7 @@ public class ReservationDAO {
 
     /** Data source used to obtain database connections from the pool. */
     private final DataSource dataSource;
+    private BillPaymentDAO billPaymentDAO;
 
     /**
      * Constructs a new {@code ReservationDAO} using the given data source.
