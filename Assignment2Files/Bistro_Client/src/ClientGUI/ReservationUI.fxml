@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="ClientGUI.ReservationUIController"
+            prefWidth="640" prefHeight="520"
+            style="-fx-background-color: #f7f8fb;">
+
+    <top>
+        <VBox spacing="4">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+            <Label text="New Reservation"
+                   style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+            <Label text="Select date, time and party size to check availability." style="-fx-text-fill: #4b5563;"/>
+        </VBox>
+    </top>
+
+    <center>
+        <GridPane hgap="12" vgap="12">
+            <padding>
+                <Insets top="16" right="16" bottom="16" left="16"/>
+            </padding>
+            <columnConstraints>
+                <ColumnConstraints percentWidth="35"/>
+                <ColumnConstraints percentWidth="65"/>
+            </columnConstraints>
+
+            <Label text="Date:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+            <DatePicker fx:id="datePicker" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+            <Label text="Time (Hour:Minute):" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+            <HBox spacing="8" GridPane.rowIndex="1" GridPane.columnIndex="1">
+                <Spinner fx:id="hourSpinner" editable="true" prefWidth="70"/>
+                <Label text=":"/>
+                <Spinner fx:id="minuteSpinner" editable="true" prefWidth="70"/>
+            </HBox>
+
+            <Label text="Guests:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+            <Spinner fx:id="guestSpinner" GridPane.rowIndex="2" GridPane.columnIndex="1" editable="true"/>
+
+            <Label text="Phone Number:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+            <TextField fx:id="phoneField" promptText="Required" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+            <Label text="Email:" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+            <TextField fx:id="emailField" promptText="Required" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+
+            <Label text="Reservation ID:" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+            <TextField fx:id="reservationIdField" editable="false"
+                       GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+
+            <Label text="Confirmation Code:" GridPane.rowIndex="6" GridPane.columnIndex="0"/>
+            <TextField fx:id="confirmationField" editable="false"
+                       GridPane.rowIndex="6" GridPane.columnIndex="1"/>
+        </GridPane>
+    </center>
+
+    <bottom>
+        <VBox spacing="8">
+            <padding>
+                <Insets top="16" right="16" bottom="16" left="16"/>
+            </padding>
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button text="Check Availability" onAction="#onCheckAvailability"/>
+                <Button text="Book" onAction="#onBook"/>
+                <Button text="Close" onAction="#onClose"/>
+            </HBox>
+            <Label text="Alternative times (if unavailable):" style="-fx-text-fill: #4b5563;"/>
+            <ListView fx:id="alternativesList" prefHeight="120"/>
+        </VBox>
+    </bottom>
+
+</BorderPane>

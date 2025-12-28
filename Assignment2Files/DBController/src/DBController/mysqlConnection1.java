@@ -38,8 +38,11 @@ public final class mysqlConnection1 {
                 "?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false"
         );
         config.setUsername("root");
-        // config.setPassword("Dy1908");
-        config.setPassword("Rootroot");
+        config.setPassword("3tango");
+        //config.setPassword("Rootroot");
+
+        // Explicitly enable public key retrieval for MySQL's caching_sha2_password
+        config.addDataSourceProperty("allowPublicKeyRetrieval", "true");
 
         // Pool tuning parameters
         config.setMaximumPoolSize(10);
