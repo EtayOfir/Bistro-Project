@@ -256,4 +256,24 @@ public class ReservationDAO {
             }
         }
     }
+
+    /**
+     * Deletes all non-canceled reservations whose combined ReservationDate + ReservationTime
+     * have passed by at least 15 minutes.
+     *
+     * Uses MySQL TIMESTAMP(ReservationDate, ReservationTime) for comparison.
+     *
+     * @return number of rows deleted
+     * @throws SQLException if a database access error occurs
+     */
+    public int deleteExpiredReservations() throws SQLException {
+        final String sql =
+                "DELETE FROM ActiveReservations " +
+                "WHERE Status != 'Canceled' " +
+                "AND TIMESTAMP(ReservationDate, ReservationTime) < (NOW() - INTERVAL 15 MINUTE)";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            return ps.executeUpdate();
+        }
+    }
 }

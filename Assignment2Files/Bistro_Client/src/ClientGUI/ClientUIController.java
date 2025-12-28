@@ -422,8 +422,7 @@ public class ClientUIController implements ChatIF {
      * Event handler for the "New Reservation" button.
      * <p>
      * Opens a new modal window for creating a reservation. Restricted to customer role only.
-     *
-     * @param event The action event triggered by the button click.
+     * Before opening, requests the server to delete expired reservations (older than 15 minutes).
      */
     @FXML
     private void onNewReservationClicked(ActionEvent event) {
@@ -433,6 +432,15 @@ public class ClientUIController implements ChatIF {
             return;
         }
         try {
+            // Trigger cleanup of expired reservations on server
+            if (chatClient != null) {
+                try {
+                    chatClient.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
+                } catch (Exception e) {
+                    System.out.println("DEBUG: Failed to send delete expired command: " + e.getMessage());
+                }
+            }
+
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/ClientGUI/ReservationUI.fxml"));
             Parent root = loader.load();
 

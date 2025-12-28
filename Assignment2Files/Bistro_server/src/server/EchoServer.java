@@ -175,7 +175,7 @@ public class EchoServer extends AbstractServer {
             String command = (parts.length > 0) ? parts[0] : "";
 
             // Check if DB is ready
-            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command) || "#GET_RESERVATIONS_BY_DATE".equals(command) || "#CANCEL_RESERVATION".equals(command))
+            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command) || "#GET_RESERVATIONS_BY_DATE".equals(command) || "#CANCEL_RESERVATION".equals(command) || "#DELETE_EXPIRED_RESERVATIONS".equals(command))
                     && reservationDAO == null) {
                 client.sendToClient("ERROR|DB_POOL_NOT_READY");
                 return;
@@ -318,6 +318,18 @@ public class EchoServer extends AbstractServer {
                     break;
                 }
 
+                case "#DELETE_EXPIRED_RESERVATIONS": {
+                    try {
+                        int deleted = reservationDAO.deleteExpiredReservations();
+                        ans = "DELETED_EXPIRED|" + deleted;
+                        System.out.println("DEBUG: Deleted expired reservations count: " + deleted);
+                    } catch (Exception e) {
+                        System.err.println("ERROR deleting expired reservations: " + e.getMessage());
+                        e.printStackTrace();
+                        ans = "ERROR|DELETE_EXPIRED_FAILED " + e.getMessage();
+                    }
+                    break;
+                }
                 default:
                     ans = "ERROR|UNKNOWN_COMMAND";
                     break;
