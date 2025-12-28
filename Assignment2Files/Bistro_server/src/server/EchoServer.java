@@ -175,7 +175,7 @@ public class EchoServer extends AbstractServer {
             String command = (parts.length > 0) ? parts[0] : "";
 
             // Check if DB is ready
-            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command))
+            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command) || "#GET_RESERVATIONS_BY_DATE".equals(command) || "#CANCEL_RESERVATION".equals(command))
                     && reservationDAO == null) {
                 client.sendToClient("ERROR|DB_POOL_NOT_READY");
                 return;
@@ -194,6 +194,71 @@ public class EchoServer extends AbstractServer {
                         ans = (r == null) ? "RESERVATION_NOT_FOUND" : reservationToProtocolString(r);
                     } catch (NumberFormatException e) {
                         ans = "ERROR|INVALID_ID_FORMAT";
+                    }
+                    break;
+                }
+
+                case "#GET_RESERVATIONS_BY_DATE": {
+                    // Format: #GET_RESERVATIONS_BY_DATE <yyyy-MM-dd>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_DATE";
+                        break;
+                    }
+                    try {
+                        Date date = Date.valueOf(parts[1]);
+                        java.util.List<Reservation> reservations = reservationDAO.getReservationsByDate(date);
+                        
+                        System.out.println("DEBUG: Found " + reservations.size() + " reservations for date " + parts[1]);
+                        
+                        StringBuilder sb = new StringBuilder("RESERVATIONS_FOR_DATE|").append(parts[1]);
+                        for (Reservation r : reservations) {
+                            String timeStr = r.getReservationTime().toString();
+                            System.out.println("DEBUG: Adding reserved time: " + timeStr);
+                            sb.append("|").append(timeStr);
+                        }
+                        ans = sb.toString();
+                        System.out.println("DEBUG: Final response: " + ans);
+                    } catch (IllegalArgumentException e) {
+                        ans = "ERROR|INVALID_DATE_FORMAT";
+                        System.err.println("ERROR parsing date: " + e.getMessage());
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_ERROR " + e.getMessage();
+                        System.err.println("ERROR fetching reservations: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "#CANCEL_RESERVATION": {
+                    // Format: #CANCEL_RESERVATION <confirmationCode>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_CANCEL";
+                        break;
+                    }
+                    try {
+                        String confirmationCode = parts[1];
+                        
+                        // First check if reservation exists
+                        Reservation res = reservationDAO.getReservationByConfirmationCode(confirmationCode);
+                        if (res == null) {
+                            ans = "ERROR|RESERVATION_NOT_FOUND";
+                            System.out.println("DEBUG: Reservation not found with code: " + confirmationCode);
+                            break;
+                        }
+                        
+                        // Delete the reservation from database
+                        boolean deleted = reservationDAO.deleteReservationByConfirmationCode(confirmationCode);
+                        if (deleted) {
+                            ans = "RESERVATION_CANCELED|" + confirmationCode;
+                            System.out.println("DEBUG: Reservation deleted with code: " + confirmationCode);
+                        } else {
+                            ans = "ERROR|CANCEL_FAILED";
+                            System.out.println("DEBUG: Failed to delete reservation with code: " + confirmationCode);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("ERROR canceling reservation: " + e.getMessage());
+                        e.printStackTrace();
+                        ans = "ERROR|CANCEL_DB_ERROR " + e.getMessage();
                     }
                     break;
                 }
@@ -219,8 +284,7 @@ public class EchoServer extends AbstractServer {
                 }
 
                 case "#CREATE_RESERVATION": {
-                    // Format: #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId>
-                    // Note: We do NOT pass reservationID (it is auto-increment).
+                    // Format: #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email>
                     if (parts.length < 6) {
                         ans = "ERROR|BAD_FORMAT_CREATE";
                         break;
@@ -232,15 +296,24 @@ public class EchoServer extends AbstractServer {
                         Time time = Time.valueOf(parts[3]);
                         String confirmationCode = parts[4];
                         int subscriberId = Integer.parseInt(parts[5]);
+                        String phone = parts.length > 6 ? parts[6] : "";
+                        String email = parts.length > 7 ? parts[7] : "";
+
+                        System.out.println("DEBUG: Creating reservation - Phone: " + phone + ", Email: " + email);
 
                         // Create entity with ID 0 (DB will assign real ID)
                         Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId);
-                        boolean inserted = reservationDAO.insertReservation(newRes);
+                        int generatedId = reservationDAO.insertReservation(newRes, phone, email);
 
-                        ans = inserted ? "RESERVATION_CREATED" : "ERROR|INSERT_FAILED";
+                        if (generatedId > 0) {
+                            ans = "RESERVATION_CREATED|" + generatedId;
+                        } else {
+                            ans = "ERROR|INSERT_FAILED";
+                        }
                     } catch (Exception e) {
-                        ans = "ERROR|DATA_PARSE_FAILURE";
+                        System.err.println("ERROR creating reservation: " + e.getMessage());
                         e.printStackTrace();
+                        ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
                     }
                     break;
                 }
@@ -409,7 +482,59 @@ public class EchoServer extends AbstractServer {
 		this.uiController = controller;
 	}
 
-	// Class methods ***************************************************
+	/**
+	 * Process a cancel request from the server manager UI directly (no client involved).
+	 * This allows the manager to cancel reservations without going through a client.
+	 *
+	 * @param confirmationCode the confirmation code of the reservation to cancel
+	 */
+	public void processManagerCancelRequest(String confirmationCode) {
+		if (reservationDAO == null) {
+			System.out.println("ERROR: Database not initialized");
+			if (uiController != null) {
+				uiController.addLog("ERROR: Database not initialized for cancel operation");
+			}
+			return;
+		}
+
+		try {
+			System.out.println("DEBUG: Manager cancel request for code: " + confirmationCode);
+			
+			// Check if reservation exists
+			Reservation res = reservationDAO.getReservationByConfirmationCode(confirmationCode);
+			if (res == null) {
+				System.out.println("ERROR: Reservation not found with code: " + confirmationCode);
+				if (uiController != null) {
+					uiController.addLog("ERROR: No reservation found with code: " + confirmationCode);
+				}
+				return;
+			}
+
+			// Delete the reservation
+			boolean deleted = reservationDAO.deleteReservationByConfirmationCode(confirmationCode);
+			if (deleted) {
+				System.out.println("✓ Reservation deleted with code: " + confirmationCode);
+				if (uiController != null) {
+					uiController.addLog("✓ Reservation deleted by manager - Code: " + confirmationCode);
+				}
+			} else {
+				System.out.println("ERROR: Failed to delete reservation with code: " + confirmationCode);
+				if (uiController != null) {
+					uiController.addLog("ERROR: Failed to delete reservation with code: " + confirmationCode);
+				}
+			}
+		} catch (Exception e) {
+			System.err.println("ERROR processing manager cancel: " + e.getMessage());
+			e.printStackTrace();
+			if (uiController != null) {
+				uiController.addLog("ERROR processing cancel: " + e.getMessage());
+			}
+		}
+	}
+
+	// Main method ****************************************************
+
+	/**
 
 	/**
 	 * This method is responsible for the creation of the server instance (there is

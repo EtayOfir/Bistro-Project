@@ -11,6 +11,7 @@
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
@@ -139,10 +140,18 @@
       </SplitPane>
    </center>
    <bottom>
-      <!-- Footer Section -->
-      <VBox style="-fx-background-color: #f0f0f0; -fx-padding: 10; -fx-border-color: #cccccc; -fx-border-width: 1 0 0 0;" BorderPane.alignment="BOTTOM_CENTER">
+      <!-- Bottom Section with Reservation Management -->
+      <VBox spacing="10.0" style="-fx-background-color: #f0f0f0; -fx-padding: 10; -fx-border-color: #cccccc; -fx-border-width: 1 0 0 0;" BorderPane.alignment="BOTTOM_CENTER">
          <children>
-            <Label style="-fx-text-fill: #666; -fx-font-size: 11;" text="Ready" />
+            <Label style="-fx-text-fill: #333; -fx-font-size: 12; -fx-font-weight: bold;" text="Reservation Management:" />
+            <HBox spacing="10.0" alignment="CENTER_LEFT">
+               <children>
+                  <Label text="Confirmation Code:" />
+                  <TextField fx:id="cancelConfirmationField" prefWidth="150.0" promptText="Enter code to cancel" />
+                  <Button fx:id="cancelReservationButton" onAction="#onCancelReservationManager" style="-fx-padding: 8; -fx-font-size: 12;" text="Cancel Reservation" />
+                  <Label fx:id="cancelStatusLabel" style="-fx-text-fill: #666;" text="Ready" />
+               </children>
+            </HBox>
          </children>
       </VBox>
    </bottom>

@@ -68,6 +68,15 @@ public class ServerUIController {
     @FXML
     private TableColumn<GetClientInfo, String> connectionTimeColumn;
 
+    @FXML
+    private TextField cancelConfirmationField;
+    
+    @FXML
+    private Button cancelReservationButton;
+    
+    @FXML
+    private Label cancelStatusLabel;
+
     private EchoServer echoServer;
     private DateTimeFormatter dateTimeFormatter;
     private static final String SERVER_RUNNING = "Server Running";
@@ -103,10 +112,19 @@ public class ServerUIController {
      * Setup port selector options
      */
     private void setupPortSelector() {
-        portComboBox.getItems().addAll(5555, 5556, 5557, 8888, 9999);
+        portComboBox.getItems().addAll(5555, 5556, 5557, 8888, 9999, 3306);
         portComboBox.setValue(5555);
         
         portSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535, 5555));
+        
+        // Keep spinner in sync with dropdown; startServer reads spinner value
+        portComboBox.setOnAction(event -> {
+            Integer selectedPort = portComboBox.getValue();
+            if (selectedPort != null && portSpinner.getValueFactory() != null) {
+                portSpinner.getValueFactory().setValue(selectedPort);
+                portStatusLabel.setText("Ready");
+            }
+        });
     }
 
     /**
@@ -297,6 +315,65 @@ public class ServerUIController {
     public void updateClientCount(int count) {
         Platform.runLater(() -> {
             connectedClientsLabel.setText("Connected Clients: " + count);
+        });
+    }
+
+    /**
+     * Handle cancel reservation button click from manager
+     */
+    @FXML
+    private void onCancelReservationManager() {
+        String confirmationCode = cancelConfirmationField.getText();
+        if (confirmationCode == null || confirmationCode.trim().isEmpty()) {
+            updateCancelStatus("Please enter a confirmation code.", "error");
+            return;
+        }
+        
+        confirmationCode = confirmationCode.trim();
+        addLog("Manager requesting to cancel reservation with code: " + confirmationCode);
+        
+        if (echoServer == null) {
+            updateCancelStatus("Server not running.", "error");
+            return;
+        }
+        
+        try {
+            // Get the ReservationDAO from the server and directly process the cancellation
+            // Access it via reflection or store it in EchoServer
+            addLog("Processing cancel request for code: " + confirmationCode);
+            updateCancelStatus("Attempting to cancel reservation...", "info");
+            
+            // We need to directly call the DAO method
+            // Since we don't have direct access to the DAO through the UI controller,
+            // we'll simulate a client request by calling the server's message handler
+            // Let's use a different approach: create a simple callable that the server can use
+            
+            // For now, send the command through the echo server's broadcast
+            // This will be processed as if a client sent it
+            echoServer.processManagerCancelRequest(confirmationCode);
+            
+            updateCancelStatus("✓ Attempting to cancel: " + confirmationCode, "success");
+            cancelConfirmationField.setText("");
+        } catch (Exception e) {
+            updateCancelStatus("Error: " + e.getMessage(), "error");
+            addLog("Error canceling reservation: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Update the cancel status label
+     */
+    private void updateCancelStatus(String message, String type) {
+        Platform.runLater(() -> {
+            cancelStatusLabel.setText(message);
+            if ("error".equals(type)) {
+                cancelStatusLabel.setStyle("-fx-text-fill: red;");
+            } else if ("success".equals(type)) {
+                cancelStatusLabel.setStyle("-fx-text-fill: green;");
+            } else {
+                cancelStatusLabel.setStyle("-fx-text-fill: #666;");
+            }
         });
     }
 

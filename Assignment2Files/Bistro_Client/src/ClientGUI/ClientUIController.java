@@ -8,10 +8,15 @@ import common.ChatIF;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 
 /**
  * Controller class for the Client-side JavaFX Graphical User Interface.
@@ -60,6 +65,10 @@ public class ClientUIController implements ChatIF {
     @FXML
     private Button update;
 
+    /** Button to cancel a reservation. */
+    @FXML
+    private Button cancelReservation;
+
     /** Button to close the connection and exit the application. */
     @FXML
     private Button exit;
@@ -82,6 +91,19 @@ public class ClientUIController implements ChatIF {
     private ChatClient chatClient;
     private String loggedInUser;
     private String loggedInRole;
+    private String dbUser = "root";
+    private String dbPassword = "";
+
+    // Static holder for the current ReservationUIController (for message routing)
+    private static ReservationUIController activeReservationController = null;
+
+    public static void setActiveReservationController(ReservationUIController controller) {
+        activeReservationController = controller;
+    }
+
+    public static void clearActiveReservationController() {
+        activeReservationController = null;
+    }
 
     public void setUserContext(String username, String role) {
         this.loggedInUser = username;
@@ -92,12 +114,22 @@ public class ClientUIController implements ChatIF {
 //        boolean canUpdate = loggedInRole != null &&
 //            ("Manager".equalsIgnoreCase(loggedInRole)
 //                    || "Representative".equalsIgnoreCase(loggedInRole));
-    	boolean canUpdate = loggedInRole != null && !loggedInRole.isBlank();
+        boolean canUpdate = loggedInRole != null && !loggedInRole.isBlank();
+        boolean isCustomer = loggedInRole != null && "Customer".equalsIgnoreCase(loggedInRole);
 
+        if (newReservationButton != null) {
+            newReservationButton.setVisible(isCustomer);
+            newReservationButton.setManaged(isCustomer);
+        }
+        
+        if (reservationActionsLabel != null) {
+            reservationActionsLabel.setVisible(isCustomer);
+            reservationActionsLabel.setManaged(isCustomer);
+        }
 
         // only Manager / Representative can update
         if (update != null) update.setDisable(!canUpdate);
-      
+        
         if (numberOfGuestsField != null) numberOfGuestsField.setEditable(canUpdate);
         if (reservationDateField != null) reservationDateField.setEditable(canUpdate);
         if (reservationTimeField != null) reservationTimeField.setEditable(canUpdate);
@@ -256,6 +288,46 @@ public class ClientUIController implements ChatIF {
     private void handleServerMessage(String message) {
         if (message == null) return;
 
+        System.out.println("DEBUG: handleServerMessage received: [" + message + "]");
+        System.out.println("DEBUG: activeReservationController is " + (activeReservationController != null ? "SET" : "NULL"));
+
+        // Route reservation-specific responses to the active controller
+        if ((message.startsWith("RESERVATIONS_FOR_DATE|") || message.startsWith("RESERVATION_CREATED") || message.startsWith("ERROR|BOOK")) && activeReservationController != null) {
+            System.out.println("DEBUG: ✓ Routing to activeReservationController");
+            if (message.startsWith("RESERVATIONS_FOR_DATE|")) {
+                System.out.println("DEBUG: Calling onReservationsReceived()");
+                activeReservationController.onReservationsReceived(message);
+            } else if (message.startsWith("RESERVATION_CREATED")) {
+                System.out.println("DEBUG: Calling onBookingResponse()");
+                activeReservationController.onBookingResponse(message);
+            } else {
+                System.out.println("DEBUG: Calling onBookingResponse() - error");
+                activeReservationController.onBookingResponse(message);
+            }
+            return;
+        }
+        
+        // Route cancel responses - check both active controllers
+        if ((message.startsWith("RESERVATION_CANCELED") || message.startsWith("ERROR|RESERVATION_NOT_FOUND") || message.startsWith("ERROR|CANCEL"))) {
+            System.out.println("DEBUG: Routing cancel response");
+            // Try active reservation controller first (if in New Reservation window)
+            if (activeReservationController != null) {
+                System.out.println("DEBUG: Routing cancel to activeReservationController");
+                activeReservationController.onCancelResponse(message);
+                return;
+            }
+            // Otherwise route to main client controller
+            System.out.println("DEBUG: Routing cancel to main ClientUIController");
+            onCancelResponseFromServer(message);
+            return;
+        }
+        
+        System.out.println("DEBUG: ✗ NOT routed - activeReservationController null or wrong message type");
+        System.out.println("  activeReservationController: " + activeReservationController);
+        System.out.println("  startsWithRES_FOR_DATE: " + message.startsWith("RESERVATIONS_FOR_DATE|"));
+        System.out.println("  equalsRES_CREATED: " + message.equals("RESERVATION_CREATED"));
+        System.out.println("  startsWithERROR: " + message.startsWith("ERROR|BOOK"));
+
         if (message.startsWith("RESERVATION|")) {
             // Protocol: RESERVATION|id|guests|date|time|code|subId
             String[] parts = message.split("\\|");
@@ -323,5 +395,123 @@ public class ClientUIController implements ChatIF {
         } catch (Exception e) { }
         Platform.exit();    // closes the JavaFX UI
         System.exit(0);     // kills the process completely
+    }
+
+    public void setDatabaseCredentials(String user, String password) {
+        this.dbUser = user;
+        this.dbPassword = password;
+    }
+
+    public String getDbUser() {
+        return dbUser;
+    }
+
+    public String getDbPassword() {
+        return dbPassword;
+    }
+
+    /** Button to create a new reservation (opens the Reservation UI). */
+    @FXML
+    private Button newReservationButton;
+
+    /** Label for "Reservation Actions" section. */
+    @FXML
+    private Label reservationActionsLabel;
+
+    /**
+     * Event handler for the "New Reservation" button.
+     * <p>
+     * Opens a new modal window for creating a reservation. Restricted to customer role only.
+     *
+     * @param event The action event triggered by the button click.
+     */
+    @FXML
+    private void onNewReservationClicked(ActionEvent event) {
+        // Only allow customers
+        if (loggedInRole == null || !"Customer".equalsIgnoreCase(loggedInRole)) {
+            display("Only customers can create reservations.");
+            return;
+        }
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/ClientGUI/ReservationUI.fxml"));
+            Parent root = loader.load();
+
+            ReservationUIController resController = loader.getController();
+            // REGISTER BEFORE passing chatClient to avoid race condition
+            ClientUIController.setActiveReservationController(resController);
+            
+            resController.setChatClient(chatClient);
+
+            Stage stage = new Stage();
+            stage.setTitle("New Reservation");
+            stage.initModality(javafx.stage.Modality.WINDOW_MODAL);
+            if (event != null && event.getSource() instanceof Button btn && btn.getScene() != null) {
+                stage.initOwner(btn.getScene().getWindow());
+            }
+            stage.setScene(new Scene(root));
+            stage.show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            display("Failed to open reservation window: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handle cancel reservation button click.
+     * Prompts user for confirmation code and cancels the reservation.
+     */
+    @FXML
+    private void onCancelReservationClicked(ActionEvent event) {
+        if (chatClient == null) {
+            display("Not connected to server.");
+            return;
+        }
+
+        javafx.scene.control.TextInputDialog dialog = new javafx.scene.control.TextInputDialog();
+        dialog.setTitle("Cancel Reservation");
+        dialog.setHeaderText("Cancel Reservation");
+        dialog.setContentText("Enter confirmation code to cancel:");
+        
+        var result = dialog.showAndWait();
+        if (result.isEmpty()) {
+            return;
+        }
+        
+        String confirmationCode = result.get().trim();
+        if (confirmationCode.isEmpty()) {
+            display("Please enter a confirmation code.");
+            return;
+        }
+        
+        // Send cancel command to server
+        String command = "#CANCEL_RESERVATION " + confirmationCode;
+        try {
+            System.out.println("DEBUG: Sending cancel command for code: " + confirmationCode);
+            chatClient.handleMessageFromClientUI(command);
+        } catch (Exception e) {
+            e.printStackTrace();
+            display("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handle cancel response from server
+     */
+    public void onCancelResponseFromServer(String response) {
+        javafx.application.Platform.runLater(() -> {
+            if (response != null && response.startsWith("RESERVATION_CANCELED")) {
+                reservationDetailsTextArea.setText("Reservation successfully canceled and deleted!");
+                reservationIdLabel.setText("-");
+                numberOfGuestsField.setText("");
+                reservationDateField.setText("");
+                reservationTimeField.setText("");
+                reservationIdInput.setText("");
+                display("✓ Reservation canceled successfully!");
+            } else if (response != null && response.startsWith("ERROR|RESERVATION_NOT_FOUND")) {
+                display("✗ No reservation found with this confirmation code.");
+            } else {
+                display("✗ Error canceling reservation: " + response);
+            }
+        });
     }
 }
