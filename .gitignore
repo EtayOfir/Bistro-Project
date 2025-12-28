@@ -1,0 +1,13 @@
+# ===== Bistro global ignores =====
+
+# Build output
+**/bin/
+**/target/
+
+# Eclipse IDE files (NEVER commit)
+**/.classpath
+**/.project
+**/.settings/
+
+# Local DB secrets (NEVER commit)
+**/config/db.properties
