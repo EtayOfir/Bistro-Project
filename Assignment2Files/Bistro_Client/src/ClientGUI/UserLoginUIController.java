@@ -23,7 +23,7 @@ public class UserLoginUIController {
     private void initialize() {
         roleCombo.getItems().addAll(
                 "Manager",        // מנהל
-                "Representative", // נציג
+                "Representative", // נציג / מארח
                 "Subscriber",     // מנוי
                 "Customer"        // לקוח רגיל
         );
@@ -37,6 +37,7 @@ public class UserLoginUIController {
         String password = (passwordField.getText() == null) ? "" : passwordField.getText().trim();
         String role     = roleCombo.getValue();
 
+        // validations (כמו שהיה)
         if (username.isEmpty() || password.isEmpty()) {
             statusLabel.setText("Please enter username and password.");
             return;
@@ -46,23 +47,42 @@ public class UserLoginUIController {
             return;
         }
 
-        // בשלב הזה אפשר גם לשלוח LOGIN לשרת אם יש לכם פרוטוקול (כרגע רק מעבר מסך + הרשאות)
         try {
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+
+            // ✅ אם נכנס כ-Manager או Representative -> Dashboard של מארח/נציג
+            if ("Manager".equalsIgnoreCase(role) || "Representative".equalsIgnoreCase(role)) {
+
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("HostDashboard.fxml"));
+                Parent root = loader.load();
+
+                HostDashboardController controller = loader.getController();
+                controller.setUserContext(username, role);
+
+                // אם בהמשך תוסיף לדשבורד חיבור לשרת, תוכל להפעיל כאן:
+                // controller.initClient("localhost", 5555);
+
+                stage.setTitle("Host Dashboard - " + role + " (" + username + ")");
+                stage.setScene(new Scene(root));
+                stage.show();
+                return;
+            }
+
+            // ✅ כל השאר -> המסך הרגיל (כמו שהיה אצלך)
             FXMLLoader loader = new FXMLLoader(getClass().getResource("ClientUIView.fxml"));
             Parent root = loader.load();
 
             ClientUIController controller = loader.getController();
-            controller.setUserContext(username, role);     // ⭐ מעביר תפקיד + שם
-            controller.initClient("localhost", 5555);      // חיבור כרגיל
+            controller.setUserContext(username, role);
+            controller.initClient("localhost", 5555);
 
-            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Reservation Client - " + role + " (" + username + ")");
             stage.setScene(new Scene(root));
             stage.show();
 
         } catch (Exception e) {
             e.printStackTrace();
-            statusLabel.setText("Failed to open main screen: " + e.getMessage());
+            statusLabel.setText("Failed to open screen: " + e.getMessage());
         }
     }
 
