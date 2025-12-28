@@ -494,56 +494,6 @@ public class EchoServer extends AbstractServer {
 		this.uiController = controller;
 	}
 
-	/**
-	 * Process a cancel request from the server manager UI directly (no client involved).
-	 * This allows the manager to cancel reservations without going through a client.
-	 *
-	 * @param confirmationCode the confirmation code of the reservation to cancel
-	 */
-	public void processManagerCancelRequest(String confirmationCode) {
-		if (reservationDAO == null) {
-			System.out.println("ERROR: Database not initialized");
-			if (uiController != null) {
-				uiController.addLog("ERROR: Database not initialized for cancel operation");
-			}
-			return;
-		}
-
-		try {
-			System.out.println("DEBUG: Manager cancel request for code: " + confirmationCode);
-			
-			// Check if reservation exists
-			Reservation res = reservationDAO.getReservationByConfirmationCode(confirmationCode);
-			if (res == null) {
-				System.out.println("ERROR: Reservation not found with code: " + confirmationCode);
-				if (uiController != null) {
-					uiController.addLog("ERROR: No reservation found with code: " + confirmationCode);
-				}
-				return;
-			}
-
-			// Delete the reservation
-			boolean deleted = reservationDAO.deleteReservationByConfirmationCode(confirmationCode);
-			if (deleted) {
-				System.out.println("✓ Reservation deleted with code: " + confirmationCode);
-				if (uiController != null) {
-					uiController.addLog("✓ Reservation deleted by manager - Code: " + confirmationCode);
-				}
-			} else {
-				System.out.println("ERROR: Failed to delete reservation with code: " + confirmationCode);
-				if (uiController != null) {
-					uiController.addLog("ERROR: Failed to delete reservation with code: " + confirmationCode);
-				}
-			}
-		} catch (Exception e) {
-			System.err.println("ERROR processing manager cancel: " + e.getMessage());
-			e.printStackTrace();
-			if (uiController != null) {
-				uiController.addLog("ERROR processing cancel: " + e.getMessage());
-			}
-		}
-	}
-
 	// Main method ****************************************************
 
 	/**
