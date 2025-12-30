@@ -8,6 +8,7 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/Bistro_Ocsf"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/DBController"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/javaFx"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/javafx"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/Bistro_Common"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

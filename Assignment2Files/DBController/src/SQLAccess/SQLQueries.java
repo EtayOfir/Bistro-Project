@@ -23,6 +23,9 @@ public final class SQLQueries {
     private SQLQueries() {}
 
     // Subscribers
+    /** Update only contact details for subscriber. */
+    public static final String UPDATE_SUBSCRIBER_CONTACT_INFO =
+            "UPDATE Subscribers SET PhoneNumber = ?, Email = ? WHERE SubscriberID = ?";
     
     /** Insert a new subscriber (member). */
     public static final String INSERT_SUBSCRIBER =
@@ -49,6 +52,16 @@ public final class SQLQueries {
             "DELETE FROM Subscribers WHERE SubscriberID = ?";    
     
     // RestaurantTables
+
+    /** Find the best fit available table (Smallest capacity that fits the diners). */
+    public static final String GET_BEST_AVAILABLE_TABLE =
+            "SELECT TableNumber FROM RestaurantTables " +
+            "WHERE Capacity >= ? AND Status = 'Available' " +
+            "ORDER BY Capacity ASC LIMIT 1";
+
+    /** Update table status. */
+    public static final String UPDATE_TABLE_STATUS =
+            "UPDATE RestaurantTables SET Status = ? WHERE TableNumber = ?";
     
     /** Get all restaurant tables and capacities. */
     public static final String GET_ALL_RESTAURANT_TABLES =
@@ -68,6 +81,16 @@ public final class SQLQueries {
     
     
     // ActiveReservations
+    /** * Get all active (future/current) reservations for a specific subscriber.
+     * We need the 'Status' field for the table, which was missing in the other query.
+     */
+    public static final String GET_SUBSCRIBER_ACTIVE_RESERVATIONS =
+            "SELECT ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status " +
+            "FROM ActiveReservations " +
+            "WHERE SubscriberID = ? " +
+            "AND Status IN ('Confirmed', 'Late', 'Arrived') " + // מביא רק רלוונטיים
+            "ORDER BY ReservationDate ASC, ReservationTime ASC";
+    
     /** Get reservation by confirmation code. */
     public static final String GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE =
             "SELECT ReservationID, CustomerType, SubscriberID, CasualPhone, CasualEmail, " +
@@ -171,6 +194,12 @@ public final class SQLQueries {
     
     
     // VisitHistory (reports)
+    /** Get all visit history for a specific subscriber. */
+    public static final String GET_SUBSCRIBER_VISIT_HISTORY =
+            "SELECT OriginalReservationDate, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status " +
+            "FROM VisitHistory " +
+            "WHERE SubscriberID = ? " +
+            "ORDER BY ActualArrivalTime DESC";
     
     /** Insert a visit record. */
     public static final String INSERT_VISIT_HISTORY =

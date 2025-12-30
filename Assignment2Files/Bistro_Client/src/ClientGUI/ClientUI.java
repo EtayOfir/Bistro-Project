@@ -10,6 +10,8 @@ import java.net.URL;
 
 public class ClientUI extends Application {
 
+	public static client.ChatClient chat; 
+	
     @Override
     public void start(Stage primaryStage) throws Exception {
         // Look for ClientUIView.fxml in the same package (ClientGUI)
