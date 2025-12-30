@@ -37,7 +37,7 @@ public class ReceiveTableUIContoller {
 
 		//  שליחת בקשה לשרת (String בלבד!)
 		String request = "#RECEIVE_TABLE " + code;
-		ClientUI.chat.accept(request);
+		ClientUI.chat.handleMessageFromClientUI(request);
 
 		/*
 		 *  התשובה מהשרת כבר הגיעה ל־ClientUI.display(...) אנחנו פשוט קוראים את ההודעה

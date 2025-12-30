@@ -143,6 +143,30 @@ public final class SQLQueries {
     public static final String SUM_TOTAL_RESTAURANT_CAPACITY =
             "SELECT COALESCE(SUM(Capacity), 0) AS TotalCapacity FROM RestaurantTables";
     
+    // Status Updates
+
+    /**
+     * Marks a reservation as 'Canceled' instead of deleting it.
+     * Used when a customer or staff cancels an order.
+     * Parameter: ReservationID (int)
+     */
+    public static final String CANCEL_ORDER_BY_ID = 
+        "UPDATE ActiveReservations SET Status = 'Canceled' WHERE ReservationID = ?";
+
+    /**
+     * Marks a reservation as 'NoShow' if the customer didn't arrive within 15-20 minutes.
+     * Parameter: ReservationID (int)
+     */
+    public static final String MARK_ORDER_AS_NOSHOW = 
+        "UPDATE ActiveReservations SET Status = 'NoShow' WHERE ReservationID = ?";
+
+    /**
+     * Marks a reservation as 'Completed' when the bill is paid and table is freed.
+     * This moves the logic state to finished (history is saved in VisitHistory, but this keeps the reservation record intact).
+     * Parameter: ReservationID (int)
+     */
+    public static final String COMPLETE_ORDER = 
+        "UPDATE ActiveReservations SET Status = 'Completed' WHERE ReservationID = ?";
     
     // WaitingList
     
@@ -194,6 +218,18 @@ public final class SQLQueries {
     
     
     // VisitHistory (reports)
+    
+    /**
+     * Get ALL reservation history for a subscriber (including Canceled and Completed).
+     * Used for the "My History" view in the client.
+     * Parameter: SubscriberID (int)
+     */
+    public static final String GET_ALL_RESERVATIONS_HISTORY_BY_SUBSCRIBER =
+            "SELECT ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status " +
+            "FROM ActiveReservations " +
+            "WHERE SubscriberID = ? " +
+            "ORDER BY ReservationDate DESC, ReservationTime DESC";
+    
     /** Get all visit history for a specific subscriber. */
     public static final String GET_SUBSCRIBER_VISIT_HISTORY =
             "SELECT OriginalReservationDate, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status " +
@@ -203,9 +239,9 @@ public final class SQLQueries {
     
     /** Insert a visit record. */
     public static final String INSERT_VISIT_HISTORY =
-            "INSERT INTO VisitHistory " +
-            "(SubscriberID, OriginalReservationDate, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?)";
+    		"INSERT INTO VisitHistory " +
+    	            "(SubscriberID, OriginalReservationDate, OriginalReservationTime, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status) " +
+    	            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
     /** Report: visits grouped by status. */
     public static final String REPORT_VISITS_BY_STATUS_IN_MONTH =
@@ -268,4 +304,48 @@ public final class SQLQueries {
             "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id " +
             "FROM ActiveReservations " +
             "WHERE SubscriberID = ?";
+    
+ // --- Reports Generation ---
+
+    /**
+     * Report 1: Subscriber/Order Stats.
+     * Counts how many orders are in each status (Confirmed, Canceled, Completed, NoShow) for a specific month.
+     * Parameters: 
+     * 1. Month (int)
+     * 2. Year (int)
+     */
+    public static final String REPORT_ORDERS_BY_STATUS = 
+        "SELECT Status, COUNT(*) AS Count " +
+        "FROM ActiveReservations " +
+        "WHERE MONTH(ReservationDate) = ? AND YEAR(ReservationDate) = ? " +
+        "GROUP BY Status";
+
+    /**
+     * Report 2: Performance/Time Report.
+     * Calculates the average duration (in minutes) customers spent in the restaurant per day.
+     * Uses VisitHistory because it contains actual arrival/departure times.
+     * Parameters: 
+     * 1. Month (int)
+     * 2. Year (int)
+     */
+    public static final String REPORT_AVG_DURATION = 
+        "SELECT DATE(ActualArrivalTime) AS Date, " +
+        "AVG(TIMESTAMPDIFF(MINUTE, ActualArrivalTime, ActualDepartureTime)) AS AvgDurationMinutes " +
+        "FROM VisitHistory " +
+        "WHERE MONTH(ActualArrivalTime) = ? AND YEAR(ActualArrivalTime) = ? " +
+        "AND Status = 'Completed' " +
+        "GROUP BY DATE(ActualArrivalTime)";
+
+    /**
+     * Report 3: Daily Waiting List Entries.
+     * Shows how many people joined the waiting list each day of the month.
+     * Parameters: 
+     * 1. Month (int)
+     * 2. Year (int)
+     */
+    public static final String REPORT_WAITING_LIST_STATS = 
+        "SELECT DAY(EntryTime) AS Day, COUNT(*) AS TotalWaiting " +
+        "FROM WaitingList " +
+        "WHERE MONTH(EntryTime) = ? AND YEAR(EntryTime) = ? " +
+        "GROUP BY DAY(EntryTime)";
 }

@@ -41,4 +41,12 @@ public class ClientUI extends Application {
     public static void main(String[] args) {
         launch(args);
     }
+    
+    public static String getLastServerMessage() {
+        if (chat == null) {
+            return null;
+        }
+        // קריאה לפונקציה הממתינה ב-ChatClient
+        return chat.waitForMessage();
+    }
 }
