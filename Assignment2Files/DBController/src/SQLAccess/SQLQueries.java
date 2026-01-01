@@ -258,7 +258,6 @@ public final class SQLQueries {
             "AND Status = 'Completed'";    
     
     /**
-    /**
      * Retrieves a reservation by its unique ID (formerly order number).
      * Mapped 'order_number' -> 'ReservationID'.
      * Removed 'date_of_placing_order' as it does not exist in the new schema.
@@ -310,42 +309,93 @@ public final class SQLQueries {
     /**
      * Report 1: Subscriber/Order Stats.
      * Counts how many orders are in each status (Confirmed, Canceled, Completed, NoShow) for a specific month.
-     * Parameters: 
+     * Parameters:
      * 1. Month (int)
      * 2. Year (int)
      */
-    public static final String REPORT_ORDERS_BY_STATUS = 
-        "SELECT Status, COUNT(*) AS Count " +
-        "FROM ActiveReservations " +
-        "WHERE MONTH(ReservationDate) = ? AND YEAR(ReservationDate) = ? " +
-        "GROUP BY Status";
+    public static final String REPORT_ORDERS_BY_STATUS =
+            "SELECT Status, COUNT(*) AS Count " +
+            "FROM ActiveReservations " +
+            "WHERE MONTH(ReservationDate) = ? AND YEAR(ReservationDate) = ? " +
+            "GROUP BY Status";
 
     /**
      * Report 2: Performance/Time Report.
      * Calculates the average duration (in minutes) customers spent in the restaurant per day.
      * Uses VisitHistory because it contains actual arrival/departure times.
-     * Parameters: 
+     * Parameters:
      * 1. Month (int)
      * 2. Year (int)
      */
-    public static final String REPORT_AVG_DURATION = 
-        "SELECT DATE(ActualArrivalTime) AS Date, " +
-        "AVG(TIMESTAMPDIFF(MINUTE, ActualArrivalTime, ActualDepartureTime)) AS AvgDurationMinutes " +
-        "FROM VisitHistory " +
-        "WHERE MONTH(ActualArrivalTime) = ? AND YEAR(ActualArrivalTime) = ? " +
-        "AND Status = 'Completed' " +
-        "GROUP BY DATE(ActualArrivalTime)";
+    public static final String REPORT_AVG_DURATION =
+            "SELECT DATE(ActualArrivalTime) AS Date, " +
+            "AVG(TIMESTAMPDIFF(MINUTE, ActualArrivalTime, ActualDepartureTime)) AS AvgDurationMinutes " +
+            "FROM VisitHistory " +
+            "WHERE MONTH(ActualArrivalTime) = ? AND YEAR(ActualArrivalTime) = ? " +
+            "AND Status = 'Completed' " +
+            "GROUP BY DATE(ActualArrivalTime)";
 
     /**
      * Report 3: Daily Waiting List Entries.
      * Shows how many people joined the waiting list each day of the month.
-     * Parameters: 
+     * Parameters:
      * 1. Month (int)
      * 2. Year (int)
      */
-    public static final String REPORT_WAITING_LIST_STATS = 
-        "SELECT DAY(EntryTime) AS Day, COUNT(*) AS TotalWaiting " +
-        "FROM WaitingList " +
-        "WHERE MONTH(EntryTime) = ? AND YEAR(EntryTime) = ? " +
-        "GROUP BY DAY(EntryTime)";
+    public static final String REPORT_WAITING_LIST_STATS =
+            "SELECT DAY(EntryTime) AS Day, COUNT(*) AS TotalWaiting " +
+            "FROM WaitingList " +
+            "WHERE MONTH(EntryTime) = ? AND YEAR(EntryTime) = ? " +
+            "GROUP BY DAY(EntryTime)";
+
+
+    // --- Payment / Waiting List Status Updates ---
+
+    /** Mark reservation as paid by confirmation code. */
+    public static final String SET_RESERVATION_STATUS_PAID =
+            "UPDATE ActiveReservations SET Status = 'Paid' WHERE ConfirmationCode = ?";
+
+    /** Mark waiting list entry as paid (or finished) by confirmation code. */
+    public static final String SET_WAITING_STATUS_PAID =
+            "UPDATE WaitingList SET Status = 'Paid' WHERE ConfirmationCode = ?";
+
+    /** Insert a new waiting list entry. */
+    public static final String INSERT_WAITING =
+            "INSERT INTO WaitingList (ContactInfo, NumOfDiners, ConfirmationCode, Status) VALUES (?, ?, ?, ?)";
+
+    /** Get one waiting list entry by WaitingID. */
+    public static final String GET_WAITING_BY_ID =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList WHERE WaitingID = ?";
+
+    /** Get one waiting list entry by ConfirmationCode. */
+    public static final String GET_WAITING_BY_CODE =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList WHERE ConfirmationCode = ?";
+
+    /** Get all waiting list entries ordered by EntryTime (oldest first). */
+    public static final String GET_ALL_WAITING =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList ORDER BY EntryTime ASC";
+
+    /** Get only active waiting list entries (Status = 'Waiting'). */
+    public static final String GET_ACTIVE_WAITING =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList WHERE Status = 'Waiting' ORDER BY EntryTime ASC";
+
+    /** Update a waiting list entry (contact, diners, status) by WaitingID. */
+    public static final String UPDATE_WAITING_BY_ID =
+            "UPDATE WaitingList SET ContactInfo = ?, NumOfDiners = ?, Status = ? WHERE WaitingID = ?";
+
+    /** Update only the status by ConfirmationCode. */
+    public static final String UPDATE_WAITING_STATUS_BY_CODE =
+            "UPDATE WaitingList SET Status = ? WHERE ConfirmationCode = ?";
+
+    /** Delete a waiting list entry by WaitingID. */
+    public static final String DELETE_WAITING_BY_ID =
+            "DELETE FROM WaitingList WHERE WaitingID = ?";
+
+    /** Delete a waiting list entry by ConfirmationCode. */
+    public static final String DELETE_WAITING_BY_CODE =
+            "DELETE FROM WaitingList WHERE ConfirmationCode = ?";
 }

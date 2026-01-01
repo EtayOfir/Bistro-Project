@@ -4,44 +4,89 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
 import javax.sql.DataSource;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Properties;
 
 /**
- * Manages the database connection pool for the Bistro system using HikariCP.
+ * Provides and manages a shared MySQL database connection pool for the Bistro system
+ * using the HikariCP connection pooling library.
  * <p>
- * This class is responsible for initializing and maintaining a single
- * {@link HikariDataSource} instance that serves as a connection pool.
- * The pool is created once when the server starts and is shared across
- * all DAO classes.
+ * This class is responsible for:
+ * <ul>
+ *   <li>Loading database configuration from an external {@code db.properties} file.</li>
+ *   <li>Initializing a single {@link HikariDataSource} instance at server startup.</li>
+ *   <li>Providing access to the shared {@link DataSource} for all DAO classes.</li>
+ *   <li>Ensuring proper shutdown of the connection pool when the server stops.</li>
+ * </ul>
+ *
+ * <h2>Configuration</h2>
+ * The database credentials and connection URL are <b>not hard-coded</b>.
+ * They are loaded at runtime from:
+ * <pre>
+ * Assignment2Files/DBController/config/db.properties
+ * </pre>
+ *
+ * A template file {@code db.properties.example} is provided in the repository.
+ * Each developer must create a local {@code db.properties} file based on that template.
+ *
+ * <h2>Error Handling</h2>
+ * If the configuration file cannot be found or loaded, the application will fail fast
+ * with a clear runtime exception, preventing the server from starting in an invalid state.
+ *
+ * <h2>Design Notes</h2>
+ * <ul>
+ *   <li>This class follows the <b>utility class</b> pattern.</li>
+ *   <li>It cannot be instantiated.</li>
+ *   <li>The connection pool is initialized once using a static initialization block.</li>
+ * </ul>
+ *
  * <p>
- * Database connections are obtained on demand from the pool and are
- * automatically returned to the pool when closed, ensuring efficient,
- * safe, and scalable database access without opening a new connection
- * for each request.
- * <p>
- * This class follows the utility-class design pattern and cannot be instantiated.
+ * <b>Thread safety:</b> HikariCP manages thread safety internally.
+ * The returned {@link DataSource} is safe to use concurrently across multiple threads.
+ *
+ * @author Bistro Team
  */
 public final class mysqlConnection1 {
 
-    /** The shared HikariCP data source (connection pool) */
+    /**
+     * The shared HikariCP {@link DataSource} instance used throughout the application.
+     * <p>
+     * This data source represents a connection pool and should never be recreated
+     * after initialization.
+     */
     private static final HikariDataSource dataSource;
 
     /*
-     * Static initialization block that configures and initializes
-     * the HikariCP connection pool.
+     * Static initialization block that loads database configuration
+     * and initializes the HikariCP connection pool.
      */
     static {
+        Properties props = new Properties();
+
+        // Load database configuration from external properties file
+        try (FileInputStream fis =
+                     new FileInputStream("Assignment2Files/DBController/config/db.properties")) {
+            props.load(fis);
+        } catch (IOException e) {
+            throw new RuntimeException(
+                "Failed to load database configuration. " +
+                "Please create 'config/db.properties' based on 'db.properties.example'.",
+                e
+            );
+        }
+
         HikariConfig config = new HikariConfig();
 
         // JDBC connection configuration
-        config.setJdbcUrl(
-                "jdbc:mysql://localhost:3306/bistro" +
-                "?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false"
-        );
-        config.setUsername("root");
-        // config.setPassword("Dy1908");
-        config.setPassword("Rootroot");
+        config.setJdbcUrl(props.getProperty("db.url"));
+        config.setUsername(props.getProperty("db.user"));
+        config.setPassword(props.getProperty("db.password"));
 
-        // Pool tuning parameters
+        // Required for MySQL authentication with caching_sha2_password
+        config.addDataSourceProperty("allowPublicKeyRetrieval", "true");
+
+        // Connection pool tuning
         config.setMaximumPoolSize(10);
         config.setMinimumIdle(2);
         config.setConnectionTimeout(10_000); // 10 seconds
@@ -53,14 +98,19 @@ public final class mysqlConnection1 {
     }
 
     /**
-     * Private constructor to prevent instantiation of this utility class.
+     * Private constructor to prevent instantiation.
+     * <p>
+     * This class is intended to be used in a static context only.
      */
-    private mysqlConnection1() {}
+    private mysqlConnection1() {
+        // Prevent instantiation
+    }
 
     /**
-     * Returns the shared {@link DataSource} used to obtain database connections.
+     * Returns the shared {@link DataSource} instance backed by the HikariCP connection pool.
      * <p>
-     * DAO classes should call this method to acquire connections from the pool.
+     * DAO classes should call this method to obtain database connections.
+     * Connections must be closed after use so they can be returned to the pool.
      *
      * @return the configured {@link DataSource} instance
      */
@@ -69,10 +119,10 @@ public final class mysqlConnection1 {
     }
 
     /**
-     * Shuts down the connection pool and releases all database resources.
+     * Shuts down the HikariCP connection pool and releases all database resources.
      * <p>
-     * This method should be called when the server is stopping to ensure
-     * a clean shutdown of database connections.
+     * This method should be invoked when the server is stopping to ensure
+     * a clean and graceful shutdown.
      */
     public static void shutdownPool() {
         if (dataSource != null) {

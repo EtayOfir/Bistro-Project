@@ -1,0 +1,3 @@
+db.url=jdbc:mysql://localhost:3306/bistro?useSSL=false&serverTimezone=UTC
+db.user=YOUR_DB_USER
+db.password=YOUR_DB_PASSWORD
