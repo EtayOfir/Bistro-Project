@@ -398,6 +398,21 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#RECEIVE_TABLE": {
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT";
+                        break;
+                    }
+
+                    try {
+                        String code = parts[1];
+                        int tableNum = reservationDAO.allocateTableForCustomer(code);
+                        ans = "TABLE_ASSIGNED|" + tableNum;
+                    } catch (Exception e) {
+                        ans = e.getMessage();
+                    }
+                    break;
+                }
 
                 case "#GET_WAITING_LIST": {
                     // Format: #GET_WAITING_LIST
