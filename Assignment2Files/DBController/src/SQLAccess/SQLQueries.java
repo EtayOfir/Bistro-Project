@@ -239,6 +239,15 @@ public final class SQLQueries {
             "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id " +
             "FROM ActiveReservations " +
             "WHERE SubscriberID = ?";
+    
+    /** Mark reservation as paid by confirmation code. */
+    public static final String SET_RESERVATION_STATUS_PAID =
+            "UPDATE ActiveReservations SET Status = 'Paid' WHERE ConfirmationCode = ?";
+
+    /** Mark waiting list entry as paid (or finished) by confirmation code. */
+    public static final String SET_WAITING_STATUS_PAID =
+            "UPDATE WaitingList SET Status = 'Paid' WHERE ConfirmationCode = ?";
+
     /** Insert a new waiting list entry. */
     public static final String INSERT_WAITING =
             "INSERT INTO WaitingList (ContactInfo, NumOfDiners, ConfirmationCode, Status) VALUES (?, ?, ?, ?)";

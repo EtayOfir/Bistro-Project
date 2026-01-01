@@ -13,6 +13,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import DBController.BillPaymentDAO;
 
 
 import ocsf.server.*;
@@ -54,6 +55,7 @@ public class EchoServer extends AbstractServer {
 
 	/** DAO used to perform reservation-related DB operations (uses pooled connections). */
 	private ReservationDAO reservationDAO;
+	private BillPaymentDAO billPaymentDAO;
 	private WaitingListDAO waitingListDAO;
 	// Managers that subscribed to live waiting-list updates
 	private final java.util.Set<ConnectionToClient> waitingListSubscribers =
@@ -191,6 +193,7 @@ public class EchoServer extends AbstractServer {
             }
 
             switch (command) {
+            
                 case "#GET_RESERVATION": {
                     // Format: #GET_RESERVATION <id>
                     if (parts.length < 2) {
@@ -206,6 +209,51 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#GET_BILL": {
+                    // Format: #GET_BILL <confirmationCode>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_GET_BILL";
+                        break;
+                    }
+
+                    String code = parts[1];
+                    BillPaymentDAO.BillDetails b = billPaymentDAO.getBillDetails(code);
+
+                    if (b == null) {
+                        ans = "BILL_NOT_FOUND";
+                    } else {
+                        // BILL|code|diners|subtotal|discountPercent|total|customerType
+                        ans = "BILL|" + b.getConfirmationCode() + "|" +
+                                b.getDiners() + "|" +
+                                b.getSubtotal().toPlainString() + "|" +
+                                b.getDiscountPercent() + "|" +
+                                b.getTotal().toPlainString() + "|" +
+                                b.getCustomerType();
+                    }
+                    break;
+                }
+
+                case "#PAY_BILL": {
+                    // Format: #PAY_BILL <confirmationCode> <method>
+                    if (parts.length < 3) {
+                        ans = "ERROR|BAD_FORMAT_PAY_BILL";
+                        break;
+                    }
+
+                    String code = parts[1];
+                    String method = parts[2];
+
+                    BillPaymentDAO.PaidResult paid = billPaymentDAO.payBill(code, method);
+
+                    if (paid == null) {
+                        ans = "BILL_NOT_FOUND";
+                    } else {
+                        // BILL_PAID|code|total
+                        ans = "BILL_PAID|" + paid.getConfirmationCode() + "|" + paid.getTotal().toPlainString();
+                    }
+                    break;
+                }
+
 
                 case "#GET_RESERVATIONS_BY_DATE": {
                     // Format: #GET_RESERVATIONS_BY_DATE <yyyy-MM-dd>
@@ -551,6 +599,7 @@ public class EchoServer extends AbstractServer {
 
         try {
             reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
+            billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
             waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
 
             if (uiController != null) uiController.addLog("Server started + DB pool ready");
@@ -558,6 +607,7 @@ public class EchoServer extends AbstractServer {
             System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
             if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
             reservationDAO = null;
+            billPaymentDAO = null;
         }
     }
 
