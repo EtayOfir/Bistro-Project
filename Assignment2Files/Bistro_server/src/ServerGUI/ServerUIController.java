@@ -103,10 +103,19 @@ public class ServerUIController {
      * Setup port selector options
      */
     private void setupPortSelector() {
-        portComboBox.getItems().addAll(5555, 5556, 5557, 8888, 9999);
+        portComboBox.getItems().addAll(5555, 5556, 5557, 8888, 9999, 3306);
         portComboBox.setValue(5555);
         
         portSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535, 5555));
+        
+        // Keep spinner in sync with dropdown; startServer reads spinner value
+        portComboBox.setOnAction(event -> {
+            Integer selectedPort = portComboBox.getValue();
+            if (selectedPort != null && portSpinner.getValueFactory() != null) {
+                portSpinner.getValueFactory().setValue(selectedPort);
+                portStatusLabel.setText("Ready");
+            }
+        });
     }
 
     /**

@@ -4,12 +4,16 @@
 package server;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Time;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import DBController.BillPaymentDAO;
 
 
 import ocsf.server.*;
@@ -51,6 +55,12 @@ public class EchoServer extends AbstractServer {
 
 	/** DAO used to perform reservation-related DB operations (uses pooled connections). */
 	private ReservationDAO reservationDAO;
+	private BillPaymentDAO billPaymentDAO;
+	private WaitingListDAO waitingListDAO;
+	// Managers that subscribed to live waiting-list updates
+	private final java.util.Set<ConnectionToClient> waitingListSubscribers =
+	        java.util.concurrent.ConcurrentHashMap.newKeySet();
+
 
 	// Constructors ****************************************************
 
@@ -137,7 +147,8 @@ public class EchoServer extends AbstractServer {
      */
     public void disconnectClient(ConnectionToClient client) {
         try {
-            System.out.println("[MANUAL] Disconnecting client.");
+            System.out.println("MANUAL Disconnecting client.");
+            waitingListSubscribers.remove(client);
             client.close();
         } catch (IOException e) {
             System.err.println("Error disconnecting client: " + e.getMessage());
@@ -175,13 +186,14 @@ public class EchoServer extends AbstractServer {
             String command = (parts.length > 0) ? parts[0] : "";
 
             // Check if DB is ready
-            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command))
+            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command) || "#GET_RESERVATIONS_BY_DATE".equals(command) || "#CANCEL_RESERVATION".equals(command) || "#DELETE_EXPIRED_RESERVATIONS".equals(command))
                     && reservationDAO == null) {
                 client.sendToClient("ERROR|DB_POOL_NOT_READY");
                 return;
             }
 
             switch (command) {
+            
                 case "#GET_RESERVATION": {
                     // Format: #GET_RESERVATION <id>
                     if (parts.length < 2) {
@@ -194,6 +206,116 @@ public class EchoServer extends AbstractServer {
                         ans = (r == null) ? "RESERVATION_NOT_FOUND" : reservationToProtocolString(r);
                     } catch (NumberFormatException e) {
                         ans = "ERROR|INVALID_ID_FORMAT";
+                    }
+                    break;
+                }
+                case "#GET_BILL": {
+                    // Format: #GET_BILL <confirmationCode>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_GET_BILL";
+                        break;
+                    }
+
+                    String code = parts[1];
+                    BillPaymentDAO.BillDetails b = billPaymentDAO.getBillDetails(code);
+
+                    if (b == null) {
+                        ans = "BILL_NOT_FOUND";
+                    } else {
+                        // BILL|code|diners|subtotal|discountPercent|total|customerType
+                        ans = "BILL|" + b.getConfirmationCode() + "|" +
+                                b.getDiners() + "|" +
+                                b.getSubtotal().toPlainString() + "|" +
+                                b.getDiscountPercent() + "|" +
+                                b.getTotal().toPlainString() + "|" +
+                                b.getCustomerType();
+                    }
+                    break;
+                }
+
+                case "#PAY_BILL": {
+                    // Format: #PAY_BILL <confirmationCode> <method>
+                    if (parts.length < 3) {
+                        ans = "ERROR|BAD_FORMAT_PAY_BILL";
+                        break;
+                    }
+
+                    String code = parts[1];
+                    String method = parts[2];
+
+                    BillPaymentDAO.PaidResult paid = billPaymentDAO.payBill(code, method);
+
+                    if (paid == null) {
+                        ans = "BILL_NOT_FOUND";
+                    } else {
+                        // BILL_PAID|code|total
+                        ans = "BILL_PAID|" + paid.getConfirmationCode() + "|" + paid.getTotal().toPlainString();
+                    }
+                    break;
+                }
+
+
+                case "#GET_RESERVATIONS_BY_DATE": {
+                    // Format: #GET_RESERVATIONS_BY_DATE <yyyy-MM-dd>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_DATE";
+                        break;
+                    }
+                    try {
+                        Date date = Date.valueOf(parts[1]);
+                        java.util.List<Reservation> reservations = reservationDAO.getReservationsByDate(date);
+                        
+                        System.out.println("DEBUG: Found " + reservations.size() + " reservations for date " + parts[1]);
+                        
+                        StringBuilder sb = new StringBuilder("RESERVATIONS_FOR_DATE|").append(parts[1]);
+                        for (Reservation r : reservations) {
+                            String timeStr = r.getReservationTime().toString();
+                            System.out.println("DEBUG: Adding reserved time: " + timeStr);
+                            sb.append("|").append(timeStr);
+                        }
+                        ans = sb.toString();
+                        System.out.println("DEBUG: Final response: " + ans);
+                    } catch (IllegalArgumentException e) {
+                        ans = "ERROR|INVALID_DATE_FORMAT";
+                        System.err.println("ERROR parsing date: " + e.getMessage());
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_ERROR " + e.getMessage();
+                        System.err.println("ERROR fetching reservations: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "#CANCEL_RESERVATION": {
+                    // Format: #CANCEL_RESERVATION <confirmationCode>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_CANCEL";
+                        break;
+                    }
+                    try {
+                        String confirmationCode = parts[1];
+                        
+                        // First check if reservation exists
+                        Reservation res = reservationDAO.getReservationByConfirmationCode(confirmationCode);
+                        if (res == null) {
+                            ans = "ERROR|RESERVATION_NOT_FOUND";
+                            System.out.println("DEBUG: Reservation not found with code: " + confirmationCode);
+                            break;
+                        }
+                        
+                        // Delete the reservation from database
+                        boolean deleted = reservationDAO.deleteReservationByConfirmationCode(confirmationCode);
+                        if (deleted) {
+                            ans = "RESERVATION_CANCELED|" + confirmationCode;
+                            System.out.println("DEBUG: Reservation deleted with code: " + confirmationCode);
+                        } else {
+                            ans = "ERROR|CANCEL_FAILED";
+                            System.out.println("DEBUG: Failed to delete reservation with code: " + confirmationCode);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("ERROR canceling reservation: " + e.getMessage());
+                        e.printStackTrace();
+                        ans = "ERROR|CANCEL_DB_ERROR " + e.getMessage();
                     }
                     break;
                 }
@@ -219,8 +341,7 @@ public class EchoServer extends AbstractServer {
                 }
 
                 case "#CREATE_RESERVATION": {
-                    // Format: #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId>
-                    // Note: We do NOT pass reservationID (it is auto-increment).
+                    // Format: #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email>
                     if (parts.length < 6) {
                         ans = "ERROR|BAD_FORMAT_CREATE";
                         break;
@@ -232,12 +353,139 @@ public class EchoServer extends AbstractServer {
                         Time time = Time.valueOf(parts[3]);
                         String confirmationCode = parts[4];
                         int subscriberId = Integer.parseInt(parts[5]);
+                        String phone = parts.length > 6 ? parts[6] : "";
+                        String email = parts.length > 7 ? parts[7] : "";
+
+                        System.out.println("DEBUG: Creating reservation - Phone: " + phone + ", Email: " + email);
 
                         // Create entity with ID 0 (DB will assign real ID)
                         Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId);
-                        boolean inserted = reservationDAO.insertReservation(newRes);
+                        int generatedId = reservationDAO.insertReservation(newRes, phone, email);
 
-                        ans = inserted ? "RESERVATION_CREATED" : "ERROR|INSERT_FAILED";
+                        if (generatedId > 0) {
+                            ans = "RESERVATION_CREATED|" + generatedId;
+                        } else {
+                            ans = "ERROR|INSERT_FAILED";
+                        }
+                    } catch (Exception e) {
+                        System.err.println("ERROR creating reservation: " + e.getMessage());
+                        e.printStackTrace();
+                        ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
+                    }
+                    break;
+                }
+                case "#ADD_WAITING_LIST": {
+                    // Format: #ADD_WAITING_LIST <numDiners> <contactInfoB64Url> <confirmationCode>
+                    if (parts.length < 4) {
+                        ans = "ERROR|BAD_FORMAT_ADD_WAITING";
+                        break;
+                    }
+                    try {
+                        int numDiners = Integer.parseInt(parts[1]);
+                        String contactInfo = decodeB64Url(parts[2]); // helper (Base64 URL safe)
+                        String confirmationCode = parts[3];
+
+                        boolean inserted = waitingListDAO.insert(contactInfo, numDiners, confirmationCode, "Waiting");
+                        ans = inserted ? ("WAITING_ADDED|" + confirmationCode) : "ERROR|INSERT_FAILED";
+
+
+                        if (inserted) {
+                            broadcastWaitingListSnapshot(); // push live update to subscribed managers
+                        }
+                    } catch (Exception e) {
+                        ans = "ERROR|DATA_PARSE_FAILURE";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+                case "#RECEIVE_TABLE": {
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT";
+                        break;
+                    }
+
+                    try {
+                        String code = parts[1];
+                        int tableNum = reservationDAO.allocateTableForCustomer(code);
+                        ans = "TABLE_ASSIGNED|" + tableNum;
+                    } catch (Exception e) {
+                        ans = e.getMessage();
+                    }
+                    break;
+                }
+
+                case "#GET_WAITING_LIST": {
+                    // Format: #GET_WAITING_LIST
+                    try {
+                        ans = buildWaitingListProtocol(); // returns WAITING_LIST|... or WAITING_LIST|EMPTY
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_READ_FAILED";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "#SUBSCRIBE_WAITING_LIST": {
+                    // Format: #SUBSCRIBE_WAITING_LIST
+                    waitingListSubscribers.add(client);
+                    try {
+                        ans = buildWaitingListProtocol(); // send snapshot immediately
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_READ_FAILED";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "#UNSUBSCRIBE_WAITING_LIST": {
+                    // Format: #UNSUBSCRIBE_WAITING_LIST
+                    waitingListSubscribers.remove(client);
+                    ans = "UNSUBSCRIBED";
+                    break;
+                }
+
+                case "#UPDATE_WAITING_STATUS": {
+                    // Format: #UPDATE_WAITING_STATUS <confirmationCode> <status>
+                    if (parts.length < 3) {
+                        ans = "ERROR|BAD_FORMAT_UPDATE_WAITING_STATUS";
+                        break;
+                    }
+                    try {
+                        String confirmationCode = parts[1];
+                        String status = parts[2]; // e.g. Waiting/TableFound/Canceled
+
+                        boolean updated = waitingListDAO.updateStatusByCode(confirmationCode, status);
+                        ans = updated ? "WAITING_STATUS_UPDATED" : "WAITING_NOT_FOUND";
+
+                        if (updated) {
+                            broadcastWaitingListSnapshot();
+                        }
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_UPDATE_FAILED";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "#UPDATE_WAITING_ENTRY": {
+                    // (Optional full update)
+                    // Format: #UPDATE_WAITING_ENTRY <waitingId> <numDiners> <contactInfoB64Url> <status>
+                    if (parts.length < 5) {
+                        ans = "ERROR|BAD_FORMAT_UPDATE_WAITING_ENTRY";
+                        break;
+                    }
+                    try {
+                        int waitingId = Integer.parseInt(parts[1]);
+                        int numDiners = Integer.parseInt(parts[2]);
+                        String contactInfo = decodeB64Url(parts[3]);
+                        String status = parts[4];
+
+                        boolean updated = waitingListDAO.updateById(waitingId, contactInfo, numDiners, status);
+                        ans = updated ? "WAITING_ENTRY_UPDATED" : "WAITING_NOT_FOUND";
+
+                        if (updated) {
+                            broadcastWaitingListSnapshot();
+                        }
                     } catch (Exception e) {
                         ans = "ERROR|DATA_PARSE_FAILURE";
                         e.printStackTrace();
@@ -245,6 +493,60 @@ public class EchoServer extends AbstractServer {
                     break;
                 }
 
+                case "#DELETE_WAITING_ID": {
+                    // Format: #DELETE_WAITING_ID <waitingId>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_DELETE_WAITING_ID";
+                        break;
+                    }
+                    try {
+                        int waitingId = Integer.parseInt(parts[1]);
+                        boolean deleted = waitingListDAO.deleteById(waitingId);
+                        ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
+
+                        if (deleted) {
+                            broadcastWaitingListSnapshot();
+                        }
+                    } catch (Exception e) {
+                        ans = "ERROR|DATA_PARSE_FAILURE";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "#DELETE_WAITING_CODE": {
+                    // Format: #DELETE_WAITING_CODE <confirmationCode>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_DELETE_WAITING_CODE";
+                        break;
+                    }
+                    try {
+                        String confirmationCode = parts[1];
+                        boolean deleted = waitingListDAO.deleteByConfirmationCode(confirmationCode);
+                        ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
+
+                        if (deleted) {
+                            broadcastWaitingListSnapshot();
+                        }
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_DELETE_FAILED";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "#DELETE_EXPIRED_RESERVATIONS": {
+                    try {
+                        int deleted = reservationDAO.deleteExpiredReservations();
+                        ans = "DELETED_EXPIRED|" + deleted;
+                        System.out.println("DEBUG: Deleted expired reservations count: " + deleted);
+                    } catch (Exception e) {
+                        System.err.println("ERROR deleting expired reservations: " + e.getMessage());
+                        e.printStackTrace();
+                        ans = "ERROR|DELETE_EXPIRED_FAILED " + e.getMessage();
+                    }
+                    break;
+                }
                 default:
                     ans = "ERROR|UNKNOWN_COMMAND";
                     break;
@@ -312,11 +614,15 @@ public class EchoServer extends AbstractServer {
 
         try {
             reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
+            billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
+            waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
+
             if (uiController != null) uiController.addLog("Server started + DB pool ready");
         } catch (Exception e) {
             System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
             if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
             reservationDAO = null;
+            billPaymentDAO = null;
         }
     }
 
@@ -408,8 +714,72 @@ public class EchoServer extends AbstractServer {
 	public void setUIController(ServerUIController controller) {
 		this.uiController = controller;
 	}
+	private String encodeB64Url(String s) {
+	    if (s == null) s = "";
+	    return Base64.getUrlEncoder().withoutPadding().encodeToString(s.getBytes(StandardCharsets.UTF_8));
+	}
 
-	// Class methods ***************************************************
+	private String decodeB64Url(String b64) {
+	    if (b64 == null || b64.isEmpty()) return "";
+	    byte[] bytes = Base64.getUrlDecoder().decode(b64);
+	    return new String(bytes, StandardCharsets.UTF_8);
+	}
+	private String buildWaitingListProtocol() throws Exception {
+	    List<DBController.WaitingEntry> list = waitingListDAO.getActiveWaiting();
+
+	    if (list == null || list.isEmpty()) {
+	        return "WAITING_LIST|EMPTY";
+	    }
+
+	    StringBuilder sb = new StringBuilder("WAITING_LIST|");
+	    for (int i = 0; i < list.size(); i++) {
+	        DBController.WaitingEntry e = list.get(i);
+
+	        String entryTime = (e.getEntryTime() == null) ? "" : e.getEntryTime().toString();
+
+	        String row =
+	                e.getWaitingId() + "," +
+	                encodeB64Url(e.getContactInfo()) + "," +
+	                e.getNumOfDiners() + "," +
+	                e.getConfirmationCode() + "," +
+	                e.getStatus() + "," +
+	                entryTime;
+
+	        sb.append(row);
+	        if (i < list.size() - 1) sb.append("~");
+	    }
+
+	    return sb.toString();
+	}
+
+
+	// ===== Helpers: Broadcast to subscribed managers =====
+	private void broadcastWaitingListSnapshot() {
+	    String payload;
+	    try {
+	        payload = buildWaitingListProtocol();
+	    } catch (Exception e) {
+	        System.err.println("ERROR building waiting list snapshot: " + e.getMessage());
+	        if (uiController != null) uiController.addLog("ERROR building waiting list snapshot: " + e.getMessage());
+	        return;
+	    }
+
+	    // snapshot to avoid concurrent modification
+	    Object[] subs = waitingListSubscribers.toArray();
+	    for (Object o : subs) {
+	        ConnectionToClient c = (ConnectionToClient) o;
+	        try {
+	            c.sendToClient(payload);
+	        } catch (Exception ex) {
+	            // remove dead subscriber
+	            waitingListSubscribers.remove(c);
+	        }
+	    }
+	}
+
+	// Main method ****************************************************
+
+	/**
 
 	/**
 	 * This method is responsible for the creation of the server instance (there is

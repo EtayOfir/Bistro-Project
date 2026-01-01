@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.text.Font?>
+<?import javafx.scene.text.Text?>
+
+<BorderPane prefHeight="342.0" prefWidth="701.0" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="client.SubscriberUIController">
+
+	<top>
+		<Label text="Subscriber - Personal Area" BorderPane.alignment="CENTER">
+			<font>
+				<Font name="System Bold" size="18.0" />
+			</font>
+		</Label>
+	</top>
+
+	<center>
+		<TabPane>
+			<tabs>
+				<Tab text="Personal details">
+               <content>
+                  <GridPane prefHeight="420.0" prefWidth="761.0">
+                    <columnConstraints>
+                      <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+                      <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+                        <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+                    </columnConstraints>
+                    <rowConstraints>
+                      <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                      <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                      <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                        <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                        <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                        <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                    </rowConstraints>
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Subscriber number:">
+                           <GridPane.margin>
+                              <Insets left="100.0" />
+                           </GridPane.margin>
+                        </Text>
+                        <TextField fx:id="subscriberIdField" GridPane.columnIndex="1" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Full name:" wrappingWidth="57.2578125" GridPane.rowIndex="1">
+                           <GridPane.margin>
+                              <Insets left="100.0" />
+                           </GridPane.margin>
+                        </Text>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="user name:" GridPane.rowIndex="2">
+                           <GridPane.margin>
+                              <Insets left="100.0" />
+                           </GridPane.margin>
+                        </Text>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Phone number:" GridPane.rowIndex="3">
+                           <GridPane.margin>
+                              <Insets left="100.0" />
+                           </GridPane.margin>
+                        </Text>
+                        <TextField fx:id="fullNameField" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                        <TextField fx:id="usernameField" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+                        <TextField fx:id="phoneField" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Email:" GridPane.rowIndex="4">
+                           <GridPane.margin>
+                              <Insets left="100.0" />
+                           </GridPane.margin>
+                        </Text>
+                        <TextField fx:id="emailField" prefHeight="25.0" prefWidth="223.0" GridPane.columnIndex="1" GridPane.rowIndex="4">
+                           <GridPane.margin>
+                              <Insets />
+                           </GridPane.margin>
+                        </TextField>
+                        <Button fx:id="editBtn" mnemonicParsing="false" onAction="#onEdit" text="Edit" GridPane.columnIndex="2" GridPane.rowIndex="5">
+                           <GridPane.margin>
+                              <Insets left="50.0" />
+                           </GridPane.margin>
+                        </Button>
+                        <Button fx:id="saveBtn" mnemonicParsing="false" onAction="#onSave" text="Save" GridPane.columnIndex="2" GridPane.rowIndex="5">
+                           <GridPane.margin>
+                              <Insets left="100.0" />
+                           </GridPane.margin>
+                        </Button>
+                        <Button fx:id="exitBtn" mnemonicParsing="false" onAction="#onExit" text="Exit" GridPane.columnIndex="2" GridPane.rowIndex="5">
+                           <GridPane.margin>
+                              <Insets left="150.0" />
+                           </GridPane.margin>
+                        </Button>
+                     </children>
+                  </GridPane>
+               </content></Tab>
+				<Tab text="Visit History">
+               <content>
+                  <TableView fx:id="historyTable" prefHeight="200.0" prefWidth="200.0">
+                    <columns>
+                      <TableColumn fx:id="reservationDateCol" prefWidth="117.0" text="Reservation Date" />
+                      <TableColumn fx:id="arrivalCol" prefWidth="117.0" text="Arrival" />
+                        <TableColumn fx:id="departureCol" prefWidth="117.0" text="Departure" />
+                        <TableColumn fx:id="billCol" prefWidth="117.0" text="Bill" />
+                        <TableColumn fx:id="discountCol" prefWidth="117.0" text="Discount" />
+                        <TableColumn fx:id="statusHistoryCol" prefWidth="117.0" text="Status" />
+                    </columns>
+                  </TableView>
+               </content></Tab>
+				<Tab text="Active Reservation">
+               <content>
+                  <TableView fx:id="activeReservationsTable" prefHeight="419.0" prefWidth="722.0">
+                    <columns>
+                      <TableColumn fx:id="dateCol" prefWidth="75.0" text="Date" />
+                      <TableColumn fx:id="timeCol" prefWidth="75.0" text="Time" />
+                        <TableColumn fx:id="dinersCol" prefWidth="75.0" text="Diners" />
+                        <TableColumn fx:id="codeCol" prefWidth="75.0" text="Code" />
+                        <TableColumn fx:id="statusActiveCol" prefWidth="75.0" text="Status" />
+                    </columns>
+                  </TableView>
+               </content></Tab>
+
+			</tabs>
+		</TabPane>
+	</center>
+
+</BorderPane>
