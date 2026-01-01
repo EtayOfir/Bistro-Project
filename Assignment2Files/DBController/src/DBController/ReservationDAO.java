@@ -39,40 +39,61 @@ public class ReservationDAO {
     }
     
     /**
-     * Inserts a new reservation into the database.
-     * <p>
-     * This method maps the fields of the {@link Reservation} object to the
-     * SQL parameters required by {@code SQLQueries.INSERT_RESERVATION}.
-     * <p>
-     * <b>Note:</b> The {@code ReservationID} is not included in the insert
-     * statement as it is an {@code AUTO_INCREMENT} field in the database.
+     * Inserts a new casual (walk-in) reservation into the database with phone and email.
      *
      * @param reservation the reservation entity containing data to be inserted
-     * @return {@code true} if the reservation was successfully inserted (1 row affected),
-     * {@code false} otherwise
+     * @param phone the customer's phone number
+     * @param email the customer's email address
+     * @return the generated ReservationID if successful, or -1 if insertion failed
      * @throws SQLException if a database access error occurs or the connection is closed
      */
-    public boolean insertReservation(Reservation reservation) throws SQLException {
+    public int insertReservation(Reservation reservation, String phone, String email) throws SQLException {
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_RESERVATION)) {
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_ACTIVE_RESERVATION_CASUAL, java.sql.Statement.RETURN_GENERATED_KEYS)) {
 
-            // 1. NumOfDiners
-            ps.setInt(1, reservation.getNumberOfGuests());
+            // Format: INSERT INTO ActiveReservations (CustomerType, CasualPhone, CasualEmail, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status)
+            // VALUES ('Casual', ?, ?, ?, ?, ?, ?, 'Confirmed')
             
-            // 2. ReservationDate (Expects java.sql.Date)
-            ps.setDate(2, reservation.getReservationDate());
+            // 1. CasualPhone
+            ps.setString(1, phone == null ? "" : phone); 
             
-            // 3. ConfirmationCode
-            ps.setString(3, reservation.getConfirmationCode());
+            // 2. CasualEmail
+            ps.setString(2, email == null ? "" : email);
             
-            // 4. SubscriberID (int)
-            ps.setInt(4, reservation.getSubscriberId());
+            // 3. ReservationDate (Expects java.sql.Date)
+            ps.setDate(3, reservation.getReservationDate());
             
-            // 5. ReservationTime (Expects java.sql.Time)
-            ps.setTime(5, reservation.getReservationTime());
+            // 4. ReservationTime (Expects java.sql.Time)
+            ps.setTime(4, reservation.getReservationTime());
+            
+            // 5. NumOfDiners
+            ps.setInt(5, reservation.getNumberOfGuests());
+            
+            // 6. ConfirmationCode (max 10 chars - database column is small)
+            String code = reservation.getConfirmationCode();
+            if (code.length() > 10) {
+                code = code.substring(0, 10);
+            }
+            ps.setString(6, code);
 
-            return ps.executeUpdate() == 1;
+            int rowsAffected = ps.executeUpdate();
+            if (rowsAffected > 0) {
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        return rs.getInt(1);
+                    }
+                }
+            }
+            return -1;
         }
+    }
+
+    /**
+     * Inserts a new casual (walk-in) reservation into the database.
+     * (Overloaded version for backward compatibility)
+     */
+    public int insertReservation(Reservation reservation) throws SQLException {
+        return insertReservation(reservation, "", "");
     }
     
     /**
@@ -135,6 +156,125 @@ public class ReservationDAO {
             ps.setInt(4, reservationId);
 
             return ps.executeUpdate() == 1;
+        }
+    }
+
+    /**
+     * Retrieves all reservations for a specific date from ActiveReservations table.
+     * Only returns non-canceled reservations (Status != 'Canceled')
+     *
+     * @param date the date to query (java.sql.Date)
+     * @return a list of Reservation objects for that date, or empty list if none found
+     * @throws SQLException if a database access error occurs
+     */
+    public java.util.List<Reservation> getReservationsByDate(Date date) throws SQLException {
+        java.util.List<Reservation> results = new java.util.ArrayList<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                "SELECT ReservationID, NumOfDiners, ReservationDate, ReservationTime, ConfirmationCode, SubscriberID " +
+                "FROM ActiveReservations WHERE ReservationDate = ? AND Status != 'Canceled' ORDER BY ReservationTime")) {
+
+            ps.setDate(1, date);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Reservation res = new Reservation(
+                            rs.getInt("ReservationID"),
+                            rs.getInt("NumOfDiners"),
+                            rs.getDate("ReservationDate"),
+                            rs.getTime("ReservationTime"),
+                            rs.getString("ConfirmationCode"),
+                            rs.getInt("SubscriberID")
+                    );
+                    results.add(res);
+                }
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Cancels a reservation by setting its status to 'Canceled' using the confirmation code.
+     *
+     * @param confirmationCode the confirmation code of the reservation to cancel
+     * @return {@code true} if the cancellation succeeded, {@code false} if reservation not found
+     * @throws SQLException if a database access error occurs
+     */
+    public boolean cancelReservationByConfirmationCode(String confirmationCode) throws SQLException {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.CANCEL_ACTIVE_RESERVATION)) {
+
+            ps.setString(1, confirmationCode);
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+        }
+    }
+
+    /**
+     * Deletes a reservation from the database by confirmation code.
+     *
+     * @param confirmationCode the confirmation code of the reservation to delete
+     * @return {@code true} if the deletion succeeded, {@code false} if reservation not found
+     * @throws SQLException if a database access error occurs
+     */
+    public boolean deleteReservationByConfirmationCode(String confirmationCode) throws SQLException {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM ActiveReservations WHERE ConfirmationCode = ?")) {
+
+            ps.setString(1, confirmationCode);
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+        }
+    }
+
+    /**
+     * Retrieves a reservation by its confirmation code.
+     *
+     * @param confirmationCode the confirmation code to search for
+     * @return a Reservation object if found, or {@code null} if not found
+     * @throws SQLException if a database access error occurs
+     */
+    public Reservation getReservationByConfirmationCode(String confirmationCode) throws SQLException {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE)) {
+
+            ps.setString(1, confirmationCode);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+
+                return new Reservation(
+                        rs.getInt("ReservationID"),
+                        rs.getInt("NumOfDiners"),
+                        rs.getDate("ReservationDate"),
+                        rs.getTime("ReservationTime"),
+                        rs.getString("ConfirmationCode"),
+                        rs.getInt("SubscriberID")
+                );
+            }
+        }
+    }
+
+    /**
+     * Deletes all non-canceled reservations whose combined ReservationDate + ReservationTime
+     * have passed by at least 15 minutes.
+     *
+     * Uses MySQL TIMESTAMP(ReservationDate, ReservationTime) for comparison.
+     *
+     * @return number of rows deleted
+     * @throws SQLException if a database access error occurs
+     */
+    public int deleteExpiredReservations() throws SQLException {
+        final String sql =
+                "DELETE FROM ActiveReservations " +
+                "WHERE Status != 'Canceled' " +
+                "AND TIMESTAMP(ReservationDate, ReservationTime) < (NOW() - INTERVAL 15 MINUTE)";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            return ps.executeUpdate();
         }
     }
 }

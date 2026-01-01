@@ -21,6 +21,12 @@ public class GetClientInfo {
         return clientIP;
     }
 
+    /**
+     * 
+     * @param
+     * @return clientName
+     * 
+     * */
     public String getClientName() {
         return clientName;
     }
