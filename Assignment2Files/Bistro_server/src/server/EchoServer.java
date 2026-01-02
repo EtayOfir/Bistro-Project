@@ -13,12 +13,17 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import DBController.BillPaymentDAO;
 
 
 import ocsf.server.*;
-import DBController.*;
+import DBController.BillPaymentDAO;
+import DBController.ReservationDAO;
+import DBController.WaitingListDAO;
+import DBController.mysqlConnection1;
 import ServerGUI.ServerUIController;
+import entities.Reservation;
+import entities.WaitingEntry;
+
 
 /**
  * Main TCP server of the Bistro system (Phase 1).
@@ -186,11 +191,35 @@ public class EchoServer extends AbstractServer {
             String command = (parts.length > 0) ? parts[0] : "";
 
             // Check if DB is ready
-            if (("#GET_RESERVATION".equals(command) || "#UPDATE_RESERVATION".equals(command) || "#CREATE_RESERVATION".equals(command) || "#GET_RESERVATIONS_BY_DATE".equals(command) || "#CANCEL_RESERVATION".equals(command) || "#DELETE_EXPIRED_RESERVATIONS".equals(command))
-                    && reservationDAO == null) {
+            boolean needsReservationDao =
+                    command.equals("#GET_RESERVATION") ||
+                    command.equals("#UPDATE_RESERVATION") ||
+                    command.equals("#CREATE_RESERVATION") ||
+                    command.equals("#GET_RESERVATIONS_BY_DATE") ||
+                    command.equals("#CANCEL_RESERVATION") ||
+                    command.equals("#DELETE_EXPIRED_RESERVATIONS") ||
+                    command.equals("#RECEIVE_TABLE");
+
+            boolean needsBillDao =
+                    command.equals("#GET_BILL") ||
+                    command.equals("#PAY_BILL");
+
+            boolean needsWaitingDao =
+                    command.equals("#ADD_WAITING_LIST") ||
+                    command.equals("#GET_WAITING_LIST") ||
+                    command.equals("#SUBSCRIBE_WAITING_LIST") ||
+                    command.equals("#UPDATE_WAITING_STATUS") ||
+                    command.equals("#UPDATE_WAITING_ENTRY") ||
+                    command.equals("#DELETE_WAITING_ID") ||
+                    command.equals("#DELETE_WAITING_CODE");
+
+            if ((needsReservationDao && reservationDAO == null) ||
+                (needsBillDao && billPaymentDAO == null) ||
+                (needsWaitingDao && waitingListDAO == null)) {
                 client.sendToClient("ERROR|DB_POOL_NOT_READY");
                 return;
             }
+
 
             switch (command) {
             
@@ -293,7 +322,7 @@ public class EchoServer extends AbstractServer {
                         break;
                     }
                     try {
-                        String confirmationCode = parts[1];
+                        String confirmationCode = parts[1].trim();
                         
                         // First check if reservation exists
                         Reservation res = reservationDAO.getReservationByConfirmationCode(confirmationCode);
@@ -303,15 +332,16 @@ public class EchoServer extends AbstractServer {
                             break;
                         }
                         
-                        // Delete the reservation from database
-                        boolean deleted = reservationDAO.deleteReservationByConfirmationCode(confirmationCode);
-                        if (deleted) {
+                        // Soft-cancel the reservation (do NOT delete)
+                        boolean canceled = reservationDAO.cancelReservationByConfirmationCode(confirmationCode);
+                        if (canceled) {
                             ans = "RESERVATION_CANCELED|" + confirmationCode;
-                            System.out.println("DEBUG: Reservation deleted with code: " + confirmationCode);
+                            System.out.println("DEBUG: Reservation canceled (status) with code: " + confirmationCode);
                         } else {
                             ans = "ERROR|CANCEL_FAILED";
-                            System.out.println("DEBUG: Failed to delete reservation with code: " + confirmationCode);
+                            System.out.println("DEBUG: Failed to cancel reservation with code: " + confirmationCode);
                         }
+
                     } catch (Exception e) {
                         System.err.println("ERROR canceling reservation: " + e.getMessage());
                         e.printStackTrace();
@@ -623,6 +653,7 @@ public class EchoServer extends AbstractServer {
             if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
             reservationDAO = null;
             billPaymentDAO = null;
+            waitingListDAO = null;
         }
     }
 
@@ -725,7 +756,7 @@ public class EchoServer extends AbstractServer {
 	    return new String(bytes, StandardCharsets.UTF_8);
 	}
 	private String buildWaitingListProtocol() throws Exception {
-	    List<DBController.WaitingEntry> list = waitingListDAO.getActiveWaiting();
+	    List<WaitingEntry> list = waitingListDAO.getActiveWaiting();
 
 	    if (list == null || list.isEmpty()) {
 	        return "WAITING_LIST|EMPTY";
@@ -733,7 +764,7 @@ public class EchoServer extends AbstractServer {
 
 	    StringBuilder sb = new StringBuilder("WAITING_LIST|");
 	    for (int i = 0; i < list.size(); i++) {
-	        DBController.WaitingEntry e = list.get(i);
+	        WaitingEntry e = list.get(i);
 
 	        String entryTime = (e.getEntryTime() == null) ? "" : e.getEntryTime().toString();
 
@@ -778,8 +809,6 @@ public class EchoServer extends AbstractServer {
 	}
 
 	// Main method ****************************************************
-
-	/**
 
 	/**
 	 * This method is responsible for the creation of the server instance (there is

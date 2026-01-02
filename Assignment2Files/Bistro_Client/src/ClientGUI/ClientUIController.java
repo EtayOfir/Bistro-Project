@@ -1,6 +1,5 @@
 package ClientGUI;
 
-
 import java.io.IOException;
 
 import client.ChatClient;
@@ -15,105 +14,179 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 /**
- * Controller class for the Client-side JavaFX Graphical User Interface.
- * <p>
- * This class handles user interactions, validates input, and communicates with the
- * {@link ChatClient} to send commands to the server. It implements the {@link ChatIF}
- * interface to receive and display messages sent back from the server.
- * <p>
- * <b>Responsibilities:</b>
- * <ul>
- * <li>Initializing the network connection.</li>
- * <li>Handling button clicks (Show, Update, Exit).</li>
- * <li>Parsing protocol messages received from the server.</li>
- * <li>Updating UI components on the JavaFX Application Thread.</li>
- * </ul>
+ * Main client-side controller (JavaFX) and central server-message router.
+ *
+ * <p>This controller has two roles:</p>
+ * <ol>
+ *   <li><b>Main Reservation Management UI</b>: show/update/cancel reservations from the primary screen.</li>
+ *   <li><b>OCSF Message Router</b>: implements {@link ChatIF} and receives all server messages via
+ *       {@link #display(String)}. It then routes messages to the currently active child controllers
+ *       (e.g., {@link ReservationUIController}, {@link ReceiveTableUIController}).</li>
+ * </ol>
+ *
+ * <p><b>Architecture note:</b>
+ * OCSF communication is asynchronous. UI controllers should not "poll" for responses.
+ * Instead, messages arrive via {@link #display(String)} and are dispatched based on message type.</p>
+ *
+ * <p><b>Networking note:</b>
+ * This controller does not create a {@link ChatClient}. The application bootstraps the shared
+ * client connection in {@code ClientUI}, and controllers send messages through {@link ClientUI#chat}.</p>
+ *
+ * @author Bistro Team
  */
 public class ClientUIController implements ChatIF {
 
-    // UI Components
+    // FXML UI Components (Main Screen)
 
     /** Input field for entering the Reservation ID to search. */
-    @FXML
-    private TextField reservationIdInput;
+    @FXML private TextField reservationIdInput;
 
     /** Label displaying the currently loaded Reservation ID (or status like "Not Found"). */
-    @FXML
-    private Label reservationIdLabel;
+    @FXML private Label reservationIdLabel;
 
     /** Editable text field for the number of guests. */
-    @FXML
-    private TextField numberOfGuestsField;
+    @FXML private TextField numberOfGuestsField;
 
     /** Editable text field for the reservation date (Format: yyyy-MM-dd). */
-    @FXML
-    private TextField reservationDateField;
+    @FXML private TextField reservationDateField;
 
     /** Editable text field for the reservation time (Format: HH:mm:ss). */
-    @FXML
-    private TextField reservationTimeField;
+    @FXML private TextField reservationTimeField;
 
     /** Button to trigger the reservation search. */
-    @FXML
-    private Button showReservation;
+    @FXML private Button showReservation;
 
     /** Button to submit updates for the loaded reservation. */
-    @FXML
-    private Button update;
+    @FXML private Button update;
 
     /** Button to cancel a reservation. */
-    @FXML
-    private Button cancelReservation;
+    @FXML private Button cancelReservation;
 
     /** Button to close the connection and exit the application. */
-    @FXML
-    private Button exit;
+    @FXML private Button exit;
 
     /** Text area for displaying logs, status messages, and reservation details. */
-    @FXML
-    private TextArea reservationDetailsTextArea;
+    @FXML private TextArea reservationDetailsTextArea;
 
-    @FXML
-    private void initialize() {
-      applyRolePermissions();
-    }
-  
-    // Internal variable to track current ID
-    /** Stores the ID of the reservation currently being displayed/edited. */
+    /** Button to create a new reservation (opens the Reservation UI). */
+    @FXML private Button newReservationButton;
+
+    /** Label for "Reservation Actions" section. */
+    @FXML private Label reservationActionsLabel;
+
+    // -------------------- Context / Permissions --------------------
+
+    /** Stores the ID of the reservation currently being displayed/edited on the main screen. */
     private String currentReservationId;
 
-    // Client
-    /** The network client instance used to communicate with the server. */
-    private ChatClient chatClient;
+    /** Currently logged in user name (for UI-only display). */
     private String loggedInUser;
+
+    /** Currently logged in role (for UI-only permissions). */
     private String loggedInRole;
+
+    /** Optional DB user for admin operations (kept for compatibility). */
     private String dbUser = "root";
+
+    /** Optional DB password for admin operations (kept for compatibility). */
     private String dbPassword = "";
 
-    // Static holder for the current ReservationUIController (for message routing)
-    private static ReservationUIController activeReservationController = null;
+    // Active Controller Routing
+    
+    /** Active "New Reservation" window controller, if open. */
+    private static volatile ReservationUIController activeReservationController;
 
+    /** Active "Receive Table" window controller, if open. */
+    private static volatile ReceiveTableUIController activeReceiveTableController;
+    
+    private static volatile ClientUIController mainController;
+
+    public static ClientUIController getMainController() {
+        return mainController;
+    }
+    
+    public static ReservationUIController getActiveReservationController() {
+        return activeReservationController;
+    }
+
+    public static ReceiveTableUIController getActiveReceiveTableController() {
+        return activeReceiveTableController;
+    }
+
+    /**
+     * Registers the currently active reservation controller (new reservation window).
+     *
+     * @param controller active reservation controller or {@code null}
+     */
     public static void setActiveReservationController(ReservationUIController controller) {
         activeReservationController = controller;
     }
 
+    /**
+     * Clears the active reservation controller reference.
+     * <p>Call when the reservation window closes.</p>
+     */
     public static void clearActiveReservationController() {
         activeReservationController = null;
     }
 
+    /**
+     * Registers the currently active receive-table controller.
+     *
+     * @param controller active receive-table controller or {@code null}
+     */
+    public static void setActiveReceiveTableController(ReceiveTableUIController controller) {
+        activeReceiveTableController = controller;
+    }
+
+    /**
+     * Clears the active receive-table controller reference.
+     * <p>Call when the receive-table window closes.</p>
+     */
+    public static void clearActiveReceiveTableController() {
+        activeReceiveTableController = null;
+    }
+    
+    
+    // JavaFX lifecycle
+
+    /**
+     * JavaFX initialization hook.
+     * Applies permissions based on the user context (if already set).
+     */
+    @FXML
+    private void initialize() {
+    	mainController = this;
+        applyRolePermissions();
+    }
+
+    /**
+     * Sets the logged-in user context (username + role) and updates UI permissions.
+     *
+     * @param username logged-in username
+     * @param role logged-in role (e.g., Customer / Manager / Representative)
+     */
     public void setUserContext(String username, String role) {
         this.loggedInUser = username;
         this.loggedInRole = role;
         applyRolePermissions();
     }
+
+    /**
+     * Applies role-based UI permissions.
+     *
+     * <p>Current policy:
+     * <ul>
+     *   <li>Customer: can open "New Reservation" flow.</li>
+     *   <li>Any non-empty role: allowed to update reservation fields (your current simplified rule).</li>
+     * </ul>
+     *
+     * <p>You can tighten it later to Manager/Representative only by restoring your original check.</p>
+     */
     private void applyRolePermissions() {
-//        boolean canUpdate = loggedInRole != null &&
-//            ("Manager".equalsIgnoreCase(loggedInRole)
-//                    || "Representative".equalsIgnoreCase(loggedInRole));
         boolean canUpdate = loggedInRole != null && !loggedInRole.isBlank();
         boolean isCustomer = loggedInRole != null && "Customer".equalsIgnoreCase(loggedInRole);
 
@@ -121,243 +194,143 @@ public class ClientUIController implements ChatIF {
             newReservationButton.setVisible(isCustomer);
             newReservationButton.setManaged(isCustomer);
         }
-        
+
         if (reservationActionsLabel != null) {
             reservationActionsLabel.setVisible(isCustomer);
             reservationActionsLabel.setManaged(isCustomer);
         }
 
-        // only Manager / Representative can update
         if (update != null) update.setDisable(!canUpdate);
-        
+
         if (numberOfGuestsField != null) numberOfGuestsField.setEditable(canUpdate);
         if (reservationDateField != null) reservationDateField.setEditable(canUpdate);
         if (reservationTimeField != null) reservationTimeField.setEditable(canUpdate);
 
-
         if (reservationDetailsTextArea != null && loggedInRole != null && loggedInUser != null) {
-            reservationDetailsTextArea.appendText(
-                    "Logged in as " + loggedInRole + " (" + loggedInUser + ")\n"
-            );
+        	safeAppend("Logged in as " + loggedInRole + " (" + loggedInUser + ")\n");
         }
     }
 
-    
-    /**
-     * Initializes the network client connection.
-     * <p>
-     * Creates a new {@link ChatClient} instance connected to the specified host and port.
-     *
-     * @param host The server hostname or IP address.
-     * @param port The server listening port.
-     */
-    public void initClient(String host, int port) {
-        try {
-            this.chatClient = new ChatClient(host, port, this); // "this" is ChatIF
-        } catch (IOException e) {
-            e.printStackTrace();
-            display("Could not connect to server: " + e.getMessage());
-        }
-    }
+    // Networking: ChatIF entry point
 
     /**
-     * Sets the ChatClient instance manually (useful for dependency injection or testing).
+     * Receives a message from the server via OCSF.
      *
-     * @param chatClient The ChatClient instance.
-     */
-    public void setChatClient(ChatClient chatClient) {
-        this.chatClient = chatClient;
-    }
-
-    /**
-     * Event handler for the "Update" button.
-     * <p>
-     * Validates that a reservation is currently loaded and that all fields are populated.
-     * Constructs the update protocol message {@code #UPDATE_RESERVATION} and sends it to the server.
+     * <p>This method is called on a non-JavaFX thread, so it uses {@link Platform#runLater(Runnable)}
+     * to safely update UI components and route messages to child controllers.</p>
      *
-     * @param event The action event triggered by the button click.
-     */
-    @FXML
-    private void onUpdateReservationClicked(ActionEvent event) {
-        if (chatClient == null) {
-            display("Client not initialized.");
-            return;
-        }
-
-        // Check if a reservation is currently loaded
-        String loadedId = reservationIdLabel.getText();
-        if (loadedId == null || loadedId.equals("-") || loadedId.equals("Not found") || loadedId.equals("Error")) {
-            display("No valid reservation loaded to update.");
-            return;
-        }
-
-        String newGuests = numberOfGuestsField.getText();
-        String newDate   = reservationDateField.getText();
-        String newTime   = reservationTimeField.getText();
-
-        if (newGuests.isBlank() || newDate.isBlank() || newTime.isBlank()) {
-            display("Please enter Guests, Date and Time.");
-            return;
-        }
-
-        // Send Update Command
-        // Protocol: #UPDATE_RESERVATION <id> <guests> <date> <time>
-        String msg = "#UPDATE_RESERVATION " + loadedId + " " + newGuests + " " + newDate + " " + newTime;
-
-        reservationDetailsTextArea.appendText("\nSending update request...\n");
-        chatClient.handleMessageFromClientUI(msg);
-    }
-    
-    /**
-     * Event handler for the "Show Reservation" button.
-     * <p>
-     * Reads the ID from the input field and initiates a search request.
-     *
-     * @param event The action event triggered by the button click.
-     */
-    @FXML
-    private void onShowReservationClicked(ActionEvent event) {
-        if (chatClient == null) {
-            display("Client not initialized.");
-            return;
-        }
-
-        String idToSearch = reservationIdInput.getText();
-
-        if (idToSearch == null || idToSearch.isBlank()) {
-            display("Please enter a Reservation ID.");
-            return;
-        }
-
-        SearchReservation(idToSearch.trim());
-    }
-    
-    /**
-     * Sends a search request to the server for a specific reservation ID.
-     * <p>
-     * Sends the protocol message {@code #GET_RESERVATION <id>}.
-     *
-     * @param id The reservation ID to search for.
-     */
-    public void SearchReservation(String id) {
-        this.currentReservationId = id;
-        try {
-            String msg = "#GET_RESERVATION " + id;
-            chatClient.handleMessageFromClientUI(msg);
-
-            Platform.runLater(() -> {
-                reservationDetailsTextArea.setText("Searching for Reservation ID: " + id + "...");
-            });
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            Platform.runLater(() -> {
-                reservationDetailsTextArea.setText("Error sending request: " + e.getMessage());
-            });
-        }
-    }
-    
-    /**
-     * Displays a message in the UI.
-     * <p>
-     * This method is called by the {@code ChatClient} when a message is received from the server.
-     * Since network operations happen on a background thread, this method uses 
-     * {@link Platform#runLater(Runnable)} to safely update the JavaFX UI.
-     *
-     * @param message The message string received from the server.
+     * @param message raw server message string
      */
     @Override
     public void display(String message) {
         System.out.println("UI display(): " + message);
-        Platform.runLater(() -> handleServerMessage(message));
+        Platform.runLater(() -> routeAndHandleServerMessage(message));
+    }
+
+    /**
+     * Routes messages to active child controllers (if relevant), otherwise handles them
+     * on the main screen.
+     *
+     * @param message raw server message
+     */
+    private void routeAndHandleServerMessage(String message) {
+        if (message == null) return;
+
+        // 1) Route "New Reservation" window messages
+        ReservationUIController r = activeReservationController;
+        if (r != null) {
+            if (message.startsWith("RESERVATIONS_FOR_DATE|")) {
+                r.onReservationsReceived(message);
+                return;
+            }
+            if (message.startsWith("RESERVATION_CREATED")) {
+                r.onBookingResponse(message);
+                return;
+            }
+            if (message.startsWith("RESERVATION_CANCELED")
+                    || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
+                    || message.startsWith("ERROR|CANCEL")) {
+                r.onCancelResponse(message);
+                return;
+            }
+        }
+
+        // 2) Route "Receive Table" window messages
+        ReceiveTableUIController t = activeReceiveTableController;
+        if (t != null) {
+            if (message.startsWith("TABLE_ASSIGNED|")
+                    || "NO_TABLE_AVAILABLE".equals(message)
+                    || "INVALID_CONFIRMATION_CODE".equals(message)) {
+                t.onReceiveTableResponse(message);
+                return;
+            }
+        }
+
+        // 3) Handle main screen messages
+        handleMainScreenServerMessage(message);
     }
     
     /**
-     * Parses the raw message received from the server and updates the UI components accordingly.
-     * <p>
-     * Handles the following protocol responses:
+     * Entry point for the central router (ClientMessageRouter).
+     * Routes messages to the main screen handler, only when the main UI is loaded.
+     *
+     * @param message raw server message
+     */
+    public void handleMainScreenServerMessageFromRouter(String message) {
+        handleMainScreenServerMessage(message);
+    }
+
+
+    /**
+     * Handles server responses intended for the main management screen (show/update/cancel by ID/code).
+     *
+     * <p>Supported messages:
      * <ul>
-     * <li>{@code RESERVATION|...}: Populates the fields with reservation details.</li>
-     * <li>{@code RESERVATION_NOT_FOUND}: Clears fields and shows a "Not found" status.</li>
-     * <li>{@code RESERVATION_UPDATED}: Notifies success and re-fetches the data.</li>
-     * <li>General text messages: Appends them to the text area.</li>
+     *   <li>{@code RESERVATION|id|guests|date|time|code|subId}</li>
+     *   <li>{@code RESERVATION_NOT_FOUND}</li>
+     *   <li>{@code RESERVATION_UPDATED}</li>
+     *   <li>{@code RESERVATION_CANCELED} and {@code ERROR|RESERVATION_NOT_FOUND}</li>
+     *   <li>Any other string is appended as a log line</li>
      * </ul>
      *
-     * @param message The raw protocol string from the server.
+     * @param message raw server message
      */
-    private void handleServerMessage(String message) {
-        if (message == null) return;
+    private void handleMainScreenServerMessage(String message) {
 
-        System.out.println("DEBUG: handleServerMessage received: [" + message + "]");
-        System.out.println("DEBUG: activeReservationController is " + (activeReservationController != null ? "SET" : "NULL"));
+    	// If the main screen UI is not injected yet, don't touch FXML fields.
+    	if (reservationDetailsTextArea == null) {
+    	    System.out.println("SERVER (main UI not ready): " + message);
+    	    return;
+    	}
 
-        // Route reservation-specific responses to the active controller
-        if ((message.startsWith("RESERVATIONS_FOR_DATE|") || message.startsWith("RESERVATION_CREATED") || message.startsWith("ERROR|BOOK")) && activeReservationController != null) {
-            System.out.println("DEBUG: ✓ Routing to activeReservationController");
-            if (message.startsWith("RESERVATIONS_FOR_DATE|")) {
-                System.out.println("DEBUG: Calling onReservationsReceived()");
-                activeReservationController.onReservationsReceived(message);
-            } else if (message.startsWith("RESERVATION_CREATED")) {
-                System.out.println("DEBUG: Calling onBookingResponse()");
-                activeReservationController.onBookingResponse(message);
-            } else {
-                System.out.println("DEBUG: Calling onBookingResponse() - error");
-                activeReservationController.onBookingResponse(message);
-            }
-            return;
-        }
-        
-        // Route cancel responses - check both active controllers
-        if ((message.startsWith("RESERVATION_CANCELED") || message.startsWith("ERROR|RESERVATION_NOT_FOUND") || message.startsWith("ERROR|CANCEL"))) {
-            System.out.println("DEBUG: Routing cancel response");
-            // Try active reservation controller first (if in New Reservation window)
-            if (activeReservationController != null) {
-                System.out.println("DEBUG: Routing cancel to activeReservationController");
-                activeReservationController.onCancelResponse(message);
-                return;
-            }
-            // Otherwise route to main client controller
-            System.out.println("DEBUG: Routing cancel to main ClientUIController");
-            onCancelResponseFromServer(message);
-            return;
-        }
-        
-        System.out.println("DEBUG: ✗ NOT routed - activeReservationController null or wrong message type");
-        System.out.println("  activeReservationController: " + activeReservationController);
-        System.out.println("  startsWithRES_FOR_DATE: " + message.startsWith("RESERVATIONS_FOR_DATE|"));
-        System.out.println("  equalsRES_CREATED: " + message.equals("RESERVATION_CREATED"));
-        System.out.println("  startsWithERROR: " + message.startsWith("ERROR|BOOK"));
-
-        if (message.startsWith("RESERVATION|")) {
+    	if (message.startsWith("RESERVATION|")) {
             // Protocol: RESERVATION|id|guests|date|time|code|subId
             String[] parts = message.split("\\|");
-            
+
             if (parts.length >= 7) {
-                String rId      = parts[1];
-                String rGuests  = parts[2];
-                String rDate    = parts[3];
-                String rTime    = parts[4];
-                String rCode    = parts[5];
-                String rSubId   = parts[6];
+                String rId    = parts[1];
+                String guests = parts[2];
+                String date   = parts[3];
+                String time   = parts[4];
+                String code   = parts[5];
+                String subId  = parts[6];
 
                 this.currentReservationId = rId;
 
-                // Update UI Fields
                 reservationIdLabel.setText(rId);
-                numberOfGuestsField.setText(rGuests);
-                reservationDateField.setText(rDate);
-                reservationTimeField.setText(rTime);
+                numberOfGuestsField.setText(guests);
+                reservationDateField.setText(date);
+                reservationTimeField.setText(time);
 
-                // Build Detail String
                 StringBuilder sb = new StringBuilder();
                 sb.append("Reservation Details\n");
                 sb.append("-------------------\n");
                 sb.append("Reservation ID    : ").append(rId).append("\n");
-                sb.append("Guests            : ").append(rGuests).append("\n");
-                sb.append("Date              : ").append(rDate).append("\n");
-                sb.append("Time              : ").append(rTime).append("\n");
-                sb.append("Confirmation Code : ").append(rCode).append("\n");
-                sb.append("Subscriber ID     : ").append(rSubId).append("\n");
+                sb.append("Guests            : ").append(guests).append("\n");
+                sb.append("Date              : ").append(date).append("\n");
+                sb.append("Time              : ").append(time).append("\n");
+                sb.append("Confirmation Code : ").append(code).append("\n");
+                sb.append("Subscriber ID     : ").append(subId).append("\n");
 
                 reservationDetailsTextArea.setText(sb.toString());
             } else {
@@ -371,107 +344,104 @@ public class ClientUIController implements ChatIF {
             reservationTimeField.setText("");
             reservationDetailsTextArea.setText("Reservation ID " + currentReservationId + " not found.");
 
-        } else if (message.equals("RESERVATION_UPDATED")) {
+        } else if ("RESERVATION_UPDATED".equals(message)) {
             reservationDetailsTextArea.appendText("\nSuccess: Reservation updated successfully!\nRe-loading data...");
-            // Automatically refresh the data
-            SearchReservation(currentReservationId);
-              
+            if (currentReservationId != null) {
+                searchReservation(currentReservationId);
+            }
+
+        } else if (message.startsWith("RESERVATION_CANCELED")
+                || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
+                || message.startsWith("ERROR|CANCEL")) {
+            onCancelResponseFromServer(message);
+
         } else {
             reservationDetailsTextArea.appendText(message + "\n");
         }
     }
-    
+
+    // Main Screen Actions
+
     /**
-     * Event handler for the "Exit" button.
-     * <p>
-     * Closes the client connection gracefully and terminates the application process.
+     * Event handler for "Show Reservation".
      *
-     * @param event The action event triggered by the button click.
+     * @param event action event
      */
     @FXML
-    private void onExitClicked(ActionEvent event) {
-        try {
-            if (chatClient != null) chatClient.closeConnection();
-        } catch (Exception e) { }
-        Platform.exit();    // closes the JavaFX UI
-        System.exit(0);     // kills the process completely
-    }
-
-    public void setDatabaseCredentials(String user, String password) {
-        this.dbUser = user;
-        this.dbPassword = password;
-    }
-
-    public String getDbUser() {
-        return dbUser;
-    }
-
-    public String getDbPassword() {
-        return dbPassword;
-    }
-
-    /** Button to create a new reservation (opens the Reservation UI). */
-    @FXML
-    private Button newReservationButton;
-
-    /** Label for "Reservation Actions" section. */
-    @FXML
-    private Label reservationActionsLabel;
-
-    /**
-     * Event handler for the "New Reservation" button.
-     * <p>
-     * Opens a new modal window for creating a reservation. Restricted to customer role only.
-     * Before opening, requests the server to delete expired reservations (older than 15 minutes).
-     */
-    @FXML
-    private void onNewReservationClicked(ActionEvent event) {
-        // Only allow customers
-        if (loggedInRole == null || !"Customer".equalsIgnoreCase(loggedInRole)) {
-            display("Only customers can create reservations.");
+    private void onShowReservationClicked(ActionEvent event) {
+        if (ClientUI.chat == null) {
+        	safeAppend("Client not initialized.\n");
             return;
         }
-        try {
-            // Trigger cleanup of expired reservations on server
-            if (chatClient != null) {
-                try {
-                    chatClient.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
-                } catch (Exception e) {
-                    System.out.println("DEBUG: Failed to send delete expired command: " + e.getMessage());
-                }
-            }
 
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/ClientGUI/ReservationUI.fxml"));
-            Parent root = loader.load();
-
-            ReservationUIController resController = loader.getController();
-            // REGISTER BEFORE passing chatClient to avoid race condition
-            ClientUIController.setActiveReservationController(resController);
-            
-            resController.setChatClient(chatClient);
-
-            Stage stage = new Stage();
-            stage.setTitle("New Reservation");
-            stage.initModality(javafx.stage.Modality.WINDOW_MODAL);
-            if (event != null && event.getSource() instanceof Button btn && btn.getScene() != null) {
-                stage.initOwner(btn.getScene().getWindow());
-            }
-            stage.setScene(new Scene(root));
-            stage.show();
-        } catch (Exception e) {
-            e.printStackTrace();
-            display("Failed to open reservation window: " + e.getMessage());
+        String idToSearch = reservationIdInput.getText();
+        if (idToSearch == null || idToSearch.isBlank()) {
+        	safeAppend("Please enter a Reservation ID.\n");
+            return;
         }
+
+        searchReservation(idToSearch.trim());
     }
 
     /**
-     * Handle cancel reservation button click.
-     * Prompts user for confirmation code and cancels the reservation.
+     * Sends a {@code #GET_RESERVATION <id>} request to the server.
+     *
+     * @param id reservation ID
+     */
+    public void searchReservation(String id) {
+        this.currentReservationId = id;
+
+        String msg = "#GET_RESERVATION " + id;
+        ClientUI.chat.handleMessageFromClientUI(msg);
+
+        safeSetText("Searching for Reservation ID: " + id + "...");
+    }
+
+    /**
+     * Event handler for "Update" button.
+     *
+     * @param event action event
+     */
+    @FXML
+    private void onUpdateReservationClicked(ActionEvent event) {
+        if (ClientUI.chat == null) {
+        	safeAppend("Client not initialized.\n");
+            return;
+        }
+
+        String loadedId = reservationIdLabel.getText();
+        if (loadedId == null || loadedId.equals("-") || loadedId.equalsIgnoreCase("Not found") || loadedId.equalsIgnoreCase("Error")) {
+        	safeAppend("No valid reservation loaded to update.\n");
+            return;
+        }
+
+        String newGuests = numberOfGuestsField.getText();
+        String newDate   = reservationDateField.getText();
+        String newTime   = reservationTimeField.getText();
+
+        if (newGuests == null || newDate == null || newTime == null
+                || newGuests.isBlank() || newDate.isBlank() || newTime.isBlank()) {
+        	safeAppend("Please enter Guests, Date and Time.\n");
+            return;
+        }
+
+        // Protocol: #UPDATE_RESERVATION <id> <guests> <date> <time>
+        String msg = "#UPDATE_RESERVATION " + loadedId + " " + newGuests + " " + newDate + " " + newTime;
+        safeAppend("\nSending update request...\n");
+        ClientUI.chat.handleMessageFromClientUI(msg);
+    }
+
+    /**
+     * Event handler for "Cancel Reservation" button.
+     *
+     * <p>Prompts the user for a confirmation code and sends {@code #CANCEL_RESERVATION <code>}.</p>
+     *
+     * @param event action event
      */
     @FXML
     private void onCancelReservationClicked(ActionEvent event) {
-        if (chatClient == null) {
-            display("Not connected to server.");
+        if (ClientUI.chat == null) {
+        	safeAppend("Not connected to server.\n");
             return;
         }
 
@@ -479,47 +449,163 @@ public class ClientUIController implements ChatIF {
         dialog.setTitle("Cancel Reservation");
         dialog.setHeaderText("Cancel Reservation");
         dialog.setContentText("Enter confirmation code to cancel:");
-        
+
         var result = dialog.showAndWait();
-        if (result.isEmpty()) {
-            return;
-        }
-        
+        if (result.isEmpty()) return;
+
         String confirmationCode = result.get().trim();
         if (confirmationCode.isEmpty()) {
-            display("Please enter a confirmation code.");
+        	safeAppend("Please enter a confirmation code.\n");
             return;
         }
-        
-        // Send cancel command to server
+
         String command = "#CANCEL_RESERVATION " + confirmationCode;
+        ClientUI.chat.handleMessageFromClientUI(command);
+    }
+
+    /**
+     * Opens the "New Reservation" window (customer only).
+     *
+     * <p>This method also asks the server to delete expired reservations before opening.</p>
+     *
+     * @param event action event
+     */
+    @FXML
+    private void onNewReservationClicked(ActionEvent event) {
+        if (loggedInRole == null || !"Customer".equalsIgnoreCase(loggedInRole)) {
+        	safeAppend("Only customers can create reservations.\n");
+            return;
+        }
+
         try {
-            System.out.println("DEBUG: Sending cancel command for code: " + confirmationCode);
-            chatClient.handleMessageFromClientUI(command);
+            // Trigger cleanup of expired reservations on server
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
+            }
+
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/ClientGUI/ReservationUI.fxml"));
+            Parent root = loader.load();
+
+            ReservationUIController resController = loader.getController();
+            // Controller registers itself in initialize(), but registering again is harmless:
+            ClientUIController.setActiveReservationController(resController);
+
+            Stage stage = new Stage();
+            stage.setTitle("New Reservation");
+            stage.initModality(javafx.stage.Modality.WINDOW_MODAL);
+
+            if (event != null && event.getSource() instanceof Button btn && btn.getScene() != null) {
+                stage.initOwner(btn.getScene().getWindow());
+            }
+
+            stage.setScene(new Scene(root));
+            stage.show();
+
         } catch (Exception e) {
             e.printStackTrace();
-            display("Error: " + e.getMessage());
+            safeAppend("Failed to open reservation window: " + e.getMessage() + "\n");
         }
     }
 
     /**
-     * Handle cancel response from server
+     * Handles cancel responses for the main screen (when no reservation window is open).
+     *
+     * @param response raw server response
      */
     public void onCancelResponseFromServer(String response) {
-        javafx.application.Platform.runLater(() -> {
-            if (response != null && response.startsWith("RESERVATION_CANCELED")) {
-                reservationDetailsTextArea.setText("Reservation successfully canceled and deleted!");
-                reservationIdLabel.setText("-");
-                numberOfGuestsField.setText("");
-                reservationDateField.setText("");
-                reservationTimeField.setText("");
-                reservationIdInput.setText("");
-                display("✓ Reservation canceled successfully!");
-            } else if (response != null && response.startsWith("ERROR|RESERVATION_NOT_FOUND")) {
-                display("✗ No reservation found with this confirmation code.");
-            } else {
-                display("✗ Error canceling reservation: " + response);
-            }
-        });
+        if (response != null && response.startsWith("RESERVATION_CANCELED")) {
+        	safeSetText("Reservation successfully canceled and deleted!");
+            reservationIdLabel.setText("-");
+            numberOfGuestsField.setText("");
+            reservationDateField.setText("");
+            reservationTimeField.setText("");
+            reservationIdInput.setText("");
+            safeAppend("\n✓ Reservation canceled successfully!\n");
+
+        } else if (response != null && response.startsWith("ERROR|RESERVATION_NOT_FOUND")) {
+        	safeAppend("✗ No reservation found with this confirmation code.\n");
+
+        } else {
+        	safeAppend("✗ Error canceling reservation: " + response + "\n");
+        }
     }
+
+    /**
+     * Event handler for "Exit".
+     *
+     * <p>Closes the client connection gracefully (if supported by your OCSF version)
+     * and terminates the JavaFX application.</p>
+     *
+     * @param event action event
+     */
+    @FXML
+    private void onExitClicked(ActionEvent event) {
+        try {
+            // Some OCSF versions expose closeConnection(); if yours doesn't, remove this call.
+            if (ClientUI.chat != null) {
+                try {
+                    ClientUI.chat.closeConnection();
+                } catch (Exception ignored) { }
+            }
+        } finally {
+            Platform.exit();
+            System.exit(0);
+        }
+    }
+
+    // DB credentials
+
+    /**
+     * Sets DB credentials (if your UI needs to forward them for admin operations).
+     *
+     * @param user db username
+     * @param password db password
+     */
+    public void setDatabaseCredentials(String user, String password) {
+        this.dbUser = user;
+        this.dbPassword = password;
+    }
+
+    /**
+     * @return DB username (if used)
+     */
+    public String getDbUser() {
+        return dbUser;
+    }
+
+    /**
+     * @return DB password (if used)
+     */
+    public String getDbPassword() {
+        return dbPassword;
+    }
+
+    /**
+     * Safely appends text to the main text area (if injected),
+     * otherwise prints to console.
+     *
+     * @param text text to append
+     */
+    private void safeAppend(String text) {
+        if (reservationDetailsTextArea != null) {
+            reservationDetailsTextArea.appendText(text);
+        } else {
+            System.out.print("UI (TextArea null): " + text);
+        }
+    }
+
+    /**
+     * Safely sets the content of the main text area (if injected),
+     * otherwise prints to console.
+     *
+     * @param text text to set
+     */
+    private void safeSetText(String text) {
+        if (reservationDetailsTextArea != null) {
+            reservationDetailsTextArea.setText(text);
+        } else {
+            System.out.println("UI (TextArea null): " + text);
+        }
+    }
+
 }

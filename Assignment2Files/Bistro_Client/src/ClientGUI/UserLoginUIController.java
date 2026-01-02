@@ -18,59 +18,58 @@ import javafx.stage.Stage;
 /**
  * Controller for the user login screen.
  *
- * <p>
- * This controller handles:
+ * <p>This controller handles:
  * <ul>
  *   <li>User credentials input (username, password)</li>
  *   <li>User role selection</li>
- *   <li>Optional server and database configuration</li>
+ *   <li>Optional database credentials input (kept for compatibility)</li>
  *   <li>Navigation to the appropriate UI based on the selected role</li>
  * </ul>
  * </p>
  *
- * <p>
- * Supported navigation:
+ * <p><b>Networking note:</b>
+ * This controller does <b>not</b> create or initialize a {@code ChatClient}.
+ * The application bootstraps a single shared connection in {@link ClientUI},
+ * and all controllers use {@link ClientUI#chat} to communicate with the server.</p>
+ *
+ * <p>Supported navigation:
  * <ul>
  *   <li>Manager / Representative → Host dashboard</li>
  *   <li>Subscriber / Customer → Client reservation UI</li>
  * </ul>
  * </p>
+ *
+ * @author Bistro Team
  */
 public class UserLoginUIController {
 
-    /** Default server host if not provided by the user. */
-    private static final String DEFAULT_HOST = "localhost";
-
-    /** Default server port if not provided by the user. */
-    private static final int DEFAULT_PORT = 5555;
-
-    /** Default database username. */
+    /** Default database username (if not provided by the user). */
     private static final String DEFAULT_DB_USER = "root";
 
-    /** Default database password. */
+    /** Default database password (if not provided by the user). */
     private static final String DEFAULT_DB_PASSWORD = "";
 
-    // ===== FXML-bound UI fields =====
+    // FXML-bound UI fields
 
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
     @FXML private ComboBox<String> roleCombo;
     @FXML private Label statusLabel;
 
-    // Optional server settings section
+    // Optional server settings section (kept for UI compatibility; not used in shared-connection mode)
     @FXML private VBox serverSettingsBox;
     @FXML private TextField hostField;
     @FXML private TextField portField;
+
+    // Optional database settings
     @FXML private TextField dbUserField;
     @FXML private PasswordField dbPasswordField;
 
     /**
      * Initializes the login screen.
      *
-     * <p>
-     * Populates the role selection combo box and hides
-     * the advanced server settings panel by default.
-     * </p>
+     * <p>Populates the role selection combo box and hides the advanced server settings
+     * panel by default.</p>
      */
     @FXML
     private void initialize() {
@@ -80,6 +79,7 @@ public class UserLoginUIController {
                 "Subscriber",
                 "Customer"
         );
+
         roleCombo.getSelectionModel().select("Customer");
         statusLabel.setText("");
 
@@ -92,13 +92,15 @@ public class UserLoginUIController {
     /**
      * Toggles the visibility of the advanced server settings panel.
      *
+     * <p><b>Note:</b> In the current architecture (shared connection created in {@link ClientUI}),
+     * host/port fields are not used to create a new connection from this screen.
+     * The panel is kept mainly for backward compatibility and future extension.</p>
+     *
      * @param event the action event triggered by the toggle control
      */
     @FXML
     private void onServerSettingsToggle(ActionEvent event) {
-        if (serverSettingsBox == null) {
-            return;
-        }
+        if (serverSettingsBox == null) return;
 
         boolean show = !serverSettingsBox.isVisible();
         serverSettingsBox.setVisible(show);
@@ -112,10 +114,8 @@ public class UserLoginUIController {
     /**
      * Handles the login button click.
      *
-     * <p>
-     * Validates user input, resolves server and database configuration,
-     * and opens the appropriate screen according to the selected role.
-     * </p>
+     * <p>Validates user input, reads user role, and opens the appropriate screen.
+     * The shared server connection is assumed to be already created by {@link ClientUI}.</p>
      *
      * @param event the action event triggered by the login button
      */
@@ -136,26 +136,6 @@ public class UserLoginUIController {
             return;
         }
 
-        // Resolve server host
-        String host = (hostField == null || hostField.getText().isBlank())
-                ? DEFAULT_HOST
-                : hostField.getText().trim();
-
-        // Resolve server port
-        int port = DEFAULT_PORT;
-        if (portField != null && !portField.getText().isBlank()) {
-            try {
-                port = Integer.parseInt(portField.getText().trim());
-                if (port <= 0 || port > 65535) {
-                    statusLabel.setText("Port must be between 1 and 65535.");
-                    return;
-                }
-            } catch (NumberFormatException e) {
-                statusLabel.setText("Port must be a valid number.");
-                return;
-            }
-        }
-
         // Resolve database credentials
         String dbUser = (dbUserField == null || dbUserField.getText().isBlank())
                 ? DEFAULT_DB_USER
@@ -165,10 +145,16 @@ public class UserLoginUIController {
                 ? DEFAULT_DB_PASSWORD
                 : dbPasswordField.getText();
 
+        // Ensure shared connection exists
+        if (ClientUI.chat == null) {
+            statusLabel.setText("Not connected to server (ClientUI.chat is null).");
+            return;
+        }
+
         try {
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
 
-            // === Manager / Representative dashboard ===
+            // Manager / Representative dashboard
             if ("Manager".equalsIgnoreCase(role) || "Representative".equalsIgnoreCase(role)) {
 
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("HostDashboard.fxml"));
@@ -176,7 +162,8 @@ public class UserLoginUIController {
 
                 HostDashboardController controller = loader.getController();
                 controller.setUserContext(username, role);
-                controller.initClient(host, port);
+
+                // No initClient(host, port) here in shared-connection mode
 
                 stage.setTitle("Host Dashboard - " + role + " (" + username + ")");
                 stage.setScene(new Scene(root));
@@ -184,7 +171,7 @@ public class UserLoginUIController {
                 return;
             }
 
-            // === Regular client UI ===
+            // Regular client UI
             URL fxmlLocation = getClass().getResource("ClientUIView.fxml");
             if (fxmlLocation == null) {
                 statusLabel.setText("Cannot find ClientUIView.fxml.");
@@ -197,7 +184,8 @@ public class UserLoginUIController {
             ClientUIController controller = loader.getController();
             controller.setUserContext(username, role);
             controller.setDatabaseCredentials(dbUser, dbPass);
-            controller.initClient(host, port);
+
+            // No initClient(host, port) here in shared-connection mode
 
             stage.setTitle("Reservation Client - " + role + " (" + username + ")");
             stage.setScene(new Scene(root));
@@ -212,9 +200,7 @@ public class UserLoginUIController {
     /**
      * Handles the exit button click.
      *
-     * <p>
-     * Closes the application window and terminates the JVM.
-     * </p>
+     * <p>Closes the application window and terminates the JVM.</p>
      *
      * @param event the action event triggered by the exit button
      */

@@ -1,6 +1,9 @@
 package ClientGUI;
 
+import client.ChatClient;
+import common.ChatIF;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -10,29 +13,35 @@ import java.net.URL;
 
 /**
  * Main entry point for the Bistro Client JavaFX application.
- * <p>
- * This class is responsible only for:
+ *
+ * <p>This class is responsible for:
  * <ul>
  *   <li>Bootstrapping the JavaFX runtime</li>
+ *   <li>Initializing a single shared {@link ChatClient} connection</li>
  *   <li>Loading the initial FXML view</li>
- *   <li>Displaying the primary application stage</li>
  * </ul>
  *
- * <p>
- * <b>Design note:</b><br>
- * This class must remain free of any business logic or networking logic.
- * All client–server communication is handled exclusively by the
- * relevant JavaFX controller classes.
+ * <p><b>Architecture note:</b>
+ * Business logic must remain inside controllers/services. This class only provides
+ * shared client connection bootstrapping and delegates incoming messages to a router
+ * (the {@link ClientUIController}) via {@link ChatIF#display(String)}.
  *
  * @author Bistro Team
  */
 public class ClientUI extends Application {
 
     /**
+     * A single shared OCSF client instance used by all controllers.
+     * <p>
+     * Controllers may send messages using:
+     * {@code ClientUI.chat.handleMessageFromClientUI("...");}
+     */
+    public static ChatClient chat;
+
+    /**
      * Starts the JavaFX application.
      * <p>
-     * Loads the initial user login view from the {@code ClientGUI} package
-     * and displays it on the primary stage.
+     * Initializes the client connection once, then loads the initial login view.
      *
      * @param primaryStage the primary stage provided by the JavaFX runtime
      * @throws Exception if the FXML file cannot be loaded
@@ -40,16 +49,16 @@ public class ClientUI extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
 
-        // Locate the initial FXML file within the ClientGUI package
-        URL fxmlLocation = ClientUI.class.getResource("UserLoginUIView.fxml");
+        // Initialize a shared client connection (once).
+        initClientConnection();
 
-        // Debug output to help identify FXML loading issues during development
+        // Load initial view
+        URL fxmlLocation = ClientUI.class.getResource("UserLoginUIView.fxml");
         System.out.println("FXML URL = " + fxmlLocation);
 
         if (fxmlLocation == null) {
             throw new IllegalStateException(
-                "Cannot find UserLoginUIView.fxml. " +
-                "Ensure it is located in the ClientGUI package under src."
+                    "Cannot find UserLoginUIView.fxml. Ensure it is located in the ClientGUI package under src."
             );
         }
 
@@ -62,9 +71,28 @@ public class ClientUI extends Application {
     }
 
     /**
+     * Initializes the shared {@link ChatClient} connection if not already initialized.
+     *
+     * <p>The {@link ClientUIController} acts as the {@link ChatIF} router that receives
+     * all server messages via {@link ChatIF#display(String)}.
+     */
+    private void initClientConnection() {
+        if (chat != null) return;
+
+        try {
+            chat = new ChatClient("localhost", 5555, new ClientMessageRouter());
+            chat.openConnection();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Platform.runLater(() -> {
+                System.out.println("ERROR: Could not connect to server.");
+            });
+        }
+    }
+
+    /**
      * Application entry point.
-     * <p>
-     * Delegates control to the JavaFX {@link Application} lifecycle.
      *
      * @param args command-line arguments (not used)
      */

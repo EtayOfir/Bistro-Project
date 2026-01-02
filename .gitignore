@@ -11,3 +11,10 @@
 
 # Local DB secrets (NEVER commit)
 **/config/db.properties
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
