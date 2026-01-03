@@ -1,4 +1,4 @@
-package DBController;
+package entities;
 
 import java.sql.Timestamp;
 

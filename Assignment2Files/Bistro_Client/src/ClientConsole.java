@@ -3,8 +3,10 @@
 // license found at www.lloseng.com 
 
 import java.io.*;
-import client.*;
+
+import client.ChatClient;
 import common.*;
+import ocsf.client.*;
 
 /**
  * This class constructs the UI for a chat client.  It implements the

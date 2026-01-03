@@ -4,84 +4,129 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import client.ChatClient;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
-import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
-import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 
 /**
- * Controller class for the Reservation UI.
- * Handles user interactions for checking availability and booking reservations.
+ * Controller for the Reservation UI (JavaFX).
+ *
+ * <p><b>Responsibilities:</b>
+ * <ul>
+ *   <li>Collect user input (date/time/guests/contact details).</li>
+ *   <li>Send protocol messages to the server using the shared {@link ClientUI#chat} connection.</li>
+ *   <li>Maintain a local cache of booked times per date to perform fast availability checks.</li>
+ *   <li>React to asynchronous server responses routed by {@link ClientUIController}.</li>
+ * </ul>
+ *
+ * <p><b>Asynchronous design note:</b>
+ * OCSF responses arrive asynchronously. Therefore this controller does not "wait" for server replies.
+ * Instead, {@link ClientUIController} routes incoming messages to these callbacks:
+ * {@link #onReservationsReceived(String)}, {@link #onBookingResponse(String)},
+ * {@link #onCancelResponse(String)}.</p>
+ *
+ * <p><b>Server protocol messages used here:</b>
+ * <ul>
+ *   <li>{@code #GET_RESERVATIONS_BY_DATE yyyy-MM-dd}</li>
+ *   <li>{@code #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email>}</li>
+ * </ul>
+ *
+ * <p><b>Expected server responses handled here:</b>
+ * <ul>
+ *   <li>{@code RESERVATIONS_FOR_DATE|yyyy-MM-dd|HH:mm|HH:mm|...}</li>
+ *   <li>{@code RESERVATION_CREATED|<reservationId>}</li>
+ *   <li>{@code RESERVATION_CANCELED}</li>
+ *   <li>{@code ERROR|RESERVATION_NOT_FOUND}</li>
+ * </ul>
+ *
+ * @author Bistro Team
  */
 public class ReservationUIController {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter TIME_WITH_SECONDS_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
     private static final int RES_DURATION_MIN = 120;
     private static final int OPEN_HOUR = 9;
     private static final int CLOSE_HOUR = 23;
     private static final int MIN_NOTICE_MIN = 60;
     private static final int MAX_DAYS_AHEAD = 30;
 
-    @FXML
-    private Spinner<Integer> hourSpinner;
-    @FXML
-    private Spinner<Integer> minuteSpinner;
-    @FXML
-    private Spinner<Integer> guestSpinner;
-    @FXML
-    private TextField phoneField;
-    @FXML
-    private TextField emailField;
-    @FXML
-    private TextField reservationIdField;
-    @FXML
-    private TextField confirmationField;
-    @FXML
-    private ListView<String> alternativesList;
-    @FXML
-    private javafx.scene.control.DatePicker datePicker;
+    // -------------------- FXML fields --------------------
 
+    @FXML private Spinner<Integer> hourSpinner;
+    @FXML private Spinner<Integer> minuteSpinner;
+    @FXML private Spinner<Integer> guestSpinner;
+
+    @FXML private TextField phoneField;
+    @FXML private TextField emailField;
+    @FXML private TextField reservationIdField;
+    @FXML private TextField confirmationField;
+
+    @FXML private ListView<String> alternativesList;
+    @FXML private javafx.scene.control.DatePicker datePicker;
+
+    // State & caching 
+
+    /** Booked times for the currently selected date (used by availability checks). */
     private Set<LocalTime> bookedTimesForDate = new HashSet<>();
-    private Map<LocalDate, Set<LocalTime>> bookedTimesCache = new java.util.HashMap<>();
-    private ChatClient chatClient;
+
+    /** Cache of booked times per date to avoid redundant server requests. */
+    private final Map<LocalDate, Set<LocalTime>> bookedTimesCache = new java.util.HashMap<>();
+
+    /** Last generated confirmation code for the current booking flow. */
     private String currentConfirmationCode = null;
+
+    /** Last reservation id received from the server for the current booking flow. */
     private int currentReservationId = -1;
-    
-    // Pending availability check (deferred until data arrives)
+
+    /** Deferred availability check requested while waiting for booked-times data. */
     private LocalDateTime pendingCheckDateTime = null;
+
+    /** Indicates that an availability check is waiting for data for its date. */
     private boolean pendingCheckRequested = false;
 
+    // JavaFX lifecycle
+
+    /**
+     * JavaFX controller initialization.
+     *
+     * <p>Registers this controller as active so {@link ClientUIController} can route
+     * server messages to it.</p>
+     *
+     * <p>Initializes spinners, sets default date, attaches UI listeners, and
+     * fetches booked reservations for today's date.</p>
+     */
     @FXML
     private void initialize() {
+        // Register as active controller for routing server messages to callbacks
+        ClientUIController.setActiveReservationController(this);
+
         hourSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(9, 22, 12));
         minuteSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 45, 0, 15));
         guestSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 20, 2));
         datePicker.setValue(LocalDate.now());
-        
+
+        // When the date changes, fetch booked times for the new date
         datePicker.valueProperty().addListener((obs, oldV, newV) -> {
             if (newV != null) {
                 fetchExistingReservations(newV);
             }
         });
-        
+
         // Make alternatives list clickable
         alternativesList.setOnMouseClicked(event -> {
             String selected = alternativesList.getSelectionModel().getSelectedItem();
@@ -89,20 +134,29 @@ public class ReservationUIController {
                 applyAlternativeSelection(selected);
             }
         });
-        
-        // Fetch on startup
+
+        // Fetch data for today at startup
         fetchExistingReservations(LocalDate.now());
     }
-    
+
+    // UI helpers
+
     /**
-     * Parse a suggestion and update date/time fields accordingly.
-     * Format can be: "HH:mm (same day)" or "yyyy-MM-dd HH:mm"
+     * Parses a suggested alternative time and updates the date/time inputs accordingly.
+     *
+     * <p>Supported formats:
+     * <ul>
+     *   <li>{@code "HH:mm (same day)"}</li>
+     *   <li>{@code "yyyy-MM-dd HH:mm"}</li>
+     * </ul>
+     *
+     * @param suggestion suggestion string from the alternatives list
      */
     private void applyAlternativeSelection(String suggestion) {
         try {
             LocalDate newDate = datePicker.getValue();
             LocalTime newTime = null;
-            
+
             if (suggestion.contains("(same day)")) {
                 // Format: "HH:mm (same day)"
                 String timeStr = suggestion.substring(0, suggestion.indexOf(" (")).trim();
@@ -113,15 +167,12 @@ public class ReservationUIController {
                 newDate = LocalDate.parse(parts[0], DATE_FMT);
                 newTime = LocalTime.parse(parts[1], TIME_FMT);
             }
-            
+
             if (newDate != null && newTime != null) {
-                // Update date picker
                 datePicker.setValue(newDate);
-                
-                // Update time spinners
                 hourSpinner.getValueFactory().setValue(newTime.getHour());
                 minuteSpinner.getValueFactory().setValue(newTime.getMinute());
-                
+
                 System.out.println("DEBUG: Applied alternative - Date: " + newDate + ", Time: " + newTime);
             }
         } catch (Exception e) {
@@ -129,33 +180,51 @@ public class ReservationUIController {
         }
     }
 
-
-    public void setChatClient(ChatClient client) {
-        this.chatClient = client;
+    /**
+     * Shows a simple pop-up alert.
+     *
+     * @param type alert type
+     * @param title window title
+     * @param message message body
+     */
+    private void showAlert(AlertType type, String title, String message) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
+    // Server requests
+
     /**
-     * Fetch existing reservations for a given date from the server.
+     * Requests all existing reservations for a given date from the server.
+     *
+     * <p>Protocol: {@code #GET_RESERVATIONS_BY_DATE yyyy-MM-dd}</p>
+     *
+     * @param date the date to query
      */
     private void fetchExistingReservations(LocalDate date) {
-        if (chatClient == null) {
+        if (ClientUI.chat == null) {
             System.out.println("ERROR: Not connected to server.");
             return;
         }
 
         String command = "#GET_RESERVATIONS_BY_DATE " + date.format(DATE_FMT);
-        try {
-            chatClient.handleMessageFromClientUI(command);
-            System.out.println("DEBUG: Fetching reservations for " + date);
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("ERROR: Error fetching reservations: " + e.getMessage());
-        }
+        ClientUI.chat.handleMessageFromClientUI(command);
+        System.out.println("DEBUG: Fetching reservations for " + date);
     }
 
+    // Server response callbacks (routed)
+
     /**
-     * Called by ChatClient to receive the booked times for the selected date.
-     * Format: RESERVATIONS_FOR_DATE|2025-01-15|09:00|10:30|14:00|...
+     * Callback invoked by {@link ClientUIController} when the server responds with booked
+     * reservation times for a specific date.
+     *
+     * <p>Expected format:
+     * {@code RESERVATIONS_FOR_DATE|yyyy-MM-dd|HH:mm|HH:mm|...}</p>
+     *
+     * @param message the raw server message
      */
     public void onReservationsReceived(String message) {
         if (message == null || !message.startsWith("RESERVATIONS_FOR_DATE|")) {
@@ -165,49 +234,47 @@ public class ReservationUIController {
 
         String[] parts = message.split("\\|");
         if (parts.length < 2) return;
-        
-        LocalDate dateReceived = null;
+
+        LocalDate dateReceived;
         try {
             dateReceived = LocalDate.parse(parts[1], DATE_FMT);
         } catch (Exception e) {
             System.err.println("Failed to parse date from message: " + parts[1]);
             return;
         }
-        
-        final LocalDate finalDateReceived = dateReceived;  // Make final for lambda
-        
+
+        final LocalDate finalDateReceived = dateReceived; // for lambda usage
+
         Set<LocalTime> bookedTimes = new HashSet<>();
-        System.out.println("DEBUG: onReservationsReceived() - Received " + (parts.length - 2) + " booked times for " + dateReceived);
-        
+        System.out.println("DEBUG: onReservationsReceived() - Received " + (parts.length - 2)
+                + " booked times for " + dateReceived);
+
         if (parts.length > 2) {
             for (int i = 2; i < parts.length; i++) {
                 try {
-                    // Parse time - handle both HH:mm and HH:mm:ss formats
                     String timeStr = parts[i].trim();
+
+                    // Handle HH:mm:ss or HH:mm
                     LocalTime bookedTime;
-                    if (timeStr.contains(":") && timeStr.split(":").length == 3) {
-                        // HH:mm:ss format
-                        bookedTime = LocalTime.parse(timeStr, DateTimeFormatter.ofPattern("HH:mm:ss"));
+                    if (timeStr.split(":").length == 3) {
+                        bookedTime = LocalTime.parse(timeStr, TIME_WITH_SECONDS_FMT);
                     } else {
-                        // HH:mm format
                         bookedTime = LocalTime.parse(timeStr, TIME_FMT);
                     }
+
                     bookedTimes.add(bookedTime);
                     System.out.println("DEBUG: Added booked time: " + bookedTime);
+
                 } catch (Exception e) {
                     System.err.println("Failed to parse booked time '" + parts[i] + "': " + e.getMessage());
                 }
             }
         }
 
-        // Cache the booked times for this date
+        // Cache booked times for this date
         bookedTimesCache.put(dateReceived, bookedTimes);
-        System.out.println("DEBUG: Total unique booked times for " + dateReceived + ": " + bookedTimes.size());
-        for (LocalTime t : bookedTimes) {
-            System.out.println("  - " + t);
-        }
-        
-        // If this is the currently selected date, update the active set
+
+        // If this is the currently selected date, update active set
         LocalDate selectedDate = datePicker.getValue();
         if (selectedDate != null && selectedDate.equals(dateReceived)) {
             bookedTimesForDate = bookedTimes;
@@ -217,10 +284,10 @@ public class ReservationUIController {
         Platform.runLater(() -> {
             updateAvailableHours();
             System.out.println("DEBUG: Reservations loaded silently");
-            
-            // If there's a pending availability check for this date, process it now
-            if (pendingCheckRequested && pendingCheckDateTime != null && 
-                pendingCheckDateTime.toLocalDate().equals(finalDateReceived)) {
+
+            // If there is a pending availability check for this date, process it now
+            if (pendingCheckRequested && pendingCheckDateTime != null
+                    && pendingCheckDateTime.toLocalDate().equals(finalDateReceived)) {
                 System.out.println("DEBUG: Processing pending availability check");
                 pendingCheckRequested = false;
                 processPendingAvailabilityCheck();
@@ -228,20 +295,127 @@ public class ReservationUIController {
         });
     }
 
+    /**
+     * Callback invoked by {@link ClientUIController} when the server responds to a
+     * CREATE_RESERVATION request.
+     *
+     * <p>Expected formats:
+     * <ul>
+     *   <li>{@code RESERVATION_CREATED|<reservationId>}</li>
+     *   <li>Any other string is treated as an error message</li>
+     * </ul>
+     *
+     * @param response raw server response
+     */
+    public void onBookingResponse(String response) {
+        Platform.runLater(() -> {
+            if (response != null && response.startsWith("RESERVATION_CREATED")) {
+                String[] parts = response.split("\\|");
+                int resId = -1;
+
+                if (parts.length >= 2) {
+                    try {
+                        resId = Integer.parseInt(parts[1]);
+                        currentReservationId = resId;
+                        System.out.println("DEBUG: Reservation ID from server: " + resId);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Failed to parse reservation ID: " + e.getMessage());
+                    }
+                }
+
+                // Add newly booked time to local set immediately
+                LocalDate date = datePicker.getValue();
+                int hour = hourSpinner.getValue();
+                int minute = minuteSpinner.getValue();
+                LocalTime bookedTime = LocalTime.of(hour, minute);
+
+                if (date != null && date.equals(datePicker.getValue())) {
+                    bookedTimesForDate.add(bookedTime);
+                    System.out.println("DEBUG: Added booked time to local cache: " + bookedTime);
+                }
+
+                if (resId > 0) {
+                    reservationIdField.setText(String.valueOf(resId));
+                }
+                confirmationField.setText(currentConfirmationCode);
+
+                showAlert(AlertType.INFORMATION, "Reservation Confirmed",
+                        "Your reservation has been successfully created!\n\n" +
+                                "Reservation ID: " + resId + "\n" +
+                                "Confirmation Code: " + currentConfirmationCode);
+
+                phoneField.setText("");
+                emailField.setText("");
+
+                // Refresh from server to ensure sync
+                fetchExistingReservations(datePicker.getValue());
+
+            } else {
+                System.out.println("ERROR: Booking failed: " + response);
+                reservationIdField.setText("");
+                confirmationField.setText("");
+                showAlert(AlertType.ERROR, "Booking Failed", "Failed to create reservation: " + response);
+            }
+        });
+    }
+
+    /**
+     * Callback invoked by {@link ClientUIController} when the server responds to a
+     * CANCEL_RESERVATION request.
+     *
+     * @param response raw server response
+     */
+    public void onCancelResponse(String response) {
+        Platform.runLater(() -> {
+            if (response != null && response.startsWith("RESERVATION_CANCELED")) {
+                System.out.println("DEBUG: Reservation canceled successfully");
+
+                confirmationField.setText("");
+                reservationIdField.setText("");
+                phoneField.setText("");
+                emailField.setText("");
+
+                showAlert(AlertType.INFORMATION, "Reservation Canceled",
+                        "Your reservation has been successfully canceled and deleted from the system!");
+
+                // Refresh reservations list for current date
+                LocalDate date = datePicker.getValue();
+                if (date != null) {
+                    bookedTimesCache.remove(date);
+                    fetchExistingReservations(date);
+                }
+
+            } else if (response != null && response.startsWith("ERROR|RESERVATION_NOT_FOUND")) {
+                System.out.println("ERROR: Reservation not found with given code");
+                showAlert(AlertType.ERROR, "Not Found", "No reservation found with this confirmation code.");
+            } else {
+                System.out.println("ERROR: Cancel failed: " + response);
+                showAlert(AlertType.ERROR, "Cancel Failed", "Failed to cancel reservation: " + response);
+            }
+        });
+    }
+
+    // Availability logic
+
+    /**
+     * Updates time input controls to stay within business constraints (opening hours,
+     * max days ahead, and minimum notice).
+     */
     private void updateAvailableHours() {
         LocalDate date = datePicker.getValue();
         if (date == null) return;
 
         LocalDate today = LocalDate.now();
         LocalTime now = LocalTime.now();
+
         int selectedHour = hourSpinner.getValue();
 
-        // Check if selected hour is still valid
+        // If today, enforce minimum notice by shifting earliest hour
         if (date.equals(today) && selectedHour < now.getHour() + 1) {
             hourSpinner.getValueFactory().setValue(Math.max(OPEN_HOUR, now.getHour() + 1));
         }
 
-        // Ensure valid range
+        // Disable if beyond max days ahead
         if (date.isAfter(today.plusDays(MAX_DAYS_AHEAD))) {
             System.out.println("ERROR: Cannot book beyond " + MAX_DAYS_AHEAD + " days.");
             hourSpinner.setDisable(true);
@@ -250,12 +424,19 @@ public class ReservationUIController {
         }
     }
 
+    /**
+     * UI handler for availability check button.
+     *
+     * <p>If booked times for the selected date are not cached yet, this method requests
+     * them from the server and defers the availability check until the response arrives.</p>
+     *
+     * @param event action event
+     */
     @FXML
     private void onCheckAvailability(ActionEvent event) {
         LocalDate date = datePicker.getValue();
         int hour = hourSpinner.getValue();
         int minute = minuteSpinner.getValue();
-        Integer guests = guestSpinner.getValue();
 
         System.out.println("DEBUG: onCheckAvailability() called");
         System.out.println("  Date: " + date);
@@ -268,24 +449,25 @@ public class ReservationUIController {
             return;
         }
 
-        // Store the check for potential deferral
         LocalDateTime checkDateTime = LocalDateTime.of(date, LocalTime.of(hour, minute));
 
-        // If booked times for this date aren't cached yet, fetch and defer the check
+        // If no cache, fetch and defer
         if (!bookedTimesCache.containsKey(date)) {
             System.out.println("DEBUG: Booked times not cached for " + date + ". Fetching and deferring check...");
             pendingCheckDateTime = checkDateTime;
             pendingCheckRequested = true;
             fetchExistingReservations(date);
-            return;  // Wait for data to arrive
+            return;
         }
 
-        // Data is already cached, process immediately
+        // Cached, process now
         processAvailabilityCheck(checkDateTime);
     }
 
     /**
-     * Process the actual availability check (called either immediately or deferred).
+     * Performs the availability check (immediate or deferred).
+     *
+     * @param checkDateTime requested start date/time
      */
     private void processAvailabilityCheck(LocalDateTime checkDateTime) {
         LocalDateTime start = checkDateTime;
@@ -295,27 +477,26 @@ public class ReservationUIController {
 
         boolean available = isAvailable(start, end);
         System.out.println("DEBUG: Availability result: " + available);
-        
+
         if (available) {
-            // Show success dialog
-            showAlert(AlertType.INFORMATION, "Slot Available", 
-                "✓ The slot on " + start.toLocalDate() + " at " + String.format("%02d:%02d", start.getHour(), start.getMinute()) + 
-                " is available!\n\nYou can now book this reservation.");
+            showAlert(AlertType.INFORMATION, "Slot Available",
+                    "✓ The slot on " + start.toLocalDate() + " at " +
+                            String.format("%02d:%02d", start.getHour(), start.getMinute()) +
+                            " is available!\n\nYou can now book this reservation.");
             alternativesList.getItems().clear();
         } else {
-            // Generate suggestions in background thread to avoid blocking UI thread
             new Thread(() -> {
                 suggestAlternatives(start);
-                
-                // Show dialog on UI thread
+
                 Platform.runLater(() -> {
                     StringBuilder message = new StringBuilder();
                     message.append("✗ The slot on ").append(start.toLocalDate()).append(" at ")
-                           .append(String.format("%02d:%02d", start.getHour(), start.getMinute()))
-                           .append(" is not available.\n\n")
-                           .append("Suggested alternative times:\n\n");
-                    
-                    if (alternativesList.getItems().isEmpty() || alternativesList.getItems().get(0).equals("No alternatives found")) {
+                            .append(String.format("%02d:%02d", start.getHour(), start.getMinute()))
+                            .append(" is not available.\n\n")
+                            .append("Suggested alternative times:\n\n");
+
+                    if (alternativesList.getItems().isEmpty()
+                            || alternativesList.getItems().get(0).equals("No alternatives found")) {
                         message.append("No alternatives available for your requested timeframe.");
                     } else {
                         for (String alt : alternativesList.getItems()) {
@@ -323,7 +504,7 @@ public class ReservationUIController {
                         }
                         message.append("\nClick on any suggestion to auto-fill the form.");
                     }
-                    
+
                     showAlert(AlertType.WARNING, "Slot Not Available", message.toString());
                 });
             }).start();
@@ -331,7 +512,7 @@ public class ReservationUIController {
     }
 
     /**
-     * Process the pending availability check (called when deferred data arrives).
+     * Processes a deferred availability check after the requested date's booked times arrive.
      */
     private void processPendingAvailabilityCheck() {
         if (pendingCheckDateTime != null) {
@@ -340,47 +521,49 @@ public class ReservationUIController {
             pendingCheckDateTime = null;
         }
     }
-    
-    /**
-     * Show an alert dialog with custom title and message.
-     */
-    private void showAlert(AlertType type, String title, String message) {
-        Alert alert = new Alert(type);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
 
+    /**
+     * Validates that the requested booking time is within allowed window constraints.
+     *
+     * @param start requested start time
+     * @return true if valid; false otherwise (and shows an alert)
+     */
     private boolean validateWindow(LocalDateTime start) {
         LocalDateTime now = LocalDateTime.now();
+
         if (start.isBefore(now.plusMinutes(MIN_NOTICE_MIN))) {
             System.out.println("ERROR: Must book at least " + MIN_NOTICE_MIN + " minutes ahead.");
-            showAlert(AlertType.ERROR, "Invalid Booking Time", 
-                "You must book at least " + MIN_NOTICE_MIN + " minutes in advance.");
+            showAlert(AlertType.ERROR, "Invalid Booking Time",
+                    "You must book at least " + MIN_NOTICE_MIN + " minutes in advance.");
             return false;
         }
+
         if (start.isAfter(now.plusDays(MAX_DAYS_AHEAD))) {
             System.out.println("ERROR: Can book up to " + MAX_DAYS_AHEAD + " days ahead.");
-            showAlert(AlertType.ERROR, "Date Too Far", 
-                "You can only book up to " + MAX_DAYS_AHEAD + " days in advance.");
+            showAlert(AlertType.ERROR, "Date Too Far",
+                    "You can only book up to " + MAX_DAYS_AHEAD + " days in advance.");
             return false;
         }
+
         return true;
     }
 
     /**
-     * Check if a 2-hour slot starting at 'start' is available (doesn't overlap with any booked time).
-     * A booked reservation runs for 2 hours. We need to check if our slot overlaps.
+     * Checks whether a reservation slot is available by ensuring it does not overlap
+     * with any booked reservation slot (each assumed to last {@link #RES_DURATION_MIN} minutes).
+     *
+     * @param start requested slot start
+     * @param end requested slot end
+     * @return true if available; false if overlaps with an existing reservation
      */
     private boolean isAvailable(LocalDateTime start, LocalDateTime end) {
         for (LocalTime booked : bookedTimesForDate) {
             LocalDateTime bookedStart = LocalDateTime.of(start.toLocalDate(), booked);
             LocalDateTime bookedEnd = bookedStart.plusMinutes(RES_DURATION_MIN);
-            
-            // Check if there's any overlap
+
             if (start.isBefore(bookedEnd) && end.isAfter(bookedStart)) {
-                System.out.println("DEBUG: Overlap detected - Requested: " + start + " to " + end + ", Booked: " + bookedStart + " to " + bookedEnd);
+                System.out.println("DEBUG: Overlap detected - Requested: " + start + " to " + end
+                        + ", Booked: " + bookedStart + " to " + bookedEnd);
                 return false;
             }
         }
@@ -388,28 +571,35 @@ public class ReservationUIController {
         return true;
     }
 
+    /**
+     * Suggests alternative reservation times to the user, attempting same-day first and then
+     * the next few days using cached data only.
+     *
+     * <p><b>Important:</b> This method does not block waiting for server data. If data for a day
+     * is not cached, it simply skips that day. (This keeps the UI responsive and avoids polling.)</p>
+     *
+     * @param desired desired reservation start date/time
+     */
     private void suggestAlternatives(LocalDateTime desired) {
         Platform.runLater(() -> alternativesList.getItems().clear());
+
         LocalDate desiredDate = desired.toLocalDate();
         int suggestions = 0;
-        
+
         System.out.println("DEBUG: Looking for alternatives starting from " + desired);
         System.out.println("DEBUG: Current booked times for " + desiredDate + ": " + bookedTimesForDate);
-        
-        // Use the booked times we already have from the last fetch (no waiting)
+
+        // Same-day alternatives: from desired hour+1 onward
         Set<LocalTime> sameDayBookedTimes = bookedTimesForDate;
-        
-        // First, try same day alternatives (hour by hour, forward from desired time + 1 hour)
+
         for (int hour = desired.getHour() + 1; hour <= CLOSE_HOUR && suggestions < 4; hour++) {
             LocalDateTime alt = LocalDateTime.of(desiredDate, LocalTime.of(hour, 0));
             LocalDateTime altEnd = alt.plusMinutes(RES_DURATION_MIN);
-            
-            // Check if end time fits before closing
+
             if (altEnd.getHour() > CLOSE_HOUR || (altEnd.getHour() == CLOSE_HOUR && altEnd.getMinute() > 0)) {
                 break;
             }
-            
-            // Check if this time is available (no overlap with booked times)
+
             boolean available = true;
             for (LocalTime booked : sameDayBookedTimes) {
                 LocalDateTime bookedStart = LocalDateTime.of(desiredDate, booked);
@@ -419,7 +609,7 @@ public class ReservationUIController {
                     break;
                 }
             }
-            
+
             if (available) {
                 String suggestion = String.format("%02d:%02d (same day)", hour, 0);
                 final String finalSuggestion = suggestion;
@@ -428,73 +618,36 @@ public class ReservationUIController {
                 System.out.println("DEBUG: ✓ Found same-day alternative: " + suggestion);
             }
         }
-        
-        // Then try next few days - fetch data if needed with a brief wait
+
+        // Next days: use cache only (no waiting)
         if (suggestions < 4) {
             for (int day = 1; day <= 3 && suggestions < 4; day++) {
                 LocalDate nextDate = desiredDate.plusDays(day);
-                
-                // Check if data is cached
                 Set<LocalTime> nextDayBookedTimes = bookedTimesCache.get(nextDate);
-                
+
                 if (nextDayBookedTimes == null) {
-                    // Data not cached, send request and wait briefly
-                    System.out.println("DEBUG: Booked times not cached for " + nextDate + ". Sending request...");
-                    String command = "#GET_RESERVATIONS_BY_DATE " + nextDate.format(DATE_FMT);
-                    try {
-                        chatClient.handleMessageFromClientUI(command);
-                    } catch (Exception e) {
-                        System.out.println("DEBUG: Could not request " + nextDate);
-                    }
-                    
-                    // Wait for data to arrive (up to 3 seconds, checking every 100ms)
-                    long startTime = System.currentTimeMillis();
-                    while (System.currentTimeMillis() - startTime < 3000) {
-                        nextDayBookedTimes = bookedTimesCache.get(nextDate);
-                        if (nextDayBookedTimes != null) {
-                            System.out.println("DEBUG: ✓ Got data for " + nextDate + " after " + 
-                                (System.currentTimeMillis() - startTime) + "ms");
-                            break;
-                        }
-                        try {
-                            Thread.sleep(100);  // Check every 100ms
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            break;
-                        }
-                    }
-                    
-                    // If still no data after wait, skip this date
-                    if (nextDayBookedTimes == null) {
-                        System.out.println("DEBUG: Timeout waiting for " + nextDate + ", skipping");
-                        continue;
-                    }
+                    System.out.println("DEBUG: No cached booked times for " + nextDate + ", skipping suggestions for that day.");
+                    continue;
                 }
-                
-                System.out.println("DEBUG: Checking " + nextDate + " with booked times: " + nextDayBookedTimes);
-                
-                // Now suggest available times for this day
+
                 for (int hour = OPEN_HOUR; hour <= CLOSE_HOUR && suggestions < 4; hour++) {
                     LocalDateTime alt = LocalDateTime.of(nextDate, LocalTime.of(hour, 0));
                     LocalDateTime altEnd = alt.plusMinutes(RES_DURATION_MIN);
-                    
-                    // Check if end time fits
+
                     if (altEnd.getHour() > CLOSE_HOUR || (altEnd.getHour() == CLOSE_HOUR && altEnd.getMinute() > 0)) {
                         continue;
                     }
-                    
-                    // Check if time is available
+
                     boolean available = true;
                     for (LocalTime booked : nextDayBookedTimes) {
                         LocalDateTime bookedStart = LocalDateTime.of(nextDate, booked);
                         LocalDateTime bookedEnd = bookedStart.plusMinutes(RES_DURATION_MIN);
                         if (alt.isBefore(bookedEnd) && altEnd.isAfter(bookedStart)) {
                             available = false;
-                            System.out.println("DEBUG: " + hour + ":00 NOT available - overlaps with booked");
                             break;
                         }
                     }
-                    
+
                     if (available) {
                         String suggestion = alt.toLocalDate() + " " + String.format("%02d:%02d", hour, 0);
                         final String finalSuggestion = suggestion;
@@ -505,48 +658,45 @@ public class ReservationUIController {
                 }
             }
         }
-        
+
         if (suggestions == 0) {
             Platform.runLater(() -> alternativesList.getItems().add("No alternatives found"));
         }
     }
 
+    // Booking logic
+
+    /**
+     * UI handler for booking a reservation.
+     *
+     * <p>Validates input, checks availability locally, generates a confirmation code,
+     * and sends {@code #CREATE_RESERVATION} to the server.</p>
+     *
+     * @param event action event
+     */
     @FXML
     private void onBook(ActionEvent event) {
         LocalDate date = datePicker.getValue();
         int hour = hourSpinner.getValue();
         int minute = minuteSpinner.getValue();
         Integer guests = guestSpinner.getValue();
+
         String phone = phoneField.getText() == null ? "" : phoneField.getText().trim();
         String email = emailField.getText() == null ? "" : emailField.getText().trim();
 
-        System.out.println("DEBUG: onBook() called");
-        System.out.println("  Date: " + date);
-        System.out.println("  Time: " + hour + ":" + String.format("%02d", minute));
-        System.out.println("  Guests: " + guests);
-        System.out.println("  Phone: " + phone);
-        System.out.println("  Email: " + email);
-        System.out.println("  Booked times for date: " + bookedTimesForDate);
-
         if (date == null) {
-            System.out.println("ERROR: No date selected");
             showAlert(AlertType.ERROR, "Invalid Input", "Please select a date.");
             return;
         }
         if (phone.isEmpty()) {
-            System.out.println("ERROR: Phone is required");
             showAlert(AlertType.ERROR, "Missing Phone", "Phone number is required.");
             return;
         }
         if (email.isEmpty()) {
-            System.out.println("ERROR: Email is required");
             showAlert(AlertType.ERROR, "Missing Email", "Email address is required.");
             return;
         }
-        
-        // Validate email format (basic check)
         if (!email.contains("@")) {
-            System.out.println("ERROR: Invalid email format");
             showAlert(AlertType.ERROR, "Invalid Email", "Please enter a valid email address.");
             return;
         }
@@ -554,155 +704,62 @@ public class ReservationUIController {
         LocalDateTime start = LocalDateTime.of(date, LocalTime.of(hour, minute));
         LocalDateTime end = start.plusMinutes(RES_DURATION_MIN);
 
-        System.out.println("DEBUG: Checking window validity for " + start);
-        if (!validateWindow(start)) {
-            System.out.println("DEBUG: Window validation failed");
-            return;
-        }
+        if (!validateWindow(start)) return;
 
-        System.out.println("DEBUG: Checking availability for " + start + " to " + end);
         boolean available = isAvailable(start, end);
-        System.out.println("DEBUG: Availability check result: " + available);
-
         if (!available) {
-            System.out.println("DEBUG: Slot not available, showing alternatives");
             suggestAlternatives(start);
             showAlert(AlertType.WARNING, "Slot Not Available",
-                "The selected slot is not available. Please choose from the suggested alternatives.");
+                    "The selected slot is not available. Please choose from the suggested alternatives.");
             return;
         }
 
         // Generate SHORT confirmation code (max 10 chars)
         currentConfirmationCode = generateConfirmation(start, guests);
-        System.out.println("DEBUG: Generated confirmation code: " + currentConfirmationCode);
 
-        // Send CREATE_RESERVATION to server with phone and email
-        // Format: #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email>
-        String command = "#CREATE_RESERVATION " + guests + " " + 
-                         start.format(DATE_FMT) + " " + 
-                         start.format(DateTimeFormatter.ofPattern("HH:mm:ss")) + " " + 
-                         currentConfirmationCode + " 0 " + phone + " " + email;
+        // Protocol:
+        // #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email>
+        String command = "#CREATE_RESERVATION " + guests + " "
+                + start.format(DATE_FMT) + " "
+                + start.format(TIME_WITH_SECONDS_FMT) + " "
+                + currentConfirmationCode + " 0 " + phone + " " + email;
 
-        if (chatClient == null) {
-            System.out.println("ERROR: Not connected to server");
+        if (ClientUI.chat == null) {
             showAlert(AlertType.ERROR, "Connection Error", "Not connected to server.");
             return;
         }
 
-        try {
-            System.out.println("DEBUG: Sending command: " + command);
-            chatClient.handleMessageFromClientUI(command);
-            Platform.runLater(() -> {
-                confirmationField.setText(currentConfirmationCode);
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("ERROR: " + e.getMessage());
-            showAlert(AlertType.ERROR, "Booking Error", "Failed to send booking request: " + e.getMessage());
-        }
+        ClientUI.chat.handleMessageFromClientUI(command);
+
+        // Show generated code immediately (server will confirm with reservation id)
+        Platform.runLater(() -> confirmationField.setText(currentConfirmationCode));
     }
 
     /**
-     * Called when server responds to CREATE_RESERVATION.
+     * Generates a short confirmation code.
+     *
+     * <p>Format: {@code RES + 6 random digits}</p>
+     *
+     * @param start reservation start date/time (currently not used but kept for future improvements)
+     * @param guests number of guests (currently not used but kept for future improvements)
+     * @return confirmation code string (max ~9 characters)
      */
-    public void onBookingResponse(String response) {
-        Platform.runLater(() -> {
-            if (response != null && response.startsWith("RESERVATION_CREATED")) {
-                // Parse: RESERVATION_CREATED|<reservationId>
-                String[] parts = response.split("\\|");
-                int resId = -1;
-                
-                if (parts.length >= 2) {
-                    try {
-                        resId = Integer.parseInt(parts[1]);
-                        currentReservationId = resId;
-                        System.out.println("DEBUG: Reservation ID from server: " + resId);
-                    } catch (NumberFormatException e) {
-                        System.err.println("Failed to parse reservation ID: " + e.getMessage());
-                    }
-                }
-                
-                // Add the newly booked time to our local cache immediately
-                LocalDate date = datePicker.getValue();
-                int hour = hourSpinner.getValue();
-                int minute = minuteSpinner.getValue();
-                LocalTime bookedTime = LocalTime.of(hour, minute);
-                
-                if (date != null && date.equals(datePicker.getValue())) {
-                    bookedTimesForDate.add(bookedTime);
-                    System.out.println("DEBUG: Added booked time to local cache: " + bookedTime);
-                }
-                
-                // Display both reservation ID and confirmation code
-                if (resId > 0) {
-                    reservationIdField.setText(String.valueOf(resId));
-                }
-                confirmationField.setText(currentConfirmationCode);
-                
-                System.out.println("DEBUG: Reservation confirmed! ID: " + resId + ", Code: " + currentConfirmationCode);
-                
-                // Show success alert
-                showAlert(AlertType.INFORMATION, "Reservation Confirmed",
-                    "Your reservation has been successfully created!\n\n" +
-                    "Reservation ID: " + resId + "\n" +
-                    "Confirmation Code: " + currentConfirmationCode);
-                
-                // Clear input fields for next booking (keep ID and code visible)
-                phoneField.setText("");
-                emailField.setText("");
-                
-                // Refresh from server to ensure sync
-                fetchExistingReservations(datePicker.getValue());
-            } else {
-                System.out.println("ERROR: Booking failed: " + response);
-                reservationIdField.setText("");
-                confirmationField.setText("");
-                showAlert(AlertType.ERROR, "Booking Failed", "Failed to create reservation: " + response);
-            }
-        });
-    }
-
     private String generateConfirmation(LocalDateTime start, int guests) {
-        // Generate a VERY short unique confirmation code (max 10 chars)
-        // Format: RES + 6 digit random
-        String randompart = String.format("%06d", (int)(Math.random() * 1000000));
-        return "RES" + randompart;
+        String randomPart = String.format("%06d", (int) (Math.random() * 1_000_000));
+        return "RES" + randomPart;
     }
+
+    // Window close
 
     /**
-     * Called when server responds to CANCEL_RESERVATION (if called from New Reservation window).
+     * Closes the reservation window and unregisters this controller from routing.
+     *
+     * @param event action event
      */
-    public void onCancelResponse(String response) {
-        Platform.runLater(() -> {
-            if (response != null && response.startsWith("RESERVATION_CANCELED")) {
-                System.out.println("DEBUG: Reservation canceled successfully");
-                confirmationField.setText("");
-                reservationIdField.setText("");
-                phoneField.setText("");
-                emailField.setText("");
-                
-                showAlert(AlertType.INFORMATION, "Reservation Canceled",
-                    "Your reservation has been successfully canceled and deleted from the system!");
-                
-                // Refresh the reservations list
-                LocalDate date = datePicker.getValue();
-                if (date != null) {
-                    bookedTimesCache.remove(date);  // Clear cache so it gets refreshed
-                    fetchExistingReservations(date);
-                }
-            } else if (response != null && response.startsWith("ERROR|RESERVATION_NOT_FOUND")) {
-                System.out.println("ERROR: Reservation not found with given code");
-                showAlert(AlertType.ERROR, "Not Found", "No reservation found with this confirmation code.");
-            } else {
-                System.out.println("ERROR: Cancel failed: " + response);
-                showAlert(AlertType.ERROR, "Cancel Failed", "Failed to cancel reservation: " + response);
-            }
-        });
-    }
-
     @FXML
     private void onClose(ActionEvent event) {
         ClientUIController.clearActiveReservationController();
+
         Node node = (Node) event.getSource();
         Stage stage = (Stage) node.getScene().getWindow();
         stage.close();

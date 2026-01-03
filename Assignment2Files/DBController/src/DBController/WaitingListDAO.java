@@ -1,6 +1,7 @@
 package DBController;
 
 import SQLAccess.SQLQueries;
+import entities.WaitingEntry;
 
 import javax.sql.DataSource;
 import java.sql.*;

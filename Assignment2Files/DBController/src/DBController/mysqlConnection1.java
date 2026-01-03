@@ -6,6 +6,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Properties;
 
 /**
@@ -65,15 +66,22 @@ public final class mysqlConnection1 {
         Properties props = new Properties();
 
         // Load database configuration from external properties file
-        try (FileInputStream fis =
-                     new FileInputStream("Assignment2Files/DBController/config/db.properties")) {
-            props.load(fis);
+        try (InputStream in = mysqlConnection1.class
+                .getClassLoader()
+                .getResourceAsStream("config/db.properties")) {
+
+            if (in == null) {
+                throw new RuntimeException(
+                    "Missing config/db.properties in classpath. " +
+                    "Make sure it exists under DBController/config"
+                );
+            }
+
+            props.load(in);
+
         } catch (IOException e) {
             throw new RuntimeException(
-                "Failed to load database configuration. " +
-                "Please create 'config/db.properties' based on 'db.properties.example'.",
-                e
-            );
+                "Failed to load database configuration from classpath",e);
         }
 
         HikariConfig config = new HikariConfig();
