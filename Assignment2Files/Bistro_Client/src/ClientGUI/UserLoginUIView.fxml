@@ -49,11 +49,31 @@
         </GridPane>
 
         <HBox spacing="10" alignment="CENTER_RIGHT">
+            <Button text="Server Settings" onAction="#onServerSettingsToggle"
+                    style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;"/>
             <Button text="Exit" onAction="#onExitClicked"
                     style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;"/>
             <Button text="Login" onAction="#onLoginClicked"
                     style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;"/>
         </HBox>
+
+        <VBox fx:id="serverSettingsBox" spacing="8" style="-fx-background-color: #f3f4f6; -fx-padding: 10; -fx-background-radius: 8;">
+            <Label text="Connection settings" style="-fx-font-weight: bold; -fx-text-fill: #374151;"/>
+            <GridPane hgap="8" vgap="8">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="40"/>
+                    <ColumnConstraints percentWidth="60"/>
+                </columnConstraints>
+                <Label text="Host:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                <TextField fx:id="hostField" promptText="localhost" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+                <Label text="Port:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                <TextField fx:id="portField" promptText="5555" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+                <Label text="DB User:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                <TextField fx:id="dbUserField" promptText="root" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+                <Label text="DB Password:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                <PasswordField fx:id="dbPasswordField" promptText="" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+            </GridPane>
+        </VBox>
 
         <Label fx:id="statusLabel" textFill="red" wrapText="true"/>
     </VBox>
