@@ -1,20 +1,32 @@
 # ===== Bistro global ignores =====
 
-# Build output
+# === Build output ===
 **/bin/
 **/target/
+**/out/
 
-# Eclipse IDE files (NEVER commit)
+# === IDE files (NEVER commit) ===
+
+# Eclipse
 **/.classpath
 **/.project
 **/.settings/
 
-# Local DB secrets (NEVER commit)
-**/config/db.properties
+# IntelliJ
+**/.idea/
+**/*.iml
 
-# OS junk
+# VS Code
+**/.vscode/
+
+# === Local DB secrets (NEVER commit) ===
+**/config/db.properties
+**/config/*.secret
+**/*.env
+
+# === OS junk ===
 .DS_Store
 Thumbs.db
 
-# Logs
+# === Logs ===
 *.log
