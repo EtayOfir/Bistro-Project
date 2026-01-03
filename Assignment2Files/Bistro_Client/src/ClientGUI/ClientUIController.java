@@ -188,16 +188,16 @@ public class ClientUIController implements ChatIF {
      */
     private void applyRolePermissions() {
         boolean canUpdate = loggedInRole != null && !loggedInRole.isBlank();
-        boolean isCustomer = loggedInRole != null && "Customer".equalsIgnoreCase(loggedInRole);
+        boolean isSubscriber = loggedInRole != null && "Subscriber".equalsIgnoreCase(loggedInRole);
 
         if (newReservationButton != null) {
-            newReservationButton.setVisible(isCustomer);
-            newReservationButton.setManaged(isCustomer);
+            newReservationButton.setVisible(isSubscriber);
+            newReservationButton.setManaged(isSubscriber);
         }
 
         if (reservationActionsLabel != null) {
-            reservationActionsLabel.setVisible(isCustomer);
-            reservationActionsLabel.setManaged(isCustomer);
+            reservationActionsLabel.setVisible(isSubscriber);
+            reservationActionsLabel.setManaged(isSubscriber);
         }
 
         if (update != null) update.setDisable(!canUpdate);
@@ -472,8 +472,8 @@ public class ClientUIController implements ChatIF {
      */
     @FXML
     private void onNewReservationClicked(ActionEvent event) {
-        if (loggedInRole == null || !"Customer".equalsIgnoreCase(loggedInRole)) {
-        	safeAppend("Only customers can create reservations.\n");
+        if (loggedInRole == null || !"Subscriber".equalsIgnoreCase(loggedInRole)) {
+        	safeAppend("Only Subscriber can create reservations.\n");
             return;
         }
 
