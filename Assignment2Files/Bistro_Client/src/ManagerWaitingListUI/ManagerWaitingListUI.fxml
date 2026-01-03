@@ -1,0 +1,33 @@
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox spacing="10" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml" fx:controller="ManagerWaitingListUI.ManagerWaitingListController">
+    <children>
+        <Label text="Waiting List (Live)" />
+
+        <TableView fx:id="tbl">
+            <columns>
+                <TableColumn fx:id="colId" prefWidth="60" text="ID" />
+                <TableColumn fx:id="colDiners" prefWidth="80" text="Diners" />
+                <TableColumn fx:id="colCode" prefWidth="140" text="Code" />
+                <TableColumn fx:id="colStatus" prefWidth="120" text="Status" />
+                <TableColumn fx:id="colEntryTime" prefWidth="180" text="Entry Time" />
+                <TableColumn fx:id="colContact" prefWidth="260" text="Contact" />
+            </columns>
+        </TableView>
+
+        <HBox spacing="10">
+            <children>
+                <Button onAction="#onMarkTableFound" text="Mark TableFound" />
+                <Button onAction="#onRemove" text="Remove (Seated/Cancel)" />
+            </children>
+        </HBox>
+
+        <Label fx:id="lblInfo" text="" />
+    </children>
+</VBox>
