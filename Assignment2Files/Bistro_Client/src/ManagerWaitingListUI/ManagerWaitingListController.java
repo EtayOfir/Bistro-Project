@@ -4,7 +4,7 @@ package ManagerWaitingListUI;
 
 import client.ChatClient;
 import common.ChatIF;
-import DBController.WaitingEntry;
+import entities.WaitingEntry;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
