@@ -25,6 +25,7 @@ public class HostDashboardController {
 
     // Header
     @FXML private Label loggedInUserLabel;
+    @FXML private Button reportsButton;
 
     // Map info
     @FXML private Label selectedTableLabel;
@@ -41,6 +42,7 @@ public class HostDashboardController {
 
     private final Map<Button, Boolean> occupied = new HashMap<>(); // true=occupied, false=available
     private Button selectedTableBtn = null;
+    private String userRole = null;
 
     private static final String BASE_TABLE_STYLE =
             "-fx-background-radius:999;" +
@@ -80,8 +82,16 @@ public class HostDashboardController {
     }
 
     public void setUserContext(String username, String role) {
+        this.userRole = role;
         if (loggedInUserLabel != null) {
             loggedInUserLabel.setText(role + " - " + username);
+        }
+        
+        // Show Reports button only for Manager
+        if (reportsButton != null) {
+            boolean isManager = "Manager".equalsIgnoreCase(role);
+            reportsButton.setVisible(isManager);
+            reportsButton.setManaged(isManager);
         }
     }
 
@@ -132,6 +142,28 @@ public class HostDashboardController {
         Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
         stage.close();
         System.exit(0);
+    }
+
+    @FXML
+    private void onReportsClicked(ActionEvent event) {
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(
+                    getClass().getResource("/ClientGUI/ReportsUI.fxml"));
+            javafx.scene.Parent root = loader.load();
+
+            javafx.stage.Stage stage = new javafx.stage.Stage();
+            stage.setTitle("Reports");
+            stage.setScene(new javafx.scene.Scene(root));
+            stage.show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("Failed to open Reports");
+            alert.setContentText(e.getMessage());
+            alert.showAndWait();
+        }
     }
 
     private void refreshTableColors() {

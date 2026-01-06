@@ -83,7 +83,6 @@ public class ChatClient extends AbstractClient {
 	 */
 	public void handleMessageFromServer(Object msg) {
 		System.out.println("DEBUG: Received message from server: " + msg);
-		clientUI.display((String) msg);
 		String s = String.valueOf(msg);
 
 		synchronized (responseLock) {
@@ -92,9 +91,9 @@ public class ChatClient extends AbstractClient {
 		}
 
 		if (clientUI != null) {
-			// אם display נוגע ב-JavaFX UI:
-			javafx.application.Platform.runLater(() -> clientUI.display(s));
-			// אם display רק מדפיס לקונסול, אפשר בלי runLater
+			// Display message to UI via ClientMessageRouter
+			// ClientMessageRouter.display() already wraps in Platform.runLater() for JavaFX safety
+			clientUI.display(s);
 		}
 	}
 

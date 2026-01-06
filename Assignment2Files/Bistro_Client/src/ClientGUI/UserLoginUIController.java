@@ -43,12 +43,6 @@ import javafx.stage.Stage;
  */
 public class UserLoginUIController {
 
-    /** Default database username (if not provided by the user). */
-    private static final String DEFAULT_DB_USER = "root";
-
-    /** Default database password (if not provided by the user). */
-    private static final String DEFAULT_DB_PASSWORD = "";
-
     // FXML-bound UI fields
 
     @FXML private TextField usernameField;
@@ -60,10 +54,6 @@ public class UserLoginUIController {
     @FXML private VBox serverSettingsBox;
     @FXML private TextField hostField;
     @FXML private TextField portField;
-
-    // Optional database settings
-    @FXML private TextField dbUserField;
-    @FXML private PasswordField dbPasswordField;
 
     /**
      * Initializes the login screen.
@@ -136,15 +126,6 @@ public class UserLoginUIController {
             return;
         }
 
-        // Resolve database credentials
-        String dbUser = (dbUserField == null || dbUserField.getText().isBlank())
-                ? DEFAULT_DB_USER
-                : dbUserField.getText().trim();
-
-        String dbPass = (dbPasswordField == null)
-                ? DEFAULT_DB_PASSWORD
-                : dbPasswordField.getText();
-
         // Ensure shared connection exists
         if (ClientUI.chat == null) {
             statusLabel.setText("Not connected to server (ClientUI.chat is null).");
@@ -183,7 +164,6 @@ public class UserLoginUIController {
 
             ClientUIController controller = loader.getController();
             controller.setUserContext(username, role);
-            controller.setDatabaseCredentials(dbUser, dbPass);
 
             // No initClient(host, port) here in shared-connection mode
 

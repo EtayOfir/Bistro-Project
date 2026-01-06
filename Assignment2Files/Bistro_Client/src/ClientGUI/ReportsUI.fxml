@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.chart.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="ClientGUI.ReportsUIController"
+            prefWidth="1200" prefHeight="700"
+            style="-fx-background-color: #f6f8fa;">
+
+    <top>
+        <HBox spacing="20" style="-fx-background-color: #2563eb;">
+            <padding>
+                <Insets top="20" right="20" bottom="20" left="20"/>
+            </padding>
+
+            <Label text="Reports Dashboard"
+                   style="-fx-text-fill: white; -fx-font-size: 18; -fx-font-weight: bold;"/>
+
+            <Pane HBox.hgrow="ALWAYS"/>
+
+            <Button text="Back" onAction="#onBackClicked"
+                    style="-fx-background-color: white; -fx-text-fill: #2563eb; -fx-background-radius: 6;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox spacing="15">
+            <padding>
+                <Insets top="20" right="20" bottom="20" left="20"/>
+            </padding>
+
+            <!-- Control Panel -->
+            <HBox spacing="15" alignment="CENTER_LEFT" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 8; -fx-border-color: #e5e7eb; -fx-border-radius: 8;">
+                <Label text="Date Range:" style="-fx-font-weight: bold;"/>
+                
+                <DatePicker fx:id="startDatePicker" promptText="Start Date"/>
+                <Label text="to" style="-fx-font-weight: bold;"/>
+                <DatePicker fx:id="endDatePicker" promptText="End Date"/>
+                
+                <Button text="Set Dates" onAction="#onSetDatesClicked"
+                        style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 8 16;"/>
+                
+                <Pane HBox.hgrow="ALWAYS"/>
+                
+                <Button text="Generate XLSX" onAction="#onGenerateXlsxClicked"
+                        style="-fx-background-color: #22c55e; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 8 16;"/>
+            </HBox>
+
+            <!-- Charts Area -->
+            <ScrollPane style="-fx-border-color: #e5e7eb; -fx-border-radius: 8;" VBox.vgrow="ALWAYS">
+                <VBox spacing="20" style="-fx-padding: 15;">
+                    
+                    <!-- Reservation Status Pie Chart -->
+                    <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 8;">
+                        <Label text="Reservation Status Distribution" style="-fx-font-weight: bold; -fx-font-size: 14;"/>
+                        <PieChart fx:id="reservationStatusChart" prefHeight="300" prefWidth="400"/>
+                    </VBox>
+
+                    <!-- Total Guests Bar Chart -->
+                    <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 8;">
+                        <Label text="Guest Statistics" style="-fx-font-weight: bold; -fx-font-size: 14;"/>
+                        <BarChart fx:id="guestStatsChart" prefHeight="300" prefWidth="900" categoryGap="25">
+                            <xAxis>
+                                <CategoryAxis side="BOTTOM"/>
+                            </xAxis>
+                            <yAxis>
+                                <NumberAxis side="LEFT"/>
+                            </yAxis>
+                        </BarChart>
+                    </VBox>
+
+                    <!-- Time Distribution of Reservations Line Chart -->
+                    <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 8;">
+                        <Label text="Reservation Time Distribution" style="-fx-font-weight: bold; -fx-font-size: 14;"/>
+                        <LineChart fx:id="timeDistributionChart" prefHeight="300" prefWidth="900">
+                            <xAxis>
+                                <CategoryAxis side="BOTTOM"/>
+                            </xAxis>
+                            <yAxis>
+                                <NumberAxis side="LEFT"/>
+                            </yAxis>
+                        </LineChart>
+                    </VBox>
+
+                    <!-- Waiting List Statistics Area Chart -->
+                    <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 8;">
+                        <Label text="Waiting List - Monthly Overview" style="-fx-font-weight: bold; -fx-font-size: 14;"/>
+                        <AreaChart fx:id="waitingListChart" prefHeight="300" prefWidth="900">
+                            <xAxis>
+                                <CategoryAxis side="BOTTOM"/>
+                            </xAxis>
+                            <yAxis>
+                                <NumberAxis side="LEFT"/>
+                            </yAxis>
+                        </AreaChart>
+                    </VBox>
+                    <HBox spacing="20" alignment="CENTER_LEFT">
+                        <VBox spacing="8" style="-fx-background-color: #eff6ff; -fx-padding: 15; -fx-background-radius: 8; -fx-border-color: #93c5fd; -fx-border-radius: 8;">
+                            <Label text="Total Reservations" style="-fx-font-weight: bold; -fx-text-fill: #1e40af;"/>
+                            <Label fx:id="totalReservationsLabel" text="0" style="-fx-font-size: 24; -fx-font-weight: bold; -fx-text-fill: #1e40af;"/>
+                        </VBox>
+
+                        <VBox spacing="8" style="-fx-background-color: #fef3c7; -fx-padding: 15; -fx-background-radius: 8; -fx-border-color: #fcd34d; -fx-border-radius: 8;">
+                            <Label text="Expired Reservations" style="-fx-font-weight: bold; -fx-text-fill: #92400e;"/>
+                            <Label fx:id="expiredReservationsLabel" text="0" style="-fx-font-size: 24; -fx-font-weight: bold; -fx-text-fill: #92400e;"/>
+                        </VBox>
+
+                        <VBox spacing="8" style="-fx-background-color: #dcfce7; -fx-padding: 15; -fx-background-radius: 8; -fx-border-color: #86efac; -fx-border-radius: 8;">
+                            <Label text="Confirmed Reservations" style="-fx-font-weight: bold; -fx-text-fill: #166534;"/>
+                            <Label fx:id="confirmedReservationsLabel" text="0" style="-fx-font-size: 24; -fx-font-weight: bold; -fx-text-fill: #166534;"/>
+                        </VBox>
+
+                        <VBox spacing="8" style="-fx-background-color: #dbeafe; -fx-padding: 15; -fx-background-radius: 8; -fx-border-color: #bfdbfe; -fx-border-radius: 8;">
+                            <Label text="Total Guests" style="-fx-font-weight: bold; -fx-text-fill: #0c4a6e;"/>
+                            <Label fx:id="totalGuestsLabel" text="0" style="-fx-font-size: 24; -fx-font-weight: bold; -fx-text-fill: #0c4a6e;"/>
+                        </VBox>
+                    </HBox>
+
+                </VBox>
+            </ScrollPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>

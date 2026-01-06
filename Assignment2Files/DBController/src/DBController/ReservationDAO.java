@@ -18,7 +18,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Data Access Object (DAO) responsible for all database operations
@@ -284,21 +287,95 @@ public class ReservationDAO {
     }
 
     /**
-     * Deletes all reservations whose combined {@code ReservationDate + ReservationTime}
-     * have passed by at least 15 minutes (excluding canceled).
+     * Marks expired reservations as 'NoShow' instead of deleting them.
+     * This preserves the reservation history while flagging them as no longer active.
+     * 
+     * A reservation is considered expired if its scheduled time has passed by more than 30 minutes
+    /**
+     * Marks expired reservations as 'Expired' instead of deleting them.
+     * This preserves the reservation history while flagging them as no longer active.
+     * 
+     * A reservation is considered expired if its scheduled time has passed by more than 30 minutes
+     * and its status is still 'Confirmed'.
+     * Scans the ENTIRE database for all expired reservations.
      *
-     * @return number of rows deleted
+     * @return number of reservations marked as expired
      * @throws SQLException if a database access error occurs
      */
     public int deleteExpiredReservations() throws SQLException {
-        final String sql =
-                "DELETE FROM ActiveReservations " +
-                "WHERE Status != 'Canceled' " +
-                "AND TIMESTAMP(ReservationDate, ReservationTime) < (NOW() - INTERVAL 15 MINUTE)";
-
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            return ps.executeUpdate();
+        try (Connection conn = dataSource.getConnection()) {
+            
+            // First, ensure the Status column ENUM includes 'Expired'
+            try {
+                System.out.println("DEBUG: Ensuring Status column supports 'Expired' value...");
+                String alterSQL = "ALTER TABLE ActiveReservations MODIFY COLUMN Status ENUM('Confirmed','Arrived','Late','Canceled','Completed','Paid','Expired')";
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.executeUpdate(alterSQL);
+                    System.out.println("DEBUG: Status column updated to support 'Expired' value");
+                }
+            } catch (SQLException e) {
+                // Column might already have 'Expired', or alter might fail - continue anyway
+                System.out.println("DEBUG: Status column already supports 'Expired' or migration not needed: " + e.getMessage());
+            }
+            
+            java.util.List<Integer> expiredIds = new java.util.ArrayList<>();
+            
+            // First, check for ALL confirmed reservations that should be expired
+            System.out.println("DEBUG: Scanning entire database for confirmed reservations with expired times (30+ minutes past)...");
+            try (PreparedStatement checkPs = conn.prepareStatement(
+                    "SELECT ReservationID, ConfirmationCode, ReservationDate, ReservationTime, Status " +
+                    "FROM ActiveReservations " +
+                    "WHERE Status = 'Confirmed' " +
+                    "AND DATE_ADD(CONCAT(ReservationDate, ' ', ReservationTime), INTERVAL 30 MINUTE) < NOW() " +
+                    "ORDER BY ReservationDate ASC, ReservationTime ASC")) {
+                try (ResultSet rs = checkPs.executeQuery()) {
+                    while (rs.next()) {
+                        int resId = rs.getInt(1);
+                        expiredIds.add(resId);
+                        System.out.println("DEBUG: Found expired reservation - ID: " + resId + 
+                                         ", Code: " + rs.getString(2) + 
+                                         ", DateTime: " + rs.getDate(3) + " " + rs.getTime(4) +
+                                         ", Status: " + rs.getString(5));
+                    }
+                    System.out.println("DEBUG: Total expired Confirmed reservations found in entire database: " + expiredIds.size());
+                }
+            }
+            
+            // Now update each reservation individually
+            int updated = 0;
+            if (!expiredIds.isEmpty()) {
+                System.out.println("DEBUG: Executing update to mark ALL expired reservations as Expired...");
+                
+                try (PreparedStatement updatePs = conn.prepareStatement(
+                        "UPDATE ActiveReservations SET Status = 'Expired' WHERE ReservationID = ?")) {
+                    
+                    for (Integer resId : expiredIds) {
+                        try {
+                            updatePs.setInt(1, resId);
+                            updatePs.executeUpdate();
+                            updated++;
+                            System.out.println("DEBUG: Updated reservation ID " + resId + " to Expired");
+                        } catch (SQLException e) {
+                            System.err.println("ERROR updating reservation ID " + resId + ": " + e.getMessage());
+                        }
+                    }
+                }
+                
+                System.out.println("DEBUG: *** SUCCESS *** Updated " + updated + " reservations to Expired status");
+                
+                // Verify by counting total Expired reservations now
+                try (PreparedStatement verifyPs = conn.prepareStatement(
+                        "SELECT COUNT(*) FROM ActiveReservations WHERE Status = 'Expired'")) {
+                    try (ResultSet rs = verifyPs.executeQuery()) {
+                        if (rs.next()) {
+                            int totalExpired = rs.getInt(1);
+                            System.out.println("DEBUG: Total Expired reservations in database now: " + totalExpired);
+                        }
+                    }
+                }
+            }
+            
+            return updated;
         }
     }
 
@@ -471,5 +548,133 @@ public class ReservationDAO {
         }
 
         return reservations;
+    }
+
+    /**
+     * Gets reservation statistics for a date range.
+     * @param startDate the start date (SQL Date)
+     * @param endDate the end date (SQL Date)
+     * @return a map with keys: "total", "confirmed", "arrived", "late", "expired", "totalGuests"
+     */
+    public Map<String, Integer> getReservationStatsByDateRange(Date startDate, Date endDate) throws SQLException {
+        Map<String, Integer> stats = new HashMap<>();
+        stats.put("total", 0);
+        stats.put("confirmed", 0);
+        stats.put("arrived", 0);
+        stats.put("late", 0);
+        stats.put("expired", 0);
+        stats.put("totalGuests", 0);
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_RESERVATION_STATS_BY_DATE_RANGE)) {
+            
+            ps.setDate(1, startDate);
+            ps.setDate(2, endDate);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    stats.put("total", rs.getInt("TotalReservations"));
+                    stats.put("confirmed", rs.getInt("ConfirmedCount"));
+                    stats.put("arrived", rs.getInt("ArrivedCount"));
+                    stats.put("late", rs.getInt("LateCount"));
+                    stats.put("expired", rs.getInt("ExpiredCount"));
+                    stats.put("totalGuests", rs.getInt("TotalGuests"));
+                }
+            }
+        }
+
+        return stats;
+    }
+
+    /**
+     * Gets detailed reservations for a date range (for Excel export).
+     * @param startDate the start date (SQL Date)
+     * @param endDate the end date (SQL Date)
+     * @return a list of maps containing reservation details
+     */
+    public List<Map<String, Object>> getDetailedReservationsByDateRange(Date startDate, Date endDate) throws SQLException {
+        List<Map<String, Object>> reservations = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_DETAILED_RESERVATIONS_BY_DATE_RANGE)) {
+            
+            ps.setDate(1, startDate);
+            ps.setDate(2, endDate);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> res = new HashMap<>();
+                    res.put("ReservationID", rs.getInt("ReservationID"));
+                    res.put("ConfirmationCode", rs.getString("ConfirmationCode"));
+                    res.put("ReservationDate", rs.getDate("ReservationDate"));
+                    res.put("ReservationTime", rs.getTime("ReservationTime"));
+                    res.put("NumOfDiners", rs.getInt("NumOfDiners"));
+                    res.put("Status", rs.getString("Status"));
+                    res.put("CustomerType", rs.getString("CustomerType"));
+                    res.put("SubscriberID", rs.getInt("SubscriberID"));
+                    res.put("CasualPhone", rs.getString("CasualPhone"));
+                    res.put("CasualEmail", rs.getString("CasualEmail"));
+                    reservations.add(res);
+                }
+            }
+        }
+
+        return reservations;
+    }
+
+    /**
+     * Gets reservation time distribution for a date range.
+     * @param startDate the start date (SQL Date)
+     * @param endDate the end date (SQL Date)
+     * @return a map with hour as key and reservation count as value
+     */
+    public Map<Integer, Integer> getReservationTimeDistribution(Date startDate, Date endDate) throws SQLException {
+        Map<Integer, Integer> timeDistribution = new TreeMap<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_RESERVATION_TIME_DISTRIBUTION)) {
+            
+            ps.setDate(1, startDate);
+            ps.setDate(2, endDate);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int hour = rs.getInt("Hour");
+                    int count = rs.getInt("ReservationCount");
+                    timeDistribution.put(hour, count);
+                }
+            }
+        }
+
+        return timeDistribution;
+    }
+
+    /**
+     * Gets waiting list statistics by date for a date range.
+     * @param startDate the start date (SQL Date)
+     * @param endDate the end date (SQL Date)
+     * @return a list of maps containing date, waiting count, and served count
+     */
+    public List<Map<String, Object>> getWaitingListByDate(Date startDate, Date endDate) throws SQLException {
+        List<Map<String, Object>> waitingStats = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_WAITING_LIST_BY_DATE)) {
+            
+            ps.setDate(1, startDate);
+            ps.setDate(2, endDate);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> stat = new HashMap<>();
+                    stat.put("EntryDate", rs.getDate("EntryDate"));
+                    stat.put("WaitingCount", rs.getInt("WaitingCount"));
+                    stat.put("ServedCount", rs.getInt("ServedCount"));
+                    waitingStats.add(stat);
+                }
+            }
+        }
+
+        return waitingStats;
     }
 }
