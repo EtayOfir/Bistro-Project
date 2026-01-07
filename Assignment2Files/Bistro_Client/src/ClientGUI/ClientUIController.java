@@ -88,12 +88,6 @@ public class ClientUIController implements ChatIF {
     /** Currently logged in role (for UI-only permissions). */
     private String loggedInRole;
 
-    /** Optional DB user for admin operations (kept for compatibility). */
-    private String dbUser = "root";
-
-    /** Optional DB password for admin operations (kept for compatibility). */
-    private String dbPassword = "";
-
     // Active Controller Routing
     
     /** Active "New Reservation" window controller, if open. */
@@ -355,6 +349,24 @@ public class ClientUIController implements ChatIF {
                 || message.startsWith("ERROR|CANCEL")) {
             onCancelResponseFromServer(message);
 
+        } else if (message.startsWith("DELETED_EXPIRED")) {
+            // Handle expired reservations cleanup response
+            // Keep this internal - don't display to user
+            String[] parts = message.split("\\|");
+            int count = 0;
+            if (parts.length >= 2) {
+                try {
+                    count = Integer.parseInt(parts[1]);
+                } catch (NumberFormatException e) {
+                    count = 0;
+                }
+            }
+            System.out.println("DEBUG: Cleanup completed - " + count + " expired reservations marked as Expired");
+
+        } else if (message.startsWith("ERROR|DELETE_EXPIRED_FAILED")) {
+            // Handle cleanup errors silently - don't display to user
+            System.out.println("DEBUG: Cleanup encountered an error (logged on server): " + message);
+
         } else {
             reservationDetailsTextArea.appendText(message + "\n");
         }
@@ -559,27 +571,6 @@ public class ClientUIController implements ChatIF {
      * Sets DB credentials (if your UI needs to forward them for admin operations).
      *
      * @param user db username
-     * @param password db password
-     */
-    public void setDatabaseCredentials(String user, String password) {
-        this.dbUser = user;
-        this.dbPassword = password;
-    }
-
-    /**
-     * @return DB username (if used)
-     */
-    public String getDbUser() {
-        return dbUser;
-    }
-
-    /**
-     * @return DB password (if used)
-     */
-    public String getDbPassword() {
-        return dbPassword;
-    }
-
     /**
      * Safely appends text to the main text area (if injected),
      * otherwise prints to console.

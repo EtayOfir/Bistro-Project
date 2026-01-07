@@ -22,6 +22,9 @@
 
             <Pane HBox.hgrow="ALWAYS"/>
 
+            <Button fx:id="reportsButton" text="Reports" onAction="#onReportsClicked"
+                    style="-fx-background-color: white; -fx-text-fill: #2563eb; -fx-background-radius: 6; -fx-padding: 8 16;"/>
+
             <Label fx:id="loggedInUserLabel"
                    style="-fx-text-fill: white; -fx-font-size: 14;"/>
 

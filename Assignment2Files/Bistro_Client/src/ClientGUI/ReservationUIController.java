@@ -308,55 +308,57 @@ public class ReservationUIController {
      * @param response raw server response
      */
     public void onBookingResponse(String response) {
-        Platform.runLater(() -> {
-            if (response != null && response.startsWith("RESERVATION_CREATED")) {
-                String[] parts = response.split("\\|");
-                int resId = -1;
+        System.out.println("DEBUG: onBookingResponse called with: " + response);
+        // Note: No Platform.runLater here - caller (ClientMessageRouter.display) already ensures JavaFX thread
+        if (response != null && response.startsWith("RESERVATION_CREATED")) {
+            System.out.println("DEBUG: Processing RESERVATION_CREATED response");
+            String[] parts = response.split("\\|");
+            int resId = -1;
 
-                if (parts.length >= 2) {
-                    try {
-                        resId = Integer.parseInt(parts[1]);
-                        currentReservationId = resId;
-                        System.out.println("DEBUG: Reservation ID from server: " + resId);
-                    } catch (NumberFormatException e) {
-                        System.err.println("Failed to parse reservation ID: " + e.getMessage());
-                    }
+            if (parts.length >= 2) {
+                try {
+                    resId = Integer.parseInt(parts[1]);
+                    currentReservationId = resId;
+                    System.out.println("DEBUG: Reservation ID from server: " + resId);
+                } catch (NumberFormatException e) {
+                    System.err.println("Failed to parse reservation ID: " + e.getMessage());
                 }
-
-                // Add newly booked time to local set immediately
-                LocalDate date = datePicker.getValue();
-                int hour = hourSpinner.getValue();
-                int minute = minuteSpinner.getValue();
-                LocalTime bookedTime = LocalTime.of(hour, minute);
-
-                if (date != null && date.equals(datePicker.getValue())) {
-                    bookedTimesForDate.add(bookedTime);
-                    System.out.println("DEBUG: Added booked time to local cache: " + bookedTime);
-                }
-
-                if (resId > 0) {
-                    reservationIdField.setText(String.valueOf(resId));
-                }
-                confirmationField.setText(currentConfirmationCode);
-
-                showAlert(AlertType.INFORMATION, "Reservation Confirmed",
-                        "Your reservation has been successfully created!\n\n" +
-                                "Reservation ID: " + resId + "\n" +
-                                "Confirmation Code: " + currentConfirmationCode);
-
-                phoneField.setText("");
-                emailField.setText("");
-
-                // Refresh from server to ensure sync
-                fetchExistingReservations(datePicker.getValue());
-
-            } else {
-                System.out.println("ERROR: Booking failed: " + response);
-                reservationIdField.setText("");
-                confirmationField.setText("");
-                showAlert(AlertType.ERROR, "Booking Failed", "Failed to create reservation: " + response);
             }
-        });
+
+            // Add newly booked time to local set immediately
+            LocalDate date = datePicker.getValue();
+            int hour = hourSpinner.getValue();
+            int minute = minuteSpinner.getValue();
+            LocalTime bookedTime = LocalTime.of(hour, minute);
+
+            if (date != null && date.equals(datePicker.getValue())) {
+                bookedTimesForDate.add(bookedTime);
+                System.out.println("DEBUG: Added booked time to local cache: " + bookedTime);
+            }
+
+            if (resId > 0) {
+                reservationIdField.setText(String.valueOf(resId));
+            }
+            confirmationField.setText(currentConfirmationCode);
+
+            phoneField.setText("");
+            emailField.setText("");
+
+            // Show confirmation after clearing fields
+            showAlert(AlertType.INFORMATION, "Reservation Confirmed",
+                    "Your reservation has been successfully created!\n\n" +
+                            "Reservation ID: " + resId + "\n" +
+                            "Confirmation Code: " + currentConfirmationCode);
+
+            // Note: fetchExistingReservations is NOT called here to avoid duplicate requests.
+            // The time slot is already added to bookedTimesForDate above, and UI will update automatically.
+
+        } else {
+            System.out.println("ERROR: Booking failed: " + response);
+            reservationIdField.setText("");
+            confirmationField.setText("");
+            showAlert(AlertType.ERROR, "Booking Failed", "Failed to create reservation: " + response);
+        }
     }
 
     /**
@@ -366,33 +368,32 @@ public class ReservationUIController {
      * @param response raw server response
      */
     public void onCancelResponse(String response) {
-        Platform.runLater(() -> {
-            if (response != null && response.startsWith("RESERVATION_CANCELED")) {
-                System.out.println("DEBUG: Reservation canceled successfully");
+        // Note: No Platform.runLater here - caller (ClientUIController.display) already ensures JavaFX thread
+        if (response != null && response.startsWith("RESERVATION_CANCELED")) {
+            System.out.println("DEBUG: Reservation canceled successfully");
 
-                confirmationField.setText("");
-                reservationIdField.setText("");
-                phoneField.setText("");
-                emailField.setText("");
+            confirmationField.setText("");
+            reservationIdField.setText("");
+            phoneField.setText("");
+            emailField.setText("");
 
-                showAlert(AlertType.INFORMATION, "Reservation Canceled",
-                        "Your reservation has been successfully canceled and deleted from the system!");
+            showAlert(AlertType.INFORMATION, "Reservation Canceled",
+                    "Your reservation has been successfully canceled and deleted from the system!");
 
-                // Refresh reservations list for current date
-                LocalDate date = datePicker.getValue();
-                if (date != null) {
-                    bookedTimesCache.remove(date);
-                    fetchExistingReservations(date);
-                }
-
-            } else if (response != null && response.startsWith("ERROR|RESERVATION_NOT_FOUND")) {
-                System.out.println("ERROR: Reservation not found with given code");
-                showAlert(AlertType.ERROR, "Not Found", "No reservation found with this confirmation code.");
-            } else {
-                System.out.println("ERROR: Cancel failed: " + response);
-                showAlert(AlertType.ERROR, "Cancel Failed", "Failed to cancel reservation: " + response);
+            // Refresh reservations list for current date
+            LocalDate date = datePicker.getValue();
+            if (date != null) {
+                bookedTimesCache.remove(date);
+                fetchExistingReservations(date);
             }
-        });
+
+        } else if (response != null && response.startsWith("ERROR|RESERVATION_NOT_FOUND")) {
+            System.out.println("ERROR: Reservation not found with given code");
+            showAlert(AlertType.ERROR, "Not Found", "No reservation found with this confirmation code.");
+        } else {
+            System.out.println("ERROR: Cancel failed: " + response);
+            showAlert(AlertType.ERROR, "Cancel Failed", "Failed to cancel reservation: " + response);
+        }
     }
 
     // Availability logic

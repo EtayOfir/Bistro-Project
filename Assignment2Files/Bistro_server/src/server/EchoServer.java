@@ -567,11 +567,11 @@ public class EchoServer extends AbstractServer {
 
                 case "#DELETE_EXPIRED_RESERVATIONS": {
                     try {
-                        int deleted = reservationDAO.deleteExpiredReservations();
-                        ans = "DELETED_EXPIRED|" + deleted;
-                        System.out.println("DEBUG: Deleted expired reservations count: " + deleted);
+                        int marked = reservationDAO.deleteExpiredReservations();
+                        ans = "DELETED_EXPIRED|" + marked;
+                        System.out.println("DEBUG: Marked " + marked + " expired reservations as Expired");
                     } catch (Exception e) {
-                        System.err.println("ERROR deleting expired reservations: " + e.getMessage());
+                        System.err.println("ERROR marking expired reservations: " + e.getMessage());
                         e.printStackTrace();
                         ans = "ERROR|DELETE_EXPIRED_FAILED " + e.getMessage();
                     }

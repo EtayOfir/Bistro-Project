@@ -67,6 +67,12 @@ public class ServerUIController {
     
     @FXML
     private TableColumn<GetClientInfo, String> connectionTimeColumn;
+    
+    @FXML
+    private TextField dbUserField;
+    
+    @FXML
+    private PasswordField dbPasswordField;
 
     private EchoServer echoServer;
     private DateTimeFormatter dateTimeFormatter;
@@ -81,6 +87,7 @@ public class ServerUIController {
     public void initialize() {
         // Initialize UI components
         setupPortSelector();
+        setupDatabaseFields();
         setupButtons();
         setupTableColumns();
         
@@ -116,6 +123,18 @@ public class ServerUIController {
                 portStatusLabel.setText("Ready");
             }
         });
+    }
+
+    /**
+     * Setup database credential fields with default values
+     */
+    private void setupDatabaseFields() {
+        if (dbUserField != null) {
+            dbUserField.setText("root");
+        }
+        if (dbPasswordField != null) {
+            dbPasswordField.setText("");
+        }
     }
 
     /**
@@ -320,5 +339,27 @@ public class ServerUIController {
                 e.printStackTrace();
             }
         }
+    }
+
+    /**
+     * Get the database username from the UI
+     * @return database username
+     */
+    public String getDbUser() {
+        if (dbUserField != null && !dbUserField.getText().trim().isEmpty()) {
+            return dbUserField.getText().trim();
+        }
+        return "root"; // default
+    }
+
+    /**
+     * Get the database password from the UI
+     * @return database password
+     */
+    public String getDbPassword() {
+        if (dbPasswordField != null) {
+            return dbPasswordField.getText();
+        }
+        return ""; // default
     }
 }
