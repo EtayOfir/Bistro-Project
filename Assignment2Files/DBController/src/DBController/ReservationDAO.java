@@ -287,11 +287,6 @@ public class ReservationDAO {
     }
 
     /**
-     * Marks expired reservations as 'NoShow' instead of deleting them.
-     * This preserves the reservation history while flagging them as no longer active.
-     * 
-     * A reservation is considered expired if its scheduled time has passed by more than 30 minutes
-    /**
      * Marks expired reservations as 'Expired' instead of deleting them.
      * This preserves the reservation history while flagging them as no longer active.
      * 
