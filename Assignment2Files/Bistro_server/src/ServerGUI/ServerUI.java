@@ -37,11 +37,8 @@ public class ServerUI extends Application {
             primaryStage.setTitle("Bistro Server");
             primaryStage.setScene(scene);
             
-            // Set to full screen
-            primaryStage.setFullScreen(true);
-            
-            // Allow user to exit full screen with Escape key
-            primaryStage.setFullScreenExitHint("Press ESC to exit full screen");
+            // Optionally maximize the window instead of forcing full screen
+            primaryStage.setMaximized(true);
             
             primaryStage.setOnCloseRequest(event -> {
                 controller.shutdown();
