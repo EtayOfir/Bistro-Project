@@ -48,11 +48,11 @@ Developing Bistro from our HQ — **Braude College of Engineering** 🌍
 
 | Name | Role | GitHub |
 | :--- | :--- | :--- |
-| **Etay** | Developer | [@Etay]([https://github.com/EtayOfir])) |
-| **Yuval** | Developer | [@Yuval]([https://github.com/yuvalrotenberg]) |
-| **Ori** | Developer | [@Ori]([https://github.com/OriAvit]) |
-| **Linoy** | Developer | [@Linoy]([https://github.com/linoy25]) |
-| **Yarden**| Developer | [@Yarden]([https://github.com/JordanStyle]) |
+| <img src="https://github.com/EtayOfir.png" width="25"> **Etay** | Developer | [@Etay](https://github.com/EtayOfir) |
+| <img src="https://github.com/yuvalrotenberg.png" width="25"> **Yuval** | Developer | [@Yuval](https://github.com/yuvalrotenberg) |
+| <img src="https://github.com/OriAvit.png" width="25"> **Ori** | Developer | [@Ori](https://github.com/OriAvit) |
+| <img src="https://github.com/linoy25.png" width="25"> **Linoy** | Developer | [@Linoy](https://github.com/linoy25) |
+| <img src="https://github.com/JordanStyle.png" width="25"> **Yarden** | Developer | [@Yarden](https://github.com/JordanStyle) |
 
 ---
 
