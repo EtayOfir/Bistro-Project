@@ -25,10 +25,10 @@ We are **Etay, Yuval, Ori, Linoy & Yarden** 👥.
 We are a team of software engineering students at **Braude College of Engineering**, developing **Bistro** as part of the “Engineering Methods for Software Systems Development” course.
 
 ## 🚀 Vision
-Our goal is to deliver a reliable, modular, and user-friendly application that answers the **“Bistro Story”** challenge. We aim to produce a fully operational restaurant management app that embodies software engineering best practices—usability, modularity, and maintainability—while improving efficiency in a busy restaurant environment.
+Our goal is to deliver a reliable, modular, and user-friendly application that answers the **“Bistro Story”** challenge. We aim to develop a fully operational restaurant management app that embodies best practices in software engineering, including usability, modularity, and maintainability, while enhancing efficiency in a busy restaurant environment.
 
 ## 💻 About The Project
-**Bistro** is designed to streamline restaurant operations from end-to-end. It serves as a centralized hub for:
+**Bistro** is designed to streamline restaurant operations from end to end. It serves as a centralized hub for:
 
 * 📅 **Table Reservations:** Smart management of bookings and time slots.
 * 📋 **Wait-list Management:** Efficient handling of walk-in customers.
