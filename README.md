@@ -1,32 +1,68 @@
- ![](https://user-images.githubusercontent.com/18350557/176309783-0785949b-9127-417c-8b55-ab5a4333674e.gif) Hi There!
-We are Etay, Yuval, Ori, Linoy & Yarden 👥
-==========================================================================================================================================================================
+<div align="center">
 
-This is our Bistro Project 💻
------------------------------
+  <img src="./assets/BistroLogoGIF1.gif" alt="Bistro Logo" width="450">
 
-We’re a software engineering student team developing Bistro, a full-stack restaurant management system built in Java (Eclipse) as part of the “Engineering Methods for Software Systems Development” course.
+  # 🍽️ Bistro Project
 
-🍽️ Bistro is designed to streamline restaurant operations, from table reservations and wait-list management to customer profiles and real-time reporting.
+  **A Full-Stack Restaurant Management System**
 
-Our goal is to deliver a reliable, modular, and user-friendly application that answers the “Bistro Story” challenge: improving efficiency and customer experience in a busy restaurant environment.
+  ![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+  ![Eclipse](https://img.shields.io/badge/Eclipse-2C2255?style=for-the-badge&logo=eclipse&logoColor=white)
+  ![MySQL](https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white)
+  ![Status](https://img.shields.io/badge/Status-In%20Development-yellow?style=for-the-badge)
 
+  <br />
 
-🚀 Vision
+  > *"We cook code like gourmet chefs — Bistro-style."* 👨‍🍳🔥
 
-At the end of the project, Bistro will be a fully operational restaurant management app and database system that embodies software engineering best practices, including usability, modularity, and maintainability, while addressing the original “Bistro Story” business problem.
+</div>
 
-* 🌍  Developing Bistro from our HQ — Braude College of Engineering
-* ✉️  You can contact us at [Etay.Ofir@e.braude.ac.il](mailto:Etay.Ofir@e.braude.ac.il)
-* 💬  We cook code like gourmet chefs — Bistro-style. 👨‍🍳🔥
+---
 
-<p align="left">
-<a href="https://docs.microsoft.com/en-us/cpp/?view=msvc-170" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/c-colored.svg" alt="C" title="C" width="36" height="36" /></a><a href="https://docs.microsoft.com/en-us/dotnet/csharp/" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/csharp-colored.svg" alt="C#" title="C#" width="36" height="36" /></a><a href="https://git-scm.com/" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/git-colored.svg" alt="Git" title="Git" width="36" height="36" /></a><a href="https://www.oracle.com/java/" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/java-colored.svg" alt="Java" title="Java" width="36" height="36" /></a><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/javascript-colored.svg" alt="JavaScript" title="JavaScript" width="36" height="36" /></a><a href="https://code.visualstudio.com/" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/visualstudiocode-colored.svg" alt="VS Code" title="VS Code" width="36" height="36" /></a><a href="https://www.mysql.com/" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/mysql-colored.svg" alt="MySQL" title="MySQL" width="36" height="36" /></a><a href="https://www.figma.com/" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/skills/figma-colored.svg" alt="Figma" title="Figma" width="36" height="36" /></a>
-</p>
+## ![](https://user-images.githubusercontent.com/18350557/176309783-0785949b-9127-417c-8b55-ab5a4333674e.gif) Hi There! We are the Bistro Team
+We are **Etay, Yuval, Ori, Linoy & Yarden** 👥.
 
-### Socials
+We are a team of software engineering students at **Braude College of Engineering**, developing **Bistro** as part of the “Engineering Methods for Software Systems Development” course.
 
-<p align="left"> <a href="https://www.github.com/EtayOfir" target="_blank" rel="noreferrer"> <picture> <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/socials/github-dark.svg" /> <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/socials/github.svg" /> <img src="https://raw.githubusercontent.com/danielcranney/readme-generator/main/public/icons/socials/github.svg" width="32" height="32" alt="GitHub" title="GitHub" /> </picture> </a></p>
-### Badges
+## 🚀 Vision
+Our goal is to deliver a reliable, modular, and user-friendly application that answers the **“Bistro Story”** challenge. We aim to produce a fully operational restaurant management app that embodies software engineering best practices—usability, modularity, and maintainability—while improving efficiency in a busy restaurant environment.
 
-<a href="https://github.com/EtayOfir" align="left"><img src="https://github-readme-stats.vercel.app/api/top-langs/?username=EtayOfir&langs_count=10&title_color=ffffff&text_color=ffffff&icon_color=0891b2&bg_color=1c1917&hide_border=true&locale=en&custom_title=Top%20%Languages" alt="Top Languages" /></a>
+## 💻 About The Project
+**Bistro** is designed to streamline restaurant operations from end-to-end. It serves as a centralized hub for:
+
+* 📅 **Table Reservations:** Smart management of bookings and time slots.
+* 📋 **Wait-list Management:** Efficient handling of walk-in customers.
+* 👤 **Customer Profiles:** Tracking preferences and history.
+* 📊 **Real-time Reporting:** Insights into restaurant performance.
+
+## 🛠️ Tech Stack
+| Component | Technology |
+| :--- | :--- |
+| **Language** | Java |
+| **IDE** | Eclipse |
+| **Database** | MySQL (Planned) |
+| **Architecture** | Client-Server / MVC |
+
+## 👥 The Team
+Developing Bistro from our HQ — **Braude College of Engineering** 🌍
+
+| Name | Role | GitHub |
+| :--- | :--- | :--- |
+| **Etay** | Developer | [@Etay](https://github.com/) |
+| **Yuval** | Developer | [@Yuval](https://github.com/) |
+| **Ori** | Developer | [@Ori](https://github.com/) |
+| **Linoy** | Developer | [@Linoy](https://github.com/) |
+| **Yarden**| Developer | [@Yarden](https://github.com/) |
+
+---
+
+<div align="center">
+
+  ### 📫 Contact Us
+  Have questions? Reach out to us at:
+  [**Etay.Ofir@e.braude.ac.il**](mailto:Etay.Ofir@e.braude.ac.il)
+
+  <br />
+  <small>Bistro Project © 2026</small>
+
+</div>
