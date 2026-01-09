@@ -19,14 +19,19 @@ public class WaitingListDAO {
     // -------------------------
     // CREATE
     // -------------------------
-    public boolean insert(String contactInfo, int numOfDiners, String confirmationCode, String status) throws SQLException {
+    public boolean insert(String contactInfo, Integer subscriberId, int numOfDiners, String confirmationCode, String status) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_WAITING)) {
 
             ps.setString(1, contactInfo);
-            ps.setInt(2, numOfDiners);
-            ps.setString(3, confirmationCode);
-            ps.setString(4, status);
+            if (subscriberId == null) {
+                ps.setNull(2, Types.INTEGER);
+            } else {
+                ps.setInt(2, subscriberId);
+            }
+            ps.setInt(3, numOfDiners);
+            ps.setString(4, confirmationCode);
+            ps.setString(5, status);
 
             return ps.executeUpdate() == 1;
         }
@@ -138,13 +143,22 @@ public class WaitingListDAO {
     // Helper: map ResultSet row -> WaitingEntry
     // -------------------------
     private WaitingEntry mapRow(ResultSet rs) throws SQLException {
+        Integer subscriberId = null;
+        try {
+            Object o = rs.getObject("SubscriberID");
+            if (o != null) subscriberId = ((Number) o).intValue();
+        } catch (SQLException ignored) {
+            // Column may not exist in older schema; leave null
+        }
+
         return new WaitingEntry(
-                rs.getInt("WaitingID"),
-                rs.getString("ContactInfo"),
-                rs.getInt("NumOfDiners"),
-                rs.getString("ConfirmationCode"),
-                rs.getString("Status"),
-                rs.getTimestamp("EntryTime")
+            rs.getInt("WaitingID"),
+            rs.getString("ContactInfo"),
+            subscriberId,
+            rs.getInt("NumOfDiners"),
+            rs.getString("ConfirmationCode"),
+            rs.getString("Status"),
+            rs.getTimestamp("EntryTime")
         );
     }
 }

@@ -163,8 +163,10 @@ public class LoginSubscriberUIController {
 
             // Set the return path based on the controller type
             switch (controller) {
-                case ReservationUIController c -> 
+                case ReservationUIController c -> {
                     c.setReturnPath("LoginSubscriberUI.fxml", "Subscriber Menu", subName, "Subscriber");
+                    c.setSubscriber(currentSubscriber);
+                }
 
                 case ClientWaitingListController c -> 
                     c.setReturnPath("LoginSubscriberUI.fxml", "Subscriber Menu", subName, "Subscriber");

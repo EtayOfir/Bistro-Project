@@ -25,6 +25,7 @@ public class ManagerWaitingListController implements ChatIF {
     @FXML private TableColumn<WaitingEntry, Number> colId;
     @FXML private TableColumn<WaitingEntry, Number> colDiners;
     @FXML private TableColumn<WaitingEntry, String> colCode;
+    @FXML private TableColumn<WaitingEntry, String> colSubscriber;
     @FXML private TableColumn<WaitingEntry, String> colStatus;
     @FXML private TableColumn<WaitingEntry, String> colEntryTime;
     @FXML private TableColumn<WaitingEntry, String> colContact;
@@ -40,6 +41,10 @@ public class ManagerWaitingListController implements ChatIF {
         colId.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().getWaitingId()));
         colDiners.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().getNumOfDiners()));
         colCode.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().getConfirmationCode()));
+        colSubscriber.setCellValueFactory(c -> {
+            Integer sid = c.getValue().getSubscriberId();
+            return new ReadOnlyStringWrapper(sid == null ? "" : sid.toString());
+        });
         colStatus.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().getStatus()));
         colContact.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().getContactInfo()));
         colEntryTime.setCellValueFactory(c -> {
@@ -79,24 +84,25 @@ public class ManagerWaitingListController implements ChatIF {
 
         String[] rows = body.split("~");
         for (String row : rows) {
-            // row format: WaitingID,ContactInfoB64,NumOfDiners,ConfirmationCode,Status,EntryTime
-            String[] cols = row.split(",", 6);
-            if (cols.length < 6) continue;
+            // new row format: WaitingID,ContactInfoB64,NumOfDiners,ConfirmationCode,SubscriberID,Status,EntryTime
+            String[] cols = row.split(",", 7);
+            if (cols.length < 7) continue;
 
             try {
                 int waitingId = Integer.parseInt(cols[0]);
                 String contactInfo = decodeB64Url(cols[1]);
                 int diners = Integer.parseInt(cols[2]);
                 String code = cols[3];
-                String status = cols[4];
+                String subStr = cols[4];
+                Integer subscriberId = (subStr == null || subStr.isBlank()) ? null : Integer.parseInt(subStr);
+                String status = cols[5];
 
                 Timestamp entryTime = null;
-                if (cols[5] != null && !cols[5].isBlank()) {
-                    // server sends Timestamp.toString(), so this usually works:
-                    entryTime = Timestamp.valueOf(cols[5]);
+                if (cols[6] != null && !cols[6].isBlank()) {
+                    entryTime = Timestamp.valueOf(cols[6]);
                 }
 
-                data.add(new WaitingEntry(waitingId, contactInfo, diners, code, status, entryTime));
+                data.add(new WaitingEntry(waitingId, contactInfo, subscriberId, diners, code, status, entryTime));
             } catch (Exception ignored) {
                 // ignore bad rows
             }
