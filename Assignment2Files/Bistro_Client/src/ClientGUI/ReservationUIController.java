@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import entities.Subscriber;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -98,6 +99,9 @@ public class ReservationUIController {
 
     /** Indicates that an availability check is waiting for data for its date. */
     private boolean pendingCheckRequested = false;
+
+    /** Currently logged-in subscriber (null for guests). */
+    private Subscriber currentSubscriber = null;
 
     // JavaFX lifecycle
 
@@ -712,6 +716,26 @@ public class ReservationUIController {
             suggestAlternatives(start);
             showAlert(AlertType.WARNING, "Slot Not Available",
                     "The selected slot is not available. Please choose from the suggested alternatives.");
+
+            // Open waiting-list UI and pass attempted reservation context (include subscriber if present)
+            try {
+                javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(
+                        getClass().getResource("ClientWaitingList.fxml"));
+                javafx.scene.Parent root = loader.load();
+                ClientGUI.ClientWaitingListController ctrl = loader.getController();
+
+                String timeStr = String.format("%02d:%02d", hour, minute);
+                // area is not selected in this UI; pass null. The controller should handle nulls.
+                ctrl.setReservationContext(datePicker.getValue(), timeStr, null, guestSpinner.getValue(), currentSubscriber);
+
+                javafx.stage.Stage stage = new javafx.stage.Stage();
+                stage.setScene(new javafx.scene.Scene(root));
+                stage.setTitle("Waiting List - Alternatives");
+                stage.show();
+            } catch (java.io.IOException e) {
+                e.printStackTrace();
+            }
+
             return;
         }
 
@@ -781,6 +805,27 @@ public class ReservationUIController {
 
     /** The role of the currently logged-in user. */
     private String currentUserRole = "";
+
+    /**
+     * Sets the logged-in subscriber object for this controller.
+     * If a subscriber is provided, the controller will treat the session as a subscriber.
+     * @param subscriber subscriber object or null for guests
+     */
+    public void setSubscriber(Subscriber subscriber) {
+        this.currentSubscriber = subscriber;
+        if (subscriber != null) {
+            this.currentUserName = subscriber.getUserName();
+            this.currentUserRole = "Subscriber";
+        }
+    }
+
+    /**
+     * Generic setter for user context (username + role) for non-subscriber callers.
+     */
+    public void setUserContext(String username, String role) {
+        this.currentUserName = username;
+        this.currentUserRole = role;
+    }
 
     /**
      * Sets the navigation parameters required to return to the previous screen.

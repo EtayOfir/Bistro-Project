@@ -406,6 +406,8 @@ public class EchoServer extends AbstractServer {
                 }
                 case "#ADD_WAITING_LIST": {
                     // Format: #ADD_WAITING_LIST <numDiners> <contactInfoB64Url> <confirmationCode>
+                    // New format allows optional SubscriberID at the end:
+                    // #ADD_WAITING_LIST <numDiners> <contactInfoB64Url> <confirmationCode> [<subscriberId>]
                     if (parts.length < 4) {
                         ans = "ERROR|BAD_FORMAT_ADD_WAITING";
                         break;
@@ -415,7 +417,12 @@ public class EchoServer extends AbstractServer {
                         String contactInfo = decodeB64Url(parts[2]); // helper (Base64 URL safe)
                         String confirmationCode = parts[3];
 
-                        boolean inserted = waitingListDAO.insert(contactInfo, numDiners, confirmationCode, "Waiting");
+                        Integer subscriberId = null;
+                        if (parts.length >= 5) {
+                            try { subscriberId = Integer.parseInt(parts[4]); } catch (NumberFormatException ignored) {}
+                        }
+
+                        boolean inserted = waitingListDAO.insert(contactInfo, subscriberId, numDiners, confirmationCode, "Waiting");
                         ans = inserted ? ("WAITING_ADDED|" + confirmationCode) : "ERROR|INSERT_FAILED";
 
 
@@ -756,6 +763,32 @@ public class EchoServer extends AbstractServer {
 	    byte[] bytes = Base64.getUrlDecoder().decode(b64);
 	    return new String(bytes, StandardCharsets.UTF_8);
 	}
+    
+    /**
+     * Attempts to parse an integer subscriber id from a contactInfo string.
+     * Expected token: SubscriberID=<number> (delimiter can be ;, |, whitespace or end)
+     * Returns null if not found or not parseable.
+     */
+    private Integer extractSubscriberIdFromContactInfo(String contactInfo) {
+        if (contactInfo == null || contactInfo.isBlank()) return null;
+        try {
+            String key = "SubscriberID=";
+            int idx = contactInfo.indexOf(key);
+            if (idx < 0) return null;
+            int start = idx + key.length();
+            int end = start;
+            while (end < contactInfo.length()) {
+                char c = contactInfo.charAt(end);
+                if (!(c >= '0' && c <= '9')) break;
+                end++;
+            }
+            if (end == start) return null;
+            String num = contactInfo.substring(start, end);
+            return Integer.parseInt(num);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 	private String buildWaitingListProtocol() throws Exception {
 	    List<WaitingEntry> list = waitingListDAO.getActiveWaiting();
 
@@ -763,19 +796,25 @@ public class EchoServer extends AbstractServer {
 	        return "WAITING_LIST|EMPTY";
 	    }
 
-	    StringBuilder sb = new StringBuilder("WAITING_LIST|");
+        StringBuilder sb = new StringBuilder("WAITING_LIST|");
 	    for (int i = 0; i < list.size(); i++) {
 	        WaitingEntry e = list.get(i);
 
 	        String entryTime = (e.getEntryTime() == null) ? "" : e.getEntryTime().toString();
 
-	        String row =
-	                e.getWaitingId() + "," +
-	                encodeB64Url(e.getContactInfo()) + "," +
-	                e.getNumOfDiners() + "," +
-	                e.getConfirmationCode() + "," +
-	                e.getStatus() + "," +
-	                entryTime;
+            // Prefer the DB column; fall back to parsing contactInfo for older rows.
+            Integer subscriberId = e.getSubscriberId();
+            if (subscriberId == null) subscriberId = extractSubscriberIdFromContactInfo(e.getContactInfo());
+
+            // New row format: WaitingID,ContactInfoB64,NumOfDiners,ConfirmationCode,SubscriberID,Status,EntryTime
+            String row =
+                e.getWaitingId() + "," +
+                encodeB64Url(e.getContactInfo()) + "," +
+                e.getNumOfDiners() + "," +
+                e.getConfirmationCode() + "," +
+                (subscriberId == null ? "" : subscriberId.toString()) + "," +
+                e.getStatus() + "," +
+                entryTime;
 
 	        sb.append(row);
 	        if (i < list.size() - 1) sb.append("~");

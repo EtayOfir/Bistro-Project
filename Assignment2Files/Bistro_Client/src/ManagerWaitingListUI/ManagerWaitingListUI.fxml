@@ -15,6 +15,7 @@
                 <TableColumn fx:id="colId" prefWidth="60" text="ID" />
                 <TableColumn fx:id="colDiners" prefWidth="80" text="Diners" />
                 <TableColumn fx:id="colCode" prefWidth="140" text="Code" />
+                <TableColumn fx:id="colSubscriber" prefWidth="100" text="Subscriber" />
                 <TableColumn fx:id="colStatus" prefWidth="120" text="Status" />
                 <TableColumn fx:id="colEntryTime" prefWidth="180" text="Entry Time" />
                 <TableColumn fx:id="colContact" prefWidth="260" text="Contact" />
