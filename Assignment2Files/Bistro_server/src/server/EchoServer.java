@@ -20,6 +20,7 @@ import DBController.BillPaymentDAO;
 import DBController.ReservationDAO;
 import DBController.WaitingListDAO;
 import DBController.mysqlConnection1;
+import DBController.LoginDAO;
 import ServerGUI.ServerUIController;
 import entities.Reservation;
 import entities.WaitingEntry;
@@ -62,6 +63,7 @@ public class EchoServer extends AbstractServer {
 	private ReservationDAO reservationDAO;
 	private BillPaymentDAO billPaymentDAO;
 	private WaitingListDAO waitingListDAO;
+	private LoginDAO loginDAO;
 	// Managers that subscribed to live waiting-list updates
 	private final java.util.Set<ConnectionToClient> waitingListSubscribers =
 	        java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -223,6 +225,30 @@ public class EchoServer extends AbstractServer {
 
             switch (command) {
             
+	            case "#LOGIN": {
+	                // Format: #LOGIN <username> <password>
+	                if (parts.length < 3) {
+	                    ans = "ERROR|BAD_FORMAT_LOGIN";
+	                } else {
+	                    String username = parts[1];
+	                    String password = parts[2];
+	                    
+	                    // Check if DAO is ready
+	                    if (loginDAO == null) {
+	                        ans = "ERROR|DB_NOT_READY";
+	                    } else {
+	                        // Check DB for role
+	                        String role = loginDAO.identifyUserRole(username, password);
+	                        if (role != null) {
+	                            ans = "LOGIN_SUCCESS|" + role;
+	                            System.out.println("User " + username + " logged in as " + role);
+	                        } else {
+	                            ans = "LOGIN_FAILED";
+	                        }
+	                    }
+	                }
+	                break;
+	            }
                 case "#GET_RESERVATION": {
                     // Format: #GET_RESERVATION <id>
                     if (parts.length < 2) {
@@ -647,6 +673,7 @@ public class EchoServer extends AbstractServer {
             reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
             billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
             waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
+            loginDAO = new LoginDAO(mysqlConnection1.getDataSource());
 
             if (uiController != null) uiController.addLog("Server started + DB pool ready");
         } catch (Exception e) {

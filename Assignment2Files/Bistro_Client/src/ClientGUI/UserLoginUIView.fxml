@@ -40,9 +40,6 @@
 
             <Label text="Password:" GridPane.columnIndex="1" GridPane.rowIndex="2" />
             <PasswordField fx:id="passwordField" promptText="Enter password" GridPane.columnIndex="2" GridPane.rowIndex="2" />
-
-            <Label text="Role:" GridPane.columnIndex="1" GridPane.rowIndex="3" />
-            <ComboBox fx:id="roleCombo" promptText="Choose role" GridPane.columnIndex="2" GridPane.rowIndex="3" />
    
            <HBox alignment="CENTER_RIGHT" prefHeight="33.0" prefWidth="254.0" spacing="10" GridPane.columnIndex="2" GridPane.rowIndex="4">
                <Button onAction="#onLoginClicked" prefHeight="33.0" prefWidth="252.0" style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;" text="Login" />
