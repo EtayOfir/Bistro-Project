@@ -86,13 +86,6 @@ public class HostDashboardController {
         if (loggedInUserLabel != null) {
             loggedInUserLabel.setText(role + " - " + username);
         }
-        
-        // Show Reports button only for Manager
-        if (reportsButton != null) {
-            boolean isManager = "Manager".equalsIgnoreCase(role);
-            reportsButton.setVisible(isManager);
-            reportsButton.setManaged(isManager);
-        }
     }
 
     @FXML
@@ -138,32 +131,10 @@ public class HostDashboardController {
     }
 
     @FXML
-    private void onLogoutClicked(ActionEvent event) {
+    private void onCloseClicked(ActionEvent event) {
         Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
         stage.close();
         System.exit(0);
-    }
-
-    @FXML
-    private void onReportsClicked(ActionEvent event) {
-        try {
-            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(
-                    getClass().getResource("/ClientGUI/ReportsUI.fxml"));
-            javafx.scene.Parent root = loader.load();
-
-            javafx.stage.Stage stage = new javafx.stage.Stage();
-            stage.setTitle("Reports");
-            stage.setScene(new javafx.scene.Scene(root));
-            stage.show();
-        } catch (Exception e) {
-            e.printStackTrace();
-            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
-                    javafx.scene.control.Alert.AlertType.ERROR);
-            alert.setTitle("Error");
-            alert.setHeaderText("Failed to open Reports");
-            alert.setContentText(e.getMessage());
-            alert.showAndWait();
-        }
     }
 
     private void refreshTableColors() {
@@ -189,4 +160,82 @@ public class HostDashboardController {
                 selectedBorder +
                 shadow);
     }
+    
+ // ==========================================
+    //           Navigation Logic (Back Button)
+    // ==========================================
+
+    /** The FXML file path of the screen to return to. Default is the Login screen. */
+    private String returnScreenFXML = "UserLoginUIView.fxml";
+
+    /** The title of the window for the previous screen. */
+    private String returnTitle = "Login";
+
+    /** The username of the currently logged-in user, used to restore context. */
+    private String currentUserName = "";
+
+    /** The role of the currently logged-in user. */
+    private String currentUserRole = "";
+
+    /**
+     * Sets the navigation parameters required to return to the previous screen.
+     * This method should be called by the calling controller before navigating to this screen.
+     *
+     * @param fxml  The name of the FXML file to load when 'Back' is clicked.
+     * @param title The title to set for the window upon returning.
+     * @param user  The username of the active user to restore context.
+     * @param role  The role of the active user.
+     */
+    public void setReturnPath(String fxml, String title, String user, String role) {
+        this.returnScreenFXML = fxml;
+        this.returnTitle = title;
+        this.currentUserName = user;
+        this.currentUserRole = role;
+    }
+
+    /**
+     * Handles the action when the "Back" button is clicked.
+     * <p>
+     * This method loads the FXML file specified by {@link #returnScreenFXML},
+     * retrieves its controller, and attempts to restore the user session (name/role)
+     * using a switch-case structure based on the controller type.
+     * Finally, it switches the current scene to the previous one.
+     * </p>
+     *
+     * @param event The {@link ActionEvent} triggered by the button click.
+     */
+    @FXML
+    private void onBack(ActionEvent event) {
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource(returnScreenFXML));
+            javafx.scene.Parent root = loader.load();
+
+            Object controller = loader.getController();
+
+            // Using Switch Case (Pattern Matching) to identify controller and restore context
+            switch (controller) {
+                // 1. Manager Dashboard
+                case ManagerUIController c -> 
+                    c.setManagerName(currentUserName);
+
+                // 2. Representative Dashboard (Menu)
+                case RepresentativeMenuUIController c -> 
+                    c.setRepresentativeName(currentUserName);
+
+                default -> {
+                    // Log or handle unknown controller types if necessary
+                    System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
+                }
+            }
+
+            javafx.stage.Stage stage = (javafx.stage.Stage)((javafx.scene.Node)event.getSource()).getScene().getWindow();
+            stage.setTitle(returnTitle);
+            stage.setScene(new javafx.scene.Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
 }

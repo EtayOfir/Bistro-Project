@@ -145,7 +145,8 @@ public class ReservationDAO {
                         rs.getDate("order_date"),
                         rs.getTime("order_time"),
                         rs.getString("confirmation_code"),
-                        rs.getInt("subscriber_id")
+                        rs.getInt("subscriber_id"),
+                        rs.getString("Status")
                 );
             }
         }
@@ -201,7 +202,8 @@ public class ReservationDAO {
                         rs.getDate("ReservationDate"),
                         rs.getTime("ReservationTime"),
                         rs.getString("ConfirmationCode"),
-                        rs.getInt("SubscriberID")
+                        rs.getInt("SubscriberID"),
+                        rs.getString("Status")
                 );
             }
         }
@@ -237,7 +239,8 @@ public class ReservationDAO {
                             rs.getDate("ReservationDate"),
                             rs.getTime("ReservationTime"),
                             rs.getString("ConfirmationCode"),
-                            rs.getInt("SubscriberID")
+                            rs.getInt("SubscriberID"),
+                            rs.getString("Status")
                     ));
                 }
             }

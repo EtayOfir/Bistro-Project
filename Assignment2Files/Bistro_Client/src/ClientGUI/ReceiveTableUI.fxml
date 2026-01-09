@@ -6,11 +6,12 @@
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.text.Font?>
 <?import javafx.scene.text.Text?>
 
-<BorderPane prefHeight="237.0" prefWidth="446.0" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="client.ReceiveTableUIController">
+<BorderPane prefHeight="237.0" prefWidth="446.0" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientGUI.ReceiveTableUIController">
    <top>
       <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Receive Table" BorderPane.alignment="CENTER">
          <font>
@@ -43,12 +44,21 @@
                   <Insets left="30.0" />
                </GridPane.margin>
             </Button>
-            <Button fx:id="closeBtn" mnemonicParsing="false" onAction="#onClose" text="Close" GridPane.columnIndex="3" GridPane.rowIndex="1">
-               <GridPane.margin>
-                  <Insets left="30.0" />
-               </GridPane.margin>
-            </Button>
-         </children>
+            </children>
       </GridPane>
    </center>
+   
+   <bottom>
+      <HBox alignment="CENTER" spacing="20.0" BorderPane.alignment="CENTER">
+         <padding>
+            <Insets bottom="20.0" top="10.0" />
+         </padding>
+         <children>
+            <Button text="Back" onAction="#onBack" 
+                    style="-fx-background-color: #e5e7eb; -fx-text-fill: black; -fx-min-width: 80;"/>
+            <Button fx:id="closeBtn" mnemonicParsing="false" onAction="#onClose" text="Close" 
+                    style="-fx-background-color: #ef4444; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 80;"/>
+         </children>
+      </HBox>
+   </bottom>
 </BorderPane>

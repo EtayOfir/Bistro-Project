@@ -1,5 +1,6 @@
 package ClientGUI;
 
+import java.io.IOException;
 import java.net.URL;
 import java.util.ResourceBundle;
 
@@ -12,7 +13,11 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.TableColumn;
@@ -34,6 +39,7 @@ public class SubscriberUIController implements Initializable {
     @FXML private Button editBtn;
     @FXML private Button saveBtn;
     @FXML private Button exitBtn;
+    @FXML private Button backBtn; 
 
     // --- טבלת היסטוריה (Visit History) ---
     @FXML private TableView<VisitHistory> historyTable; 
@@ -185,6 +191,29 @@ public class SubscriberUIController implements Initializable {
         showAlert("Saved", "The details were updated successfully.");
     }
 
+    @FXML
+    void onBack(ActionEvent event) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("LoginSubscriberUI.fxml"));
+            Parent root = loader.load();
+
+            // העברת שם המנוי חזרה למסך הראשי כדי שהכותרת תישמר
+            LoginSubscriberUIController controller = loader.getController();
+            if (currentSubscriber != null) {
+                controller.setSubscriberName(currentSubscriber.getUserName());
+            } else {
+                controller.setSubscriberName(usernameField.getText());
+            }
+
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setScene(new Scene(root));
+            stage.show();
+        } catch (IOException e) {
+            e.printStackTrace();
+            showAlert("Error", "Failed to go back: " + e.getMessage());
+        }
+    }
+    
     @FXML
     void onExit(ActionEvent event) {
         // סגירת החלון

@@ -8,6 +8,7 @@ import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -65,6 +66,9 @@ public class ClientUIController implements ChatIF {
     /** Button to cancel a reservation. */
     @FXML private Button cancelReservation;
 
+    /** Button to go back a reservation. */
+    @FXML private Button backBtn;
+    
     /** Button to close the connection and exit the application. */
     @FXML private Button exit;
 
@@ -298,16 +302,17 @@ public class ClientUIController implements ChatIF {
     	}
 
     	if (message.startsWith("RESERVATION|")) {
-            // Protocol: RESERVATION|id|guests|date|time|code|subId
+            // Protocol: RESERVATION|id|guests|date|time|code|subId|status
             String[] parts = message.split("\\|");
 
-            if (parts.length >= 7) {
+            if (parts.length >= 8) {
                 String rId    = parts[1];
                 String guests = parts[2];
                 String date   = parts[3];
                 String time   = parts[4];
                 String code   = parts[5];
                 String subId  = parts[6];
+                String status  = parts[7];
 
                 this.currentReservationId = rId;
 
@@ -325,6 +330,7 @@ public class ClientUIController implements ChatIF {
                 sb.append("Time              : ").append(time).append("\n");
                 sb.append("Confirmation Code : ").append(code).append("\n");
                 sb.append("Subscriber ID     : ").append(subId).append("\n");
+                sb.append("Reservation Status: ").append(status).append("\n");
 
                 reservationDetailsTextArea.setText(sb.toString());
             } else {
@@ -596,6 +602,97 @@ public class ClientUIController implements ChatIF {
             reservationDetailsTextArea.setText(text);
         } else {
             System.out.println("UI (TextArea null): " + text);
+        }
+    }
+    
+    // ==========================================
+    //           Navigation Logic (Back Button)
+    // ==========================================
+
+    /** The FXML file path of the screen to return to. Default is the Login screen. */
+    private String returnScreenFXML = "UserLoginUIView.fxml";
+
+    /** The title of the window for the previous screen. */
+    private String returnTitle = "Login";
+
+    /** The username of the currently logged-in user, used to restore context. */
+    private String currentUserName = "";
+
+    /** The role of the currently logged-in user (e.g., Manager, Subscriber). */
+    private String currentUserRole = "";
+
+    /**
+     * Sets the navigation parameters required to return to the previous screen.
+     * This method should be called by the calling controller before navigating to this screen.
+     *
+     * @param fxml  The name of the FXML file to load when 'Back' is clicked (e.g., "ManagerUI.fxml").
+     * @param title The title to set for the window upon returning.
+     * @param user  The username of the active user to restore context.
+     * @param role  The role of the active user.
+     */
+    public void setReturnPath(String fxml, String title, String user, String role) {
+        this.returnScreenFXML = fxml;
+        this.returnTitle = title;
+        this.currentUserName = user;
+        this.currentUserRole = role;
+    }
+
+    /**
+     * Handles the action when the "Back" button is clicked.
+     * <p>
+     * This method loads the FXML file specified by {@link #returnScreenFXML},
+     * retrieves its controller, and attempts to restore the user session (name/role)
+     * using a switch-case structure based on the controller type.
+     * Finally, it switches the current scene to the previous one.
+     * </p>
+     *
+     * @param event The {@link ActionEvent} triggered by the button click.
+     */
+    @FXML
+    private void onBack(ActionEvent event) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource(returnScreenFXML));
+            Parent root = loader.load();
+
+            Object controller = loader.getController();
+
+            // Using Switch Case (Pattern Matching) to identify controller and restore context
+            switch (controller) {
+                // 1. Manager
+                case ManagerUIController c -> 
+                    c.setManagerName(currentUserName);
+
+                // 2. Representative
+                case RepresentativeMenuUIController c -> 
+                    c.setRepresentativeName(currentUserName);
+
+                // 3. Subscriber
+                case LoginSubscriberUIController c -> 
+                    c.setSubscriberName(currentUserName);
+
+                // 4. Guest (LoginGuestUI)
+                case LoginGuestUIController c -> {
+                    // Guest menu usually doesn't need specific user state restoration
+                }
+
+                // 5. Restaurant Terminal
+                case RestaurantTerminalUIController c -> {
+                    // Terminal usually doesn't need specific user state restoration
+                }
+
+                default -> {
+                    // Log or handle unknown controller types if necessary
+                    System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
+                }
+            }
+
+            Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
+            stage.setTitle(returnTitle);
+            stage.setScene(new Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

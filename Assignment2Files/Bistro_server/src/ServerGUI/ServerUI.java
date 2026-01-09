@@ -31,14 +31,11 @@ public class ServerUI extends Application {
             echoServer.setUIController(controller);
 
             // Create the scene with the size defined in FXML (1800x1200)
-            Scene scene = new Scene(root, 1800, 1200);
+            Scene scene = new Scene(root, 1000, 700);
             
             // Set up the stage
             primaryStage.setTitle("Bistro Server");
             primaryStage.setScene(scene);
-            
-            // Optionally maximize the window instead of forcing full screen
-            primaryStage.setMaximized(true);
             
             primaryStage.setOnCloseRequest(event -> {
                 controller.shutdown();
