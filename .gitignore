@@ -14,15 +14,15 @@
 
 # IntelliJ
 **/.idea/
-**/*.iml
+*/.iml
 
 # VS Code
 **/.vscode/
 
 # === Local DB secrets (NEVER commit) ===
 **/config/db.properties
-**/config/*.secret
-**/*.env
+*/config/.secret
+*/.env
 
 # === OS junk ===
 .DS_Store
