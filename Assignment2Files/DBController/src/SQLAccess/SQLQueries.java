@@ -41,7 +41,11 @@ public final class SQLQueries {
     public static final String GET_SUBSCRIBER_BY_USERNAME =
             "SELECT SubscriberID, FullName, PhoneNumber, Email, UserName, QRCode, CreatedAt " +
             "FROM Subscribers WHERE UserName = ?";
-
+    
+    /** Check subscriber credentials (Username + Password). */
+    public static final String LOGIN_SUBSCRIBER =
+            "SELECT SubscriberID FROM Subscribers WHERE UserName = ? AND Password = ?";
+    
     /** Update subscriber personal details. */
     public static final String UPDATE_SUBSCRIBER_BY_ID =
             "UPDATE Subscribers SET FullName = ?, PhoneNumber = ?, Email = ?, QRCode = ? " +

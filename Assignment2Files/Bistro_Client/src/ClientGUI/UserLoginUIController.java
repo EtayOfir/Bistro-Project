@@ -14,6 +14,8 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 
 /**
  * Controller for the main User Login screen.
@@ -34,7 +36,6 @@ public class UserLoginUIController {
 
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
-    @FXML private ComboBox<String> roleCombo;
     @FXML private Label statusLabel;
 
     @FXML private Button resTerminal;
@@ -50,14 +51,7 @@ public class UserLoginUIController {
      */
     @FXML
     private void initialize() {
-        roleCombo.getItems().addAll(
-                "Manager",
-                "Representative",
-                "Subscriber"
-        );
-
-        // Set default selection to Subscriber
-        roleCombo.getSelectionModel().select("Subscriber");
+    	
         statusLabel.setText("");
 
         if (serverSettingsBox != null) {
@@ -95,86 +89,101 @@ public class UserLoginUIController {
      */
     @FXML
     private void onLoginClicked(ActionEvent event) {
-        String username = usernameField.getText() == null ? "" : usernameField.getText().trim();
+    	String username = usernameField.getText() == null ? "" : usernameField.getText().trim();
         String password = passwordField.getText() == null ? "" : passwordField.getText().trim();
-        String role = roleCombo.getValue();
-
+        
         // Input validation
         if (username.isEmpty() || password.isEmpty()) {
-            statusLabel.setText("Please enter username and password.");
-            return;
-        }
-
-        if (role == null || role.isBlank()) {
-            statusLabel.setText("Please choose a role.");
+            showError("Please enter username and password.");
             return;
         }
 
         // Check server connection
         if (ClientUI.chat == null) {
-            statusLabel.setText("Not connected to server (ClientUI.chat is null).");
+            showError("Not connected to server (ClientUI.chat is null).");
             return;
         }
 
         try {
-            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+        	// Send Login Command to Server
+            String cmd = "#LOGIN " + username + " " + password;
+            ClientUI.chat.handleMessageFromClientUI(cmd);
 
-            // 1. Manager Login
-            if ("Manager".equalsIgnoreCase(role)) {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("ManagerUI.fxml"));
-                Parent root = loader.load();
+            // Wait for Server Response
+            String response = ClientUI.chat.waitForMessage();
 
-                // Get Manager Controller and pass username
-                ManagerUIController controller = loader.getController();
-                controller.setManagerName(username);
-
-                stage.setTitle("Manager Dashboard - " + username);
-                stage.setScene(new Scene(root));
-                stage.show();
+            // Handle Response
+            if (response == null) {
+            	showError("Server timed out. No response received.");
                 return;
             }
 
-            // 2. Representative Login
-            else if ("Representative".equalsIgnoreCase(role)) {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("RepresentativeMenuUI.fxml"));
-                Parent root = loader.load();
-
-                // Get Representative Controller and pass username
-                RepresentativeMenuUIController controller = loader.getController();
-                controller.setRepresentativeName(username);
-
-                stage.setTitle("Representative Dashboard - " + username);
-                stage.setScene(new Scene(root));
-                stage.show();
+            if (response.startsWith("LOGIN_FAILED")) {
+            	showError("Invalid username or password.");
                 return;
             }
 
-            // 3. Subscriber Login
-            else if ("Subscriber".equalsIgnoreCase(role)) {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("LoginSubscriberUI.fxml"));
-                Parent root = loader.load();
-                
-                // Get Subscriber Controller and pass username
-                LoginSubscriberUIController subController = loader.getController();
-                if (subController != null) {
-                    subController.setSubscriberName(username);
+            if (response.startsWith("LOGIN_SUCCESS")) {
+                // Format: LOGIN_SUCCESS|<Role>
+                String[] parts = response.split("\\|");
+                String role = (parts.length > 1) ? parts[1] : "";
+
+                Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+
+                // --- Navigation Logic based on Server Response ---
+
+                // Manager
+                if ("Manager".equalsIgnoreCase(role)) {
+                    FXMLLoader loader = new FXMLLoader(getClass().getResource("ManagerUI.fxml"));
+                    Parent root = loader.load();
+                    ManagerUIController controller = loader.getController();
+                    controller.setManagerName(username);
+                    
+                    stage.setTitle("Manager Dashboard - " + username);
+                    stage.setScene(new Scene(root));
+                    stage.show();
+                }
+                // Representative
+                else if ("Representative".equalsIgnoreCase(role)) {
+                    FXMLLoader loader = new FXMLLoader(getClass().getResource("RepresentativeMenuUI.fxml"));
+                    Parent root = loader.load();
+                    RepresentativeMenuUIController controller = loader.getController();
+                    controller.setRepresentativeName(username);
+                    
+                    stage.setTitle("Representative Dashboard - " + username);
+                    stage.setScene(new Scene(root));
+                    stage.show();
+                }
+                // Subscriber
+                else if ("Subscriber".equalsIgnoreCase(role)) {
+                    FXMLLoader loader = new FXMLLoader(getClass().getResource("LoginSubscriberUI.fxml"));
+                    Parent root = loader.load();
+                    LoginSubscriberUIController controller = loader.getController();
+                    if (controller != null) {
+                        controller.setSubscriberName(username);
+                    }
+                    
+                    stage.setTitle("Subscriber Menu - " + username);
+                    stage.setScene(new Scene(root));
+                    stage.show();
+                }
+                // Unknown Role
+                else {
+                    showError("Unknown role received: " + role);
                 }
 
-                stage.setTitle("Subscriber Menu - " + username);
-                stage.setScene(new Scene(root));
-                stage.show();
-                return;
+            } else {
+                // Handle generic errors (e.g. ERROR|DB_NOT_READY)
+            	showError(response);
             }
-
-            // 4. Fallback (should not be reached if role list is fixed, but good for safety)
-            statusLabel.setText("Role not supported yet: " + role);
 
         } catch (Exception e) {
             e.printStackTrace();
-            statusLabel.setText("Failed to open screen: " + e.getMessage());
+            showError("Error during login: " + e.getMessage());
         }
     }
 
+    
     @FXML
     private void onExitClicked(ActionEvent event) {
         Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
@@ -232,5 +241,16 @@ public class UserLoginUIController {
             e.printStackTrace();
             statusLabel.setText("Failed to open terminal: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Helper to show a popup error message.
+     */
+    private void showError(String message) {
+        Alert alert = new Alert(AlertType.ERROR);
+        alert.setTitle("Login Error");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 }
