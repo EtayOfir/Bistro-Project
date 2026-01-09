@@ -174,7 +174,7 @@ public final class SQLQueries {
      * and it hasn't been canceled or completed.
      */
     public static final String MARK_EXPIRED_RESERVATIONS = 
-        "UPDATE ActiveReservations SET Status = 'Canceled' " +
+        "UPDATE ActiveReservations SET Status = 'Expired' " +
         "WHERE Status = 'Confirmed' " +
         "AND (UNIX_TIMESTAMP(CONCAT_WS(' ', ReservationDate, ReservationTime)) + 1800) < UNIX_TIMESTAMP(NOW())";
     
@@ -275,7 +275,8 @@ public final class SQLQueries {
     public static final String GET_RESERVATION_BY_ORDER_NUMBER =
             "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
             "ReservationDate AS order_date, ReservationTime AS order_time, " +
-            "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id " +
+            "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
+            "Status " +
             "FROM ActiveReservations " +
             "WHERE ReservationID = ?";
 
@@ -310,7 +311,8 @@ public final class SQLQueries {
     public static final String GET_RESERVATIONS_BY_SUBSCRIBER_ID =
             "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
             "ReservationDate AS order_date, ReservationTime AS order_time, " +
-            "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id " +
+            "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
+            "Status " +
             "FROM ActiveReservations " +
             "WHERE SubscriberID = ?";
     

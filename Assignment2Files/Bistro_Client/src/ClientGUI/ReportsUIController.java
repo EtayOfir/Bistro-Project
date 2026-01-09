@@ -5,13 +5,19 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.chart.*;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
 
 import java.io.FileWriter;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
@@ -28,6 +34,7 @@ public class ReportsUIController {
     @FXML private Label expiredReservationsLabel;
     @FXML private Label confirmedReservationsLabel;
     @FXML private Label totalGuestsLabel;
+    @FXML private Button btnBack;
 
     private ReportData reportData;
 
@@ -67,10 +74,37 @@ public class ReportsUIController {
         }
     }
 
+    /**
+     * Handles the Back button click.
+     * Navigates back to the Manager Dashboard (ManagerUI.fxml).
+     */
     @FXML
     private void onBackClicked(ActionEvent event) {
-        Stage stage = (Stage) reservationStatusChart.getScene().getWindow();
-        stage.close();
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("ManagerUI.fxml"));
+            Parent root = loader.load();
+
+            // אופציונלי: אם צריך להעביר מידע חזרה למנהל, אפשר לעשות זאת כאן
+            // ManagerUIController controller = loader.getController();
+            // controller.setManagerName("Manager"); 
+
+            Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
+            stage.setScene(new Scene(root));
+            stage.show();
+        } catch (IOException e) {
+            e.printStackTrace();
+            showAlert(Alert.AlertType.ERROR, "Navigation Error", "Failed to load Manager Dashboard.");
+        }
+    }
+
+    /**
+     * Handles the Exit button click.
+     * Closes the application.
+     */
+    @FXML
+    private void onExitClicked(ActionEvent event) {
+        Platform.exit();
+        System.exit(0);
     }
 
     private void loadReports() {

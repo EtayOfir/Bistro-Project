@@ -1,80 +1,111 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
 
-<StackPane xmlns="http://javafx.com/javafx"
-           xmlns:fx="http://javafx.com/fxml"
-           fx:controller="ClientGUI.UserLoginUIController"
-           style="-fx-background-color: #f6f7fb;">
+<StackPane style="-fx-background-color: #f6f7fb;" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientGUI.UserLoginUIController">
 
     <!-- Card -->
-    <VBox spacing="14" alignment="TOP_CENTER" maxWidth="380"
-          style="-fx-background-color: white;
-                 -fx-background-radius: 14;
-                 -fx-border-color: #e6e6e6;
-                 -fx-border-radius: 14;
-                 -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.12), 18, 0, 0, 6);">
+    <VBox alignment="TOP_CENTER" maxWidth="905.0" prefHeight="588.0" prefWidth="831.0" spacing="14" style="-fx-background-color: white;                  -fx-background-radius: 14;                  -fx-border-color: #e6e6e6;                  -fx-border-radius: 14;                  -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.12), 18, 0, 0, 6);">
 
         <padding>
-            <Insets top="26" right="26" bottom="22" left="26"/>
+            <Insets bottom="22" left="26" right="26" top="26" />
         </padding>
 
-        <Label text="Bistro Reservation System"
-               style="-fx-font-size: 18; -fx-font-weight: bold;"/>
-
-        <Label text="Sign in to continue"
-               style="-fx-text-fill: #6b7280; -fx-font-size: 12;"/>
-
+        <Label style="-fx-font-size: 18; -fx-font-weight: bold;" text="Bistro Reservation System" />
+   
         <Separator />
 
         <GridPane hgap="10" vgap="10">
             <columnConstraints>
-                <ColumnConstraints percentWidth="35"/>
-                <ColumnConstraints percentWidth="65"/>
+            <ColumnConstraints minWidth="10.0" percentWidth="35.0" prefWidth="100.0" />
+                <ColumnConstraints percentWidth="35" />
+                <ColumnConstraints percentWidth="65" />
+            <ColumnConstraints minWidth="10.0" percentWidth="65.0" prefWidth="100.0" />
             </columnConstraints>
 
-            <Label text="Username:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-            <TextField fx:id="usernameField" promptText="Enter username"
-                       GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+            <Label text="Username:" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+            <TextField fx:id="usernameField" promptText="Enter username" GridPane.columnIndex="2" GridPane.rowIndex="1" />
 
-            <Label text="Password:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-            <PasswordField fx:id="passwordField" promptText="Enter password"
-                           GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+            <Label text="Password:" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+            <PasswordField fx:id="passwordField" promptText="Enter password" GridPane.columnIndex="2" GridPane.rowIndex="2" />
 
-            <Label text="Role:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-            <ComboBox fx:id="roleCombo" promptText="Choose role"
-                      GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+            <Label text="Role:" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+            <ComboBox fx:id="roleCombo" promptText="Choose role" GridPane.columnIndex="2" GridPane.rowIndex="3" />
+   
+           <HBox alignment="CENTER_RIGHT" prefHeight="33.0" prefWidth="254.0" spacing="10" GridPane.columnIndex="2" GridPane.rowIndex="4">
+               <Button onAction="#onLoginClicked" prefHeight="33.0" prefWidth="252.0" style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;" text="Login" />
+           </HBox>
+            <Button onAction="#onServerSettingsToggle" style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;" text="Server Settings" GridPane.rowIndex="10" />
+   
+                    <Label fx:id="statusLabel" prefWidth="0.0" textFill="red" wrapText="true" GridPane.columnIndex="2" GridPane.rowIndex="7" />
+   
+           <Label style="-fx-text-fill: #6b7280; -fx-font-size: 12;" text="Sign in to continue" GridPane.columnIndex="2" />
+         <Button fx:id="resTerminal" mnemonicParsing="false" onAction="#onTerminal" text="Restaurant Terminal" GridPane.columnIndex="3" GridPane.rowIndex="10">
+            <GridPane.margin>
+               <Insets />
+            </GridPane.margin>
+         </Button>
+         <Separator prefWidth="200.0" GridPane.columnIndex="2" GridPane.rowIndex="7" />
+         <Button fx:id="loginGuest" mnemonicParsing="false" onAction="#onLoginGuest" text="Login as guest" GridPane.columnIndex="2" GridPane.rowIndex="8">
+            <GridPane.margin>
+               <Insets left="70.0" right="60.0" />
+            </GridPane.margin>
+         </Button>
+         <Label text="OR" GridPane.columnIndex="2" GridPane.rowIndex="6">
+            <GridPane.margin>
+               <Insets left="110.0" />
+            </GridPane.margin>
+         </Label>
+            <Button onAction="#onExitClicked" style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;" text="Exit" GridPane.columnIndex="3" GridPane.rowIndex="10">
+            <GridPane.margin>
+               <Insets left="180.0" />
+            </GridPane.margin>
+         </Button>
+         <rowConstraints>
+            <RowConstraints minHeight="10.0" prefHeight="30.0" />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints minHeight="10.0" prefHeight="30.0" />
+            <RowConstraints minHeight="10.0" prefHeight="30.0" />
+            <RowConstraints minHeight="10.0" prefHeight="30.0" />
+            <RowConstraints minHeight="10.0" prefHeight="30.0" />
+         </rowConstraints>
         </GridPane>
 
-        <HBox spacing="10" alignment="CENTER_RIGHT">
-            <Button text="Server Settings" onAction="#onServerSettingsToggle"
-                    style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;"/>
-            <Button text="Exit" onAction="#onExitClicked"
-                    style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;"/>
-            <Button text="Login" onAction="#onLoginClicked"
-                    style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;"/>
-        </HBox>
-
-        <VBox fx:id="serverSettingsBox" spacing="8" style="-fx-background-color: #f3f4f6; -fx-padding: 10; -fx-background-radius: 8;">
-            <Label text="Connection settings" style="-fx-font-weight: bold; -fx-text-fill: #374151;"/>
+                          <VBox fx:id="serverSettingsBox" spacing="8" style="-fx-background-color: #f3f4f6; -fx-padding: 10; -fx-background-radius: 8;">
+            <Label style="-fx-font-weight: bold; -fx-text-fill: #374151;" text="Connection settings" />
             <GridPane hgap="8" vgap="8">
                 <columnConstraints>
-                    <ColumnConstraints percentWidth="40"/>
-                    <ColumnConstraints percentWidth="60"/>
+                    <ColumnConstraints percentWidth="40" />
+                    <ColumnConstraints percentWidth="60" />
+               <ColumnConstraints minWidth="10.0" percentWidth="60.0" prefWidth="100.0" />
+               <ColumnConstraints minWidth="10.0" percentWidth="60.0" prefWidth="100.0" />
                 </columnConstraints>
-                <Label text="Host:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-                <TextField fx:id="hostField" promptText="localhost" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
-                <Label text="Port:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-                <TextField fx:id="portField" promptText="5555" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
-                <Label text="DB User:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-                <TextField fx:id="dbUserField" promptText="root" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
-                <Label text="DB Password:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
-                <PasswordField fx:id="dbPasswordField" promptText="" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+                <Label text="Host:" />
+                <TextField fx:id="hostField" promptText="localhost" GridPane.columnIndex="1" />
+                <Label text="Port:" GridPane.rowIndex="1" />
+                <TextField fx:id="portField" promptText="5555" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+            <rowConstraints>
+               <RowConstraints />
+               <RowConstraints />
+            </rowConstraints>
             </GridPane>
         </VBox>
-
-        <Label fx:id="statusLabel" textFill="red" wrapText="true"/>
     </VBox>
 </StackPane>

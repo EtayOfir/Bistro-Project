@@ -389,7 +389,7 @@ public class EchoServer extends AbstractServer {
                         System.out.println("DEBUG: Creating reservation - Phone: " + phone + ", Email: " + email);
 
                         // Create entity with ID 0 (DB will assign real ID)
-                        Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId);
+                        Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed");
                         int generatedId = reservationDAO.insertReservation(newRes, phone, email);
 
                         if (generatedId > 0) {
@@ -600,7 +600,7 @@ public class EchoServer extends AbstractServer {
 	/**
      * Converts a {@link Reservation} into the wire protocol format returned to the client.
      * <p>
-     * Format: {@code RESERVATION|<id>|<numGuests>|<date>|<time>|<confCode>|<subId>}
+     * Format: {@code RESERVATION|<id>|<numGuests>|<date>|<time>|<confCode>|<subId>|<status>}
      *
      * @param r reservation entity to serialize
      * @return protocol string representing the reservation
@@ -612,7 +612,8 @@ public class EchoServer extends AbstractServer {
                 r.getReservationDate().toString() + "|" +
                 r.getReservationTime().toString() + "|" +
                 r.getConfirmationCode() + "|" +
-                r.getSubscriberId();
+                r.getSubscriberId() + "|" +  
+                r.getStatus();
     }
 	
 	/**

@@ -32,7 +32,12 @@ public class Reservation {
 
     /** Identifier of the subscriber who placed the reservation (0 or -1 if casual) */
     private final int subscriberId;
-
+    
+    /** * The current status of the reservation (e.g., "Active", "Canceled", "Arrived", "Finished").
+     * Maps to the 'ReservationStatus' column.
+     */
+    private final String status;
+    
     /**
      * Constructs a new {@code Reservation} object with all relevant reservation data.
      * <p>
@@ -45,15 +50,17 @@ public class Reservation {
      * @param reservationTime  the time of the visit (java.sql.Time)
      * @param confirmationCode the unique string code for the user
      * @param subscriberId     the ID of the subscriber (if applicable)
+     * @param status           the current status of the reservation
      */
     public Reservation(int reservationId, int numberOfGuests, Date reservationDate,
-                       Time reservationTime, String confirmationCode, int subscriberId) {
+                       Time reservationTime, String confirmationCode, int subscriberId, String status) {
         this.reservationId = reservationId;
         this.numberOfGuests = numberOfGuests;
         this.reservationDate = reservationDate;
         this.reservationTime = reservationTime;
         this.confirmationCode = confirmationCode;
         this.subscriberId = subscriberId;
+        this.status = status;
     }
 
     /**
@@ -114,5 +121,15 @@ public class Reservation {
      */
     public int getSubscriberId() {
         return subscriberId;
+    }
+    
+    /**
+     * Returns the current status of the reservation.
+     * Maps to the 'ReservationStatus' column.
+     *
+     * @return the reservation status string
+     */
+    public String getStatus() {
+        return status;
     }
 }
