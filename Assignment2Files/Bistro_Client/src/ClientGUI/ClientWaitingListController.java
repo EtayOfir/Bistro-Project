@@ -7,12 +7,14 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.layout.GridPane;
 import javafx.stage.Stage;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Base64;
 import java.util.Random;
+import entities.Subscriber;
 
 public class ClientWaitingListController implements ChatIF {
 
@@ -21,6 +23,8 @@ public class ClientWaitingListController implements ChatIF {
     @FXML private ComboBox<String> areaCombo;
     @FXML private Spinner<Integer> guestsSpinner;
 
+    @FXML private GridPane personalDetailsPane;
+
     @FXML private TextField nameField;
     @FXML private TextField emailField;
     @FXML private TextField phoneField;
@@ -28,6 +32,7 @@ public class ClientWaitingListController implements ChatIF {
     @FXML private TextArea resultArea;
 
     private ChatClient client;
+    private Subscriber currentSubscriber = null;
 
     @FXML
     public void initialize() {
@@ -60,13 +65,16 @@ public class ClientWaitingListController implements ChatIF {
         String email = safe(emailField.getText());
         String phone = safe(phoneField.getText());
 
-        if (fullName.isEmpty()) {
-            resultArea.setText("Please enter full name.");
-            return;
-        }
-        if (email.isEmpty() && phone.isEmpty()) {
-            resultArea.setText("Please enter at least Email or Phone.");
-            return;
+        // Validation: if subscriber is present, personal details are optional (we use Subscriber info)
+        if (currentSubscriber == null) {
+            if (fullName.isEmpty()) {
+                resultArea.setText("Please enter full name.");
+                return;
+            }
+            if (email.isEmpty() && phone.isEmpty()) {
+                resultArea.setText("Please enter at least Email or Phone.");
+                return;
+            }
         }
 
         int guests = guestsSpinner.getValue();
@@ -76,19 +84,22 @@ public class ClientWaitingListController implements ChatIF {
 
         String confirmationCode = generateCode6();
 
-        // Put everything you want stored for manager view / mock notifications
+        // Build contact info. Do NOT duplicate SubscriberID inside contactInfo when persisting it as column.
         String contactInfo =
-                "Name=" + fullName +
-                ";Email=" + email +
-                ";Phone=" + phone +
-                ";Date=" + date +
-                ";Time=" + time +
-                ";Area=" + area;
+            "Date=" + date +
+            ";Time=" + time +
+            ";Area=" + area +
+            ";Guests=" + guests;
+
+        if (currentSubscriber == null) {
+            contactInfo = "Name=" + fullName + ";Email=" + email + ";Phone=" + phone + ";" + contactInfo;
+        }
 
         String contactInfoB64 = encodeB64Url(contactInfo);
 
-        // IMPORTANT: keep the command name the same as your server switch case
+        // IMPORTANT: keep the command name the same. If subscriber present, append subscriberId as an extra arg.
         String cmd = "#ADD_WAITING_LIST " + guests + " " + contactInfoB64 + " " + confirmationCode;
+        if (currentSubscriber != null) cmd += " " + currentSubscriber.getSubscriberId();
 
         resultArea.setText("Sending...\n" + cmd);
         client.handleMessageFromClientUI(cmd); // sends to server :contentReference[oaicite:4]{index=4}
@@ -166,6 +177,53 @@ public class ClientWaitingListController implements ChatIF {
     private static String encodeB64Url(String s) {
         if (s == null) s = "";
         return Base64.getUrlEncoder().withoutPadding().encodeToString(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Prefill the waiting-list form with a failed reservation context and optional subscriber.
+     */
+    public void setReservationContext(LocalDate date, String time, String area, int guests, Subscriber subscriber) {
+        if (date != null) datePicker.setValue(date);
+        if (time != null) timeCombo.setValue(time);
+        if (area != null) areaCombo.setValue(area);
+        try {
+            guestsSpinner.getValueFactory().setValue(guests);
+        } catch (Exception ignored) {}
+
+        this.currentSubscriber = subscriber;
+
+        if (subscriber != null) {
+            // Prefill and disable personal fields for subscribers
+            if (subscriber.getFullName() != null) nameField.setText(subscriber.getFullName());
+            if (subscriber.getEmail() != null) emailField.setText(subscriber.getEmail());
+            if (subscriber.getPhoneNumber() != null) phoneField.setText(subscriber.getPhoneNumber());
+            if (personalDetailsPane != null) {
+                personalDetailsPane.setVisible(false);
+                personalDetailsPane.setManaged(false);
+            }
+            nameField.setDisable(true);
+            emailField.setDisable(true);
+            phoneField.setDisable(true);
+            // Date/time must come from reservation, do not allow editing
+            if (datePicker != null) datePicker.setDisable(true);
+            if (timeCombo != null) timeCombo.setDisable(true);
+            if (areaCombo != null) areaCombo.setDisable(true);
+            if (guestsSpinner != null) guestsSpinner.setDisable(true);
+        }
+        else {
+            if (personalDetailsPane != null) {
+                personalDetailsPane.setVisible(true);
+                personalDetailsPane.setManaged(true);
+            }
+            nameField.setDisable(false);
+            emailField.setDisable(false);
+            phoneField.setDisable(false);
+            // Guests/area remain editable for guests; date/time should still come from reservation
+            if (datePicker != null) datePicker.setDisable(true);
+            if (timeCombo != null) timeCombo.setDisable(true);
+            if (areaCombo != null) areaCombo.setDisable(false);
+            if (guestsSpinner != null) guestsSpinner.setDisable(false);
+        }
     }
     
  // ==========================================
