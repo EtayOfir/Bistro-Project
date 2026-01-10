@@ -34,11 +34,13 @@ public class ManagerUIController {
 
     @FXML
     void onMakeReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
     }
 
     @FXML
     void onCancelReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ClientUIView.fxml");
     }
 
@@ -126,6 +128,29 @@ public class ManagerUIController {
         System.exit(0);
     }
     
+    /**
+     * Navigates to a new screen and sets the "Return Path" so the user can navigate back.
+     * <p>
+     * This method loads the FXML file, retrieves its controller, and injects the return path
+     * (ManagerUI) into the destination controller.
+     * </p>
+     *
+     * @param event        The action event that triggered navigation.
+     * @param fxmlFileName The name of the FXML file to load (e.g., "ClientWaitingList.fxml").
+     */
+    private void triggerExpiredReservationsCleanup() {
+        try {
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
+                System.out.println("DEBUG: Triggered expired reservations cleanup (Manager)");
+            } else {
+                System.out.println("DEBUG: ClientUI.chat is null, skipping expired reservations cleanup");
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR triggering expired reservations cleanup: " + e.getMessage());
+        }
+    }
+
     /**
      * Navigates to a new screen and sets the "Return Path" so the user can navigate back.
      * <p>
