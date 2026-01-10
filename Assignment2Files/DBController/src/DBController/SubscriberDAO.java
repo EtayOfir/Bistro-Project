@@ -8,12 +8,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import javax.sql.DataSource;
-
-public class SubscriberDAO {
-import java.sql.Statement;
 
 /**
  * DAO for Subscriber-related DB operations.
@@ -31,30 +28,30 @@ public class SubscriberDAO {
      */
     public List<Subscriber> getAllSubscribers() throws SQLException {
         List<Subscriber> subscribers = new ArrayList<>();
-        
-        // משתמש בשאילתה שהגדרת ב-SQLQueries
+
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_ALL_SUBSCRIBERS);
              ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
                 Subscriber sub = new Subscriber();
-                // ודאי שהשמות כאן תואמים למה שיש לך ב-Entity של Subscriber
                 sub.setSubscriberId(rs.getInt("SubscriberID"));
                 sub.setFullName(rs.getString("FullName"));
                 sub.setPhoneNumber(rs.getString("PhoneNumber"));
                 sub.setEmail(rs.getString("Email"));
                 sub.setUserName(rs.getString("UserName"));
-                
                 subscribers.add(sub);
             }
         }
         return subscribers;
     }
-}
+
+    /**
      * Inserts a new subscriber and returns generated SubscriberID, or -1 on failure.
      */
-    public int insert(String fullName, String phone, String email, String userName, String qrCode, String role) throws SQLException {
+    public int insert(String fullName, String phone, String email, String userName, String qrCode, String role)
+            throws SQLException {
+
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_SUBSCRIBER, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -92,7 +89,6 @@ public class SubscriberDAO {
                 s.setUserName(rs.getString("UserName"));
                 s.setPhoneNumber(rs.getString("PhoneNumber"));
                 s.setEmail(rs.getString("Email"));
-                // Role is available in the result set but the entity currently doesn't have a field for it.
                 return s;
             }
         }
