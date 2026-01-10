@@ -10,9 +10,9 @@ package SQLAccess;
  * <p>
  * Separating SQL queries into a dedicated class improves:
  * <ul>
- *     <li>Maintainability – SQL statements are defined in one place</li>
- *     <li>Readability – DAO classes focus on database logic, not SQL text</li>
- *     <li>Security – queries are designed to be used with prepared statements</li>
+ * <li>Maintainability – SQL statements are defined in one place</li>
+ * <li>Readability – DAO classes focus on database logic, not SQL text</li>
+ * <li>Security – queries are designed to be used with prepared statements</li>
  * </ul>
  */
 public final class SQLQueries {
@@ -179,11 +179,11 @@ public final class SQLQueries {
         "UPDATE ActiveReservations SET Status = 'Canceled' WHERE ReservationID = ?";
 
     /**
-     * Marks a reservation as 'NoShow' if the customer didn't arrive within 15-20 minutes.
+     * Marks a reservation as 'Expired' if the customer didn't arrive within 15-20 minutes.
      * Parameter: ReservationID (int)
      */
-    public static final String MARK_ORDER_AS_NOSHOW = 
-        "UPDATE ActiveReservations SET Status = 'NoShow' WHERE ReservationID = ?";
+    public static final String MARK_ORDER_AS_EXPIRED = 
+        "UPDATE ActiveReservations SET Status = 'Expired' WHERE ReservationID = ?";
 
     /**
      * Marks a reservation as 'Completed' when the bill is paid and table is freed.
@@ -274,9 +274,9 @@ public final class SQLQueries {
     
     /** Insert a visit record. */
     public static final String INSERT_VISIT_HISTORY =
-    		"INSERT INTO VisitHistory " +
-    	            "(SubscriberID, OriginalReservationDate, OriginalReservationTime, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status) " +
-    	            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        "INSERT INTO VisitHistory " +
+                    "(SubscriberID, OriginalReservationDate, OriginalReservationTime, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
     /** Report: visits grouped by status. */
     public static final String REPORT_VISITS_BY_STATUS_IN_MONTH =
@@ -345,7 +345,7 @@ public final class SQLQueries {
 
     /**
      * Report 1: Subscriber/Order Stats.
-     * Counts how many orders are in each status (Confirmed, Canceled, Completed, NoShow) for a specific month.
+     * Counts how many orders are in each status (Confirmed, Canceled, Completed, Expired) for a specific month.
      * Parameters:
      * 1. Month (int)
      * 2. Year (int)
@@ -476,4 +476,3 @@ public final class SQLQueries {
             "GROUP BY DATE(EntryTime) " +
             "ORDER BY EntryDate ASC";
 }
-
