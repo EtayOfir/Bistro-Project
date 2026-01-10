@@ -55,6 +55,13 @@ public class ChatClient extends AbstractClient {
 	protected void connectionEstablished() {
 		System.out.println("DEBUG: ChatClient.connectionEstablished() called");
 		clientUI.display("Connected to server");
+//		try {
+//			String username = "defaultUser";
+//			String role = "Customer";
+//			sendToServer("IDENTIFY|" + username + "|" + role);
+//		} catch (IOException e) {
+//			System.err.println("Failed to send IDENTIFY message: " + e.getMessage());
+//		}
 	}
 
 	/**

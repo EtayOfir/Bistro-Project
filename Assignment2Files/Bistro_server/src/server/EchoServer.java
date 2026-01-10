@@ -2,6 +2,8 @@
 // "Object Oriented Software Engineering" and is issued under the open-source
 // license found at www.lloseng.com 
 package server;
+import java.util.Map;
+import ocsf.server.ConnectionToClient;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -155,6 +157,10 @@ public class EchoServer extends AbstractServer {
      * Disconnects a specific client by its ConnectionToClient reference.
      * @param client the ConnectionToClient to disconnect
      */
+    public Map<ConnectionToClient, GetClientInfo> getConnectedClients() {
+        return connectedClients;
+    }
+
     public void disconnectClient(ConnectionToClient client) {
         try {
             System.out.println("MANUAL Disconnecting client.");
@@ -182,6 +188,41 @@ public class EchoServer extends AbstractServer {
      */
     @Override
     public void handleMessageFromClient(Object msg, ConnectionToClient client) {
+    	if (msg instanceof String) {
+    	    String message = (String) msg;
+
+    	    if (message.startsWith("IDENTIFY|")) {
+    	        String[] parts = message.split("\\|");
+    	        if (parts.length >= 3) {
+    	            String username = parts[1];
+    	            String role = parts[2];
+    	            String clientIP = client.getInetAddress().getHostAddress();
+
+    	            GetClientInfo info = connectedClients.get(client);
+    	            if (info != null) {
+    	                // Update what is shown in the table
+    	                info.setClientName(role + ", " + username);
+
+    	                if (uiController != null) {
+    	                    // Refresh table
+    	                    uiController.refreshClientTable();
+
+    	                    // ✅ Add log line with IP + username + role
+    	                    uiController.addLog("Client identified: IP:" + clientIP
+    	                            + ", Username:" + username
+    	                            + ", Role:" + role);
+    	                }
+    	            }
+
+    	            // Optional: print to console too
+    	            System.out.println("Client identified: IP:" + clientIP
+    	                    + ", Username:" + username
+    	                    + ", Role:" + role);
+    	        }
+    	        return;
+    	    }
+
+    	}
         String messageStr = String.valueOf(msg);
         System.out.println("Message received: " + messageStr + " from " + client);
 
