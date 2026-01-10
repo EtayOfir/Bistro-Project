@@ -17,7 +17,6 @@ public class RepresentativeMenuUIController {
 
     @FXML private Label welcomeLabel;
     
-    // משתנה לשמירת שם הנציג הנוכחי
     private String currentUserName;
 
     /**
@@ -66,8 +65,7 @@ public class RepresentativeMenuUIController {
 
     @FXML
     void onViewDetails(ActionEvent event) {
-        // TODO: לממש מסך ViewDetailsUI.fxml
-        System.out.println("Navigate to View Details Screen");
+    	navigate(event, "RepresentativeViewDetails.fxml");
     }
 
     @FXML
@@ -155,7 +153,9 @@ public class RepresentativeMenuUIController {
                     c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
                     c.setUserContext(currentUserName, "Representative");
                 }
-
+                case RepresentativeViewDetailsUIController c -> {
+                c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                }
                 default -> {}
             }
 

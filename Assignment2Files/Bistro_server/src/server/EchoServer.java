@@ -18,11 +18,13 @@ import java.util.Map;
 import ocsf.server.*;
 import DBController.BillPaymentDAO;
 import DBController.ReservationDAO;
+import DBController.SubscriberDAO;
 import DBController.WaitingListDAO;
 import DBController.mysqlConnection1;
 import DBController.LoginDAO;
 import ServerGUI.ServerUIController;
 import entities.Reservation;
+import entities.Subscriber;
 import entities.WaitingEntry;
 
 
@@ -63,6 +65,7 @@ public class EchoServer extends AbstractServer {
 	private ReservationDAO reservationDAO;
 	private BillPaymentDAO billPaymentDAO;
 	private WaitingListDAO waitingListDAO;
+	private SubscriberDAO subscriberDAO;
 	private LoginDAO loginDAO;
 	// Managers that subscribed to live waiting-list updates
 	private final java.util.Set<ConnectionToClient> waitingListSubscribers =
@@ -414,8 +417,9 @@ public class EchoServer extends AbstractServer {
 
                         System.out.println("DEBUG: Creating reservation - Phone: " + phone + ", Email: " + email);
 
+                        String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
                         // Create entity with ID 0 (DB will assign real ID)
-                        Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed");
+                        Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
                         int generatedId = reservationDAO.insertReservation(newRes, phone, email);
 
                         if (generatedId > 0) {
@@ -610,6 +614,66 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#GET_ALL_SUBSCRIBERS": {
+                    try {
+                        if (subscriberDAO == null) {
+                             ans = "ERROR|DAO_NOT_INITIALIZED";
+                             break;
+                        }
+
+                        java.util.List<entities.Subscriber> subs = subscriberDAO.getAllSubscribers();
+                        
+                        if (subs == null || subs.isEmpty()) {
+                            ans = "SUBSCRIBERS_LIST|EMPTY";
+                        } else {
+                            StringBuilder sb = new StringBuilder("SUBSCRIBERS_LIST|");
+                            for (int i = 0; i < subs.size(); i++) {
+                                entities.Subscriber s = subs.get(i);
+                                // Format: ID,FullName,Phone,Email,Username
+                                sb.append(s.getSubscriberId()).append(",")
+                                  .append(s.getFullName()).append(",")
+                                  .append(s.getPhoneNumber()).append(",")
+                                  .append(s.getEmail()).append(",")
+                                  .append(s.getUserName());
+                                
+                                if (i < subs.size() - 1) sb.append("~");
+                            }
+                            ans = sb.toString();
+                        }
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_FETCH_FAILED " + e.getMessage();
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+                case "#GET_ACTIVE_RESERVATIONS": {
+                    try {
+                        List<Reservation> list = reservationDAO.getAllActiveReservations();
+
+                        if (list == null || list.isEmpty()) {
+                            ans = "ACTIVE_RESERVATIONS|EMPTY";
+                        } else {
+                            StringBuilder sb = new StringBuilder("ACTIVE_RESERVATIONS|");
+                            for (int i = 0; i < list.size(); i++) {
+                                Reservation r = list.get(i);
+                                
+                                sb.append(r.getReservationId()).append(",")
+                                  .append(r.getCustomerType()).append(",")
+                                  .append(r.getReservationDate().toString()).append(",")
+                                  .append(r.getReservationTime().toString()).append(",")
+                                  .append(r.getNumberOfGuests()).append(",")
+                                  .append(r.getStatus());
+                                
+                                if (i < list.size() - 1) sb.append("~");
+                            }
+                            ans = sb.toString();
+                        }
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_FETCH_FAILED";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
                 default:
                     ans = "ERROR|UNKNOWN_COMMAND";
                     break;
@@ -646,7 +710,8 @@ public class EchoServer extends AbstractServer {
                 r.getReservationTime().toString() + "|" +
                 r.getConfirmationCode() + "|" +
                 r.getSubscriberId() + "|" +  
-                r.getStatus();
+                r.getStatus()+ "|" +        
+                r.getCustomerType();
     }
 	
 	/**
@@ -680,6 +745,8 @@ public class EchoServer extends AbstractServer {
             reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
             billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
             waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
+            subscriberDAO = new SubscriberDAO(mysqlConnection1.getDataSource());
+            
             loginDAO = new LoginDAO(mysqlConnection1.getDataSource());
 
             if (uiController != null) uiController.addLog("Server started + DB pool ready");

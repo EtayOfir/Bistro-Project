@@ -146,7 +146,8 @@ public class ReservationDAO {
                         rs.getTime("order_time"),
                         rs.getString("confirmation_code"),
                         rs.getInt("subscriber_id"),
-                        rs.getString("Status")
+                        rs.getString("Status"),
+                        rs.getString("CustomerType")
                 );
             }
         }
@@ -203,7 +204,8 @@ public class ReservationDAO {
                         rs.getTime("ReservationTime"),
                         rs.getString("ConfirmationCode"),
                         rs.getInt("SubscriberID"),
-                        rs.getString("Status")
+                        rs.getString("Status"),
+                        rs.getString("CustomerType")
                 );
             }
         }
@@ -240,7 +242,8 @@ public class ReservationDAO {
                             rs.getTime("ReservationTime"),
                             rs.getString("ConfirmationCode"),
                             rs.getInt("SubscriberID"),
-                            rs.getString("Status")
+                            rs.getString("Status"),
+                            rs.getString("CustomerType")
                     ));
                 }
             }
@@ -674,5 +677,45 @@ public class ReservationDAO {
         }
 
         return waitingStats;
+    }
+    
+    /**
+     * Retrieves a comprehensive list of all active reservations from the database.
+     * <p>
+     * This method is designed for the <b>Representative View</b> (Manager/Staff dashboard).
+     * It executes the {@code GET_ALL_ACTIVE_RESERVATIONS} query to fetch detailed
+     * reservation data, including {@code CustomerType} and {@code Status}.
+     * <p>
+     * The returned list allows the representative to view all orders, including those
+     * that might be canceled or completed, depending on the SQL query definition.
+     *
+     * @return A {@code List<Reservation>} containing all found reservations.
+     * Returns an empty list if no reservations are found.
+     * @throws SQLException If a database access error occurs or the column labels
+     * do not match the database schema.
+     */
+    public List<Reservation> getAllActiveReservations() throws SQLException {
+        List<Reservation> results = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_ALL_ACTIVE_RESERVATIONS);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                // Mapping the ResultSet row to a Reservation entity.
+                // Note: The Reservation constructor must match this parameter order.
+                results.add(new Reservation(
+                        rs.getInt("ReservationID"),
+                        rs.getInt("NumOfDiners"),
+                        rs.getDate("ReservationDate"),
+                        rs.getTime("ReservationTime"),
+                        rs.getString("ConfirmationCode"),
+                        rs.getInt("SubscriberID"),
+                        rs.getString("Status"),
+                        rs.getString("CustomerType") // Essential for the representative view
+                ));
+            }
+        }
+        return results;
     }
 }

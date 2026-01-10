@@ -216,10 +216,8 @@ public class SubscriberUIController implements Initializable {
     
     @FXML
     void onExit(ActionEvent event) {
-        // סגירת החלון
         Stage stage = (Stage) exitBtn.getScene().getWindow();
         stage.close();
-        // *******אופציונלי: חזרה למסך ראשי
     }
 
     // --- פונקציות עזר ---
