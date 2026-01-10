@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import javax.sql.DataSource;
 import SQLAccess.SQLQueries;
+import entities.Subscriber;
 
 /**
  * DAO specifically for handling User Login and Role detection.
@@ -51,4 +52,35 @@ public class LoginDAO {
         // 3. If not found (or wrong password), return null
         return null;
     }
+    
+    public Subscriber doLogin(String username, String password) {
+        Subscriber sub = null;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.LOGIN_SUB)) {
+
+            ps.setString(1, username);
+            ps.setString(2, password);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    sub = new Subscriber();
+
+                    // Use your actual column names from the Subscribers table
+                    sub.setSubscriberId(rs.getInt("SubscriberID"));
+                    sub.setFullName(rs.getString("FullName"));
+                    sub.setPhoneNumber(rs.getString("PhoneNumber"));
+                    sub.setEmail(rs.getString("Email"));
+                    sub.setUserName(rs.getString("UserName"));
+                    sub.setRole(rs.getString("role"));
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return sub; // returns null if login failed
+    }
+
 }

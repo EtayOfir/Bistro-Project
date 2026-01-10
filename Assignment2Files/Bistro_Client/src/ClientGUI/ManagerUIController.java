@@ -56,6 +56,11 @@ public class ManagerUIController {
     void onGetTable(ActionEvent event) {
         navigate(event, "ReceiveTableUI.fxml");
     }
+    @FXML
+    void onRegister(ActionEvent event) {
+        navigate(event, "RegisterUI.fxml");
+    }
+
 
     @FXML
     void onPayBill(ActionEvent event) {
@@ -126,6 +131,8 @@ public class ManagerUIController {
         System.exit(0);
     }
     
+
+    
     /**
      * Navigates to a new screen and sets the "Return Path" so the user can navigate back.
      * <p>
@@ -165,6 +172,10 @@ public class ManagerUIController {
                 }
                 case RepresentativeViewDetailsUIController c -> {
                 c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                }
+                case RegisterUIController c -> {
+                    c.setUserContext(currentUserName, "Manager");
+                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
                 }
                 default -> { 
                     // Log or ignore for other controllers
