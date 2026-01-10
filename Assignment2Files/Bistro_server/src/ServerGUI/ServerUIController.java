@@ -1,5 +1,11 @@
 package ServerGUI;
 
+import java.util.HashMap;
+import java.util.Map;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import ocsf.server.ConnectionToClient;
+
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -12,13 +18,14 @@ import server.GetClientInfo;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-
+	
 /**
  * Controller class for the Server UI
  * Handles all user interactions and communication with the server
  */
 public class ServerUIController {
 
+	
     // UI Components
     @FXML
     private Label serverStatusLabel;
@@ -105,6 +112,15 @@ public class ServerUIController {
     public void setEchoServer(EchoServer server) {
         this.echoServer = server;
     }
+    public void refreshClientTable() {
+        Platform.runLater(() -> {
+            if (echoServer != null) {
+                clientsTableView.getItems().clear();
+                clientsTableView.getItems().addAll(echoServer.getConnectedClients().values());
+            }
+        });
+    }
+
 
     /**
      * Setup port selector options
