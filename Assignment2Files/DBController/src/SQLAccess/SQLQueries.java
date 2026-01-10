@@ -23,6 +23,18 @@ public final class SQLQueries {
     private SQLQueries() {}
 
     // Subscribers
+    /**
+     * Retrieves the complete list of registered subscribers.
+     * <p>
+     * This query selects all rows from the 'Subscribers' table without filtering.
+     * It fetches the essential details: SubscriberID, FullName, PhoneNumber, Email, and UserName.
+     * <p>
+     * Usage: Primarily used to populate the "Subscribers Details" table in the 
+     * Representative Dashboard.
+     */
+    public static final String GET_ALL_SUBSCRIBERS = 
+        "SELECT SubscriberID, FullName, PhoneNumber, Email, UserName FROM Subscribers";
+    
     /** Update only contact details for subscriber. */
     public static final String UPDATE_SUBSCRIBER_CONTACT_INFO =
             "UPDATE Subscribers SET PhoneNumber = ?, Email = ? WHERE SubscriberID = ?";
@@ -81,6 +93,15 @@ public final class SQLQueries {
     
     
     // ActiveReservations
+    /** * Get ALL active reservations including CANCELED ones.
+     * Removed the "WHERE Status != 'Canceled'" filter.
+     */
+    public static final String GET_ALL_ACTIVE_RESERVATIONS =
+            "SELECT ReservationID, CustomerType, ReservationDate, ReservationTime, " +
+            "NumOfDiners, Status, ConfirmationCode, SubscriberID " +
+            "FROM ActiveReservations " +
+            "ORDER BY ReservationDate ASC, ReservationTime ASC";
+    
     /** * Get all active (future/current) reservations for a specific subscriber.
      * We need the 'Status' field for the table, which was missing in the other query.
      */

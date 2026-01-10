@@ -38,6 +38,12 @@ public class Reservation {
      */
     private final String status;
     
+    /** * The type of the customer making the reservation.
+     * Can be 'Subscriber' or 'Casual'.
+     * Maps to the 'CustomerType' column in the database.
+     */
+    private final String customerType;
+    
     /**
      * Constructs a new {@code Reservation} object with all relevant reservation data.
      * <p>
@@ -51,9 +57,11 @@ public class Reservation {
      * @param confirmationCode the unique string code for the user
      * @param subscriberId     the ID of the subscriber (if applicable)
      * @param status           the current status of the reservation
+     * @param customerType     the type of customer ('Subscriber' or 'Casual')
      */
     public Reservation(int reservationId, int numberOfGuests, Date reservationDate,
-                       Time reservationTime, String confirmationCode, int subscriberId, String status) {
+                       Time reservationTime, String confirmationCode, int subscriberId, 
+                       String status, String customerType) {
         this.reservationId = reservationId;
         this.numberOfGuests = numberOfGuests;
         this.reservationDate = reservationDate;
@@ -61,6 +69,7 @@ public class Reservation {
         this.confirmationCode = confirmationCode;
         this.subscriberId = subscriberId;
         this.status = status;
+        this.customerType = customerType;
     }
 
     /**
@@ -131,5 +140,14 @@ public class Reservation {
      */
     public String getStatus() {
         return status;
+    }
+    
+    /**
+     * Returns the type of customer for this reservation.
+     * Maps to the 'CustomerType' column.
+     * * @return 'Subscriber' or 'Casual'
+     */
+    public String getCustomerType() {
+        return customerType;
     }
 }

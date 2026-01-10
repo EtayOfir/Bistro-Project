@@ -66,8 +66,7 @@ public class ManagerUIController {
 
     @FXML
     void onViewDetails(ActionEvent event) {
-        // TODO: Implement ViewDetailsUI logic
-        System.out.println("Navigate to View Details Screen");
+    	navigate(event, "RepresentativeViewDetails.fxml");
     }
 
     @FXML
@@ -164,7 +163,9 @@ public class ManagerUIController {
                     c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
                     c.setUserContext(currentUserName, "Manager");
                 }
-                
+                case RepresentativeViewDetailsUIController c -> {
+                c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                }
                 default -> { 
                     // Log or ignore for other controllers
                 }
