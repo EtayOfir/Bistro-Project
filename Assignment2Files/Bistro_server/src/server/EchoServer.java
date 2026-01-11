@@ -87,7 +87,7 @@ public class EchoServer extends AbstractServer {
 		this.connectedClients = new HashMap<>();
 		this.dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 	}
-
+	
 	// Instance methods ************************************************
 
 	
@@ -200,24 +200,24 @@ public class EchoServer extends AbstractServer {
 
     	            GetClientInfo info = connectedClients.get(client);
     	            if (info != null) {
-    	                // Update what is shown in the table
+    	                // ✅ 1) Update what is shown in the table
     	                info.setClientName(role + ", " + username);
 
     	                if (uiController != null) {
-    	                    // Refresh table
-    	                    uiController.refreshClientTable();
+    	                    // ✅ 2) Add log line with IP + username + role
+    	                    uiController.addLog("Client identified: IP=" + clientIP
+    	                            + ", Username=" + username
+    	                            + ", Role=" + role);
 
-    	                    // ✅ Add log line with IP + username + role
-    	                    uiController.addLog("Client identified: IP:" + clientIP
-    	                            + ", Username:" + username
-    	                            + ", Role:" + role);
+    	                    // ✅ 3) Refresh table
+    	                    uiController.refreshClientTable();
     	                }
     	            }
 
-    	            // Optional: print to console too
-    	            System.out.println("Client identified: IP:" + clientIP
-    	                    + ", Username:" + username
-    	                    + ", Role:" + role);
+    	            // Optional console log
+    	            System.out.println("Client identified: IP=" + clientIP
+    	                    + ", Username=" + username
+    	                    + ", Role=" + role);
     	        }
     	        return;
     	    }

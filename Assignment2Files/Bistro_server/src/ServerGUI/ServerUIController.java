@@ -114,12 +114,14 @@ public class ServerUIController {
     }
     public void refreshClientTable() {
         Platform.runLater(() -> {
-            if (echoServer != null) {
+            if (clientsTableView != null && echoServer != null) {
                 clientsTableView.getItems().clear();
                 clientsTableView.getItems().addAll(echoServer.getConnectedClients().values());
             }
         });
     }
+
+    
 
 
     /**
