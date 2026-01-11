@@ -79,9 +79,9 @@ public class HostDashboardController {
 
         // demo queue data (you can remove later)
         reservations.addAll(
-                new ReservationRow("David Levi", 2, "12:30", "Waiting"),
-                new ReservationRow("Noa Cohen", 4, "12:45", "Waiting"),
-                new ReservationRow("Amit Ben", 3, "13:00", "Checked In")
+                new ReservationRow("David Levi", 2, "12:30", "4"),
+                new ReservationRow("Noa Cohen", 4, "12:45", "3"),
+                new ReservationRow("Amit Ben", 3, "13:00", "1")
         );
 
         // initial selected table

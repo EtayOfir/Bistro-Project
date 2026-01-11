@@ -6,179 +6,231 @@
 <?import javafx.scene.shape.Circle?>
 
 <BorderPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
-            fx:controller="ClientGUI.HostDashboardController"
-            prefWidth="1100" prefHeight="750"
-            style="-fx-background-color: #f6f8fa;">
+	xmlns:fx="http://javafx.com/fxml"
+	fx:controller="ClientGUI.HostDashboardController" prefWidth="1100"
+	prefHeight="750" style="-fx-background-color: #f6f8fa;">
 
-    <!-- Header -->
-    <top>
-        <HBox spacing="20" style="-fx-background-color: #2563eb;">
-            <padding>
-                <Insets top="20" right="20" bottom="20" left="20"/>
-            </padding>
+	<!-- Header -->
+	<top>
+		<HBox spacing="20" style="-fx-background-color: #2563eb;">
+			<padding>
+				<Insets top="20" right="20" bottom="20" left="20" />
+			</padding>
 
-            <Label text="Host Dashboard"
-                   style="-fx-text-fill: white; -fx-font-size: 18; -fx-font-weight: bold;"/>
+			<Label text="Host Dashboard"
+				style="-fx-text-fill: white; -fx-font-size: 18; -fx-font-weight: bold;" />
 
-            <Pane HBox.hgrow="ALWAYS"/>
+			<Pane HBox.hgrow="ALWAYS" />
 
-            <Label fx:id="loggedInUserLabel"
-                   style="-fx-text-fill: white; -fx-font-size: 14;"/>
+			<Label fx:id="loggedInUserLabel"
+				style="-fx-text-fill: white; -fx-font-size: 14;" />
 
-            <Button text="Back" onAction="#onBack"
-                    style="-fx-background-color: white; -fx-text-fill: #2563eb; -fx-background-radius: 6;"/>
+			<Button text="Back" onAction="#onBack"
+				style="-fx-background-color: white; -fx-text-fill: #2563eb; -fx-background-radius: 6;" />
 
-            <Button text="Close" onAction="#onCloseClicked"
-                    style="-fx-background-color: white; -fx-text-fill: #2563eb; -fx-background-radius: 6;"/>
-        </HBox>
-    </top>
+			<Button text="Close" onAction="#onCloseClicked"
+				style="-fx-background-color: white; -fx-text-fill: #2563eb; -fx-background-radius: 6;" />
+		</HBox>
+	</top>
 
-    <!-- Main Content: Map (top) + Table (bottom) -->
-    <center>
-        <VBox spacing="14" style="-fx-background-color: transparent;">
-            <padding>
-                <Insets top="16" right="16" bottom="16" left="16"/>
-            </padding>
+	<!-- Main Content: Map (top) + Table (bottom) -->
+	<center>
+		<VBox spacing="14" style="-fx-background-color: transparent;">
+			<padding>
+				<Insets top="16" right="16" bottom="16" left="16" />
+			</padding>
 
-            <!-- MAP SECTION (TOP) -->
-            <VBox spacing="8">
-                <Label text="Table Map"
-                       style="-fx-font-size: 16; -fx-font-weight: bold;"/>
+			<!-- MAP SECTION (TOP) -->
+			<VBox spacing="8">
+				<Label text="Table Map"
+					style="-fx-font-size: 16; -fx-font-weight: bold;" />
 
-                <AnchorPane fx:id="mapPane" prefHeight="360"
-                            style="-fx-background-color: white;
+				<AnchorPane fx:id="mapPane" prefHeight="360"
+					style="-fx-background-color: white;
                                    -fx-background-radius: 12;
                                    -fx-border-color: #e5e7eb;
                                    -fx-border-radius: 12;">
 
-                    <!-- ======= TABLE 1 ======= -->
-                    <Pane layoutX="40" layoutY="25" prefWidth="140" prefHeight="140">
-                        <Circle layoutX="70" layoutY="18"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="70" layoutY="122" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="18" layoutY="70"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="122" layoutY="70" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="32" layoutY="32"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="108" layoutY="32" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="32" layoutY="108" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="108" layoutY="108" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
+					<!-- ======= TABLE 1 ======= -->
+					<Pane layoutX="40" layoutY="25" prefWidth="140"
+						prefHeight="140">
+						<Circle layoutX="70" layoutY="18" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="70" layoutY="122" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="18" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="122" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="32" layoutY="32" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="108" layoutY="32" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="32" layoutY="108" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="108" layoutY="108" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
 
-                        <Button fx:id="table1Btn" text="T1" onAction="#onTableClicked"
-                                layoutX="43" layoutY="43" prefWidth="54" prefHeight="54"
-                                style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;"/>
-                    </Pane>
+						<Button fx:id="table1Btn" text="T1"
+							onAction="#onTableClicked" layoutX="43" layoutY="43"
+							prefWidth="54" prefHeight="54"
+							style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;" />
+					</Pane>
 
-                    <!-- ======= TABLE 2 ======= -->
-                    <Pane layoutX="220" layoutY="25" prefWidth="140" prefHeight="140">
-                        <Circle layoutX="70" layoutY="18"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="70" layoutY="122" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="18" layoutY="70"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="122" layoutY="70" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="32" layoutY="32"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="108" layoutY="32" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="32" layoutY="108" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="108" layoutY="108" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
+					<!-- ======= TABLE 2 ======= -->
+					<Pane layoutX="220" layoutY="25" prefWidth="140"
+						prefHeight="140">
+						<Circle layoutX="70" layoutY="18" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="70" layoutY="122" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="18" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="122" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="32" layoutY="32" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="108" layoutY="32" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="32" layoutY="108" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="108" layoutY="108" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
 
-                        <Button fx:id="table2Btn" text="T2" onAction="#onTableClicked"
-                                layoutX="43" layoutY="43" prefWidth="54" prefHeight="54"
-                                style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;"/>
-                    </Pane>
+						<Button fx:id="table2Btn" text="T2"
+							onAction="#onTableClicked" layoutX="43" layoutY="43"
+							prefWidth="54" prefHeight="54"
+							style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;" />
+					</Pane>
 
-                    <!-- ======= TABLE 3 ======= -->
-                    <Pane layoutX="400" layoutY="25" prefWidth="140" prefHeight="140">
-                        <Circle layoutX="70" layoutY="18"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="70" layoutY="122" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="18" layoutY="70"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="122" layoutY="70" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="32" layoutY="32"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="108" layoutY="32" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="32" layoutY="108" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="108" layoutY="108" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
+					<!-- ======= TABLE 3 ======= -->
+					<Pane layoutX="400" layoutY="25" prefWidth="140"
+						prefHeight="140">
+						<Circle layoutX="70" layoutY="18" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="70" layoutY="122" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="18" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="122" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="32" layoutY="32" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="108" layoutY="32" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="32" layoutY="108" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="108" layoutY="108" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
 
-                        <Button fx:id="table3Btn" text="T3" onAction="#onTableClicked"
-                                layoutX="43" layoutY="43" prefWidth="54" prefHeight="54"
-                                style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;"/>
-                    </Pane>
+						<Button fx:id="table3Btn" text="T3"
+							onAction="#onTableClicked" layoutX="43" layoutY="43"
+							prefWidth="54" prefHeight="54"
+							style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;" />
+					</Pane>
 
-                    <!-- ======= TABLE 4 ======= -->
-                    <Pane layoutX="40" layoutY="205" prefWidth="140" prefHeight="140">
-                        <Circle layoutX="70" layoutY="18"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="70" layoutY="122" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="18" layoutY="70"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="122" layoutY="70" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
+					<!-- ======= TABLE 4 ======= -->
+					<Pane layoutX="40" layoutY="205" prefWidth="140"
+						prefHeight="140">
+						<Circle layoutX="70" layoutY="18" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="70" layoutY="122" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="18" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="122" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
 
-                        <Button fx:id="table4Btn" text="T4" onAction="#onTableClicked"
-                                layoutX="43" layoutY="43" prefWidth="54" prefHeight="54"
-                                style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;"/>
-                    </Pane>
+						<Button fx:id="table4Btn" text="T4"
+							onAction="#onTableClicked" layoutX="43" layoutY="43"
+							prefWidth="54" prefHeight="54"
+							style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;" />
+					</Pane>
 
-                    <!-- ======= TABLE 5 ======= -->
-                    <Pane layoutX="220" layoutY="205" prefWidth="140" prefHeight="140">
-                        <Circle layoutX="70" layoutY="18"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="70" layoutY="122" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="18" layoutY="70"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="122" layoutY="70" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
+					<!-- ======= TABLE 5 ======= -->
+					<Pane layoutX="220" layoutY="205" prefWidth="140"
+						prefHeight="140">
+						<Circle layoutX="70" layoutY="18" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="70" layoutY="122" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="18" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="122" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
 
-                        <Button fx:id="table5Btn" text="T5" onAction="#onTableClicked"
-                                layoutX="43" layoutY="43" prefWidth="54" prefHeight="54"
-                                style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;"/>
-                    </Pane>
+						<Button fx:id="table5Btn" text="T5"
+							onAction="#onTableClicked" layoutX="43" layoutY="43"
+							prefWidth="54" prefHeight="54"
+							style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;" />
+					</Pane>
 
-                    <!-- ======= TABLE 6 ======= -->
-                    <Pane layoutX="400" layoutY="205" prefWidth="140" prefHeight="140">
-                        <Circle layoutX="70" layoutY="18"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="70" layoutY="122" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="18" layoutY="70"  radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
-                        <Circle layoutX="122" layoutY="70" radius="7" style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;"/>
+					<!-- ======= TABLE 6 ======= -->
+					<Pane layoutX="400" layoutY="205" prefWidth="140"
+						prefHeight="140">
+						<Circle layoutX="70" layoutY="18" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="70" layoutY="122" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="18" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
+						<Circle layoutX="122" layoutY="70" radius="7"
+							style="-fx-fill:#d1d5db; -fx-stroke:#9ca3af;" />
 
-                        <Button fx:id="table6Btn" text="T6" onAction="#onTableClicked"
-                                layoutX="43" layoutY="43" prefWidth="54" prefHeight="54"
-                                style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;"/>
-                    </Pane>
+						<Button fx:id="table6Btn" text="T6"
+							onAction="#onTableClicked" layoutX="43" layoutY="43"
+							prefWidth="54" prefHeight="54"
+							style="-fx-background-radius:999; -fx-text-fill:white; -fx-font-weight:bold;" />
+					</Pane>
 
-                    <!-- Selected label (same fx:id as before) -->
-                    <Label text="Selected:" layoutX="585" layoutY="50" style="-fx-text-fill:#6b7280;"/>
-                    <Label fx:id="selectedTableLabel" text="None" layoutX="655" layoutY="50"
-                           style="-fx-font-weight:bold;"/>
-                </AnchorPane>
+					<!-- Selected label (same fx:id as before) -->
+					<Label text="Selected:" layoutX="585" layoutY="50"
+						style="-fx-text-fill:#6b7280;" />
+					<Label fx:id="selectedTableLabel" text="None" layoutX="655"
+						layoutY="50" style="-fx-font-weight:bold;" />
+				</AnchorPane>
 
-                <HBox spacing="10" alignment="CENTER_LEFT">
-                    <Label text="Legend:" style="-fx-text-fill:#6b7280;"/>
-                    <Label text="Available" style="-fx-text-fill:#6b7280;"/>
-                    <Region style="-fx-background-color:#22c55e; -fx-min-width:12; -fx-min-height:12; -fx-background-radius:3;"/>
-                    <Label text="Occupied" style="-fx-text-fill:#6b7280;"/>
-                    <Region style="-fx-background-color:#ef4444; -fx-min-width:12; -fx-min-height:12; -fx-background-radius:3;"/>
-                </HBox>
-            </VBox>
+				<HBox spacing="10" alignment="CENTER_LEFT">
+					<Label text="Legend:" style="-fx-text-fill:#6b7280;" />
+					<Label text="Available" style="-fx-text-fill:#6b7280;" />
+					<Region
+						style="-fx-background-color:#22c55e; -fx-min-width:12; -fx-min-height:12; -fx-background-radius:3;" />
+					<Label text="Occupied" style="-fx-text-fill:#6b7280;" />
+					<Region
+						style="-fx-background-color:#ef4444; -fx-min-width:12; -fx-min-height:12; -fx-background-radius:3;" />
+				</HBox>
+			</VBox>
 
-            <Separator />
+			<Separator />
 
-            <!-- TABLE SECTION (BOTTOM - FULL WIDTH) -->
-            <VBox spacing="10" VBox.vgrow="ALWAYS">
-                <Label text="Today's Reservations"
-                       style="-fx-font-size: 16; -fx-font-weight: bold;"/>
+			<!-- TABLE SECTION (BOTTOM - FULL WIDTH) -->
+			<VBox spacing="10" VBox.vgrow="ALWAYS">
+				<Label text="Today's Reservations"
+					style="-fx-font-size: 16; -fx-font-weight: bold;" />
 
-                <TableView fx:id="queueTable" VBox.vgrow="ALWAYS">
-                    <columns>
-                        <TableColumn fx:id="colCustomer" text="Customer"/>
-                        <TableColumn fx:id="colGuests" text="Guests"/>
-                        <TableColumn fx:id="colTime" text="Time"/>
-                        <TableColumn fx:id="colStatus" text="Status"/>
-                    </columns>
-                </TableView>
+				<TableView fx:id="queueTable" VBox.vgrow="ALWAYS">
+					<columns>
+						<TableColumn fx:id="colCustomer" text="Customer" />
+						<TableColumn fx:id="colGuests" text="Guests" />
+						<TableColumn fx:id="colTime" text="Time" />
+						<TableColumn fx:id="colStatus" text="Table Number"
+							prefWidth="120" />
+					</columns>
+				</TableView>
 
-                <HBox spacing="10">
-                    <Button text="Check In" onAction="#onCheckInClicked"
-                            style="-fx-background-color: #22c55e; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;"/>
-                    <Button text="Cancel" onAction="#onCancelClicked"
-                            style="-fx-background-color: #ef4444; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;"/>
-                </HBox>
+				<HBox spacing="10">
+					<Button text="Check In" onAction="#onCheckInClicked"
+						style="-fx-background-color: #22c55e; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;" />
+					<Button text="Cancel" onAction="#onCancelClicked"
+						style="-fx-background-color: #ef4444; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;" />
+				</HBox>
 
-                <Label text="Tip: Select a reservation + select a table, then Check In/Cancel."
-                       style="-fx-text-fill:#6b7280; -fx-font-size: 11;"/>
-            </VBox>
+				<Label
+					text="Tip: Select a reservation + select a table, then Check In/Cancel."
+					style="-fx-text-fill:#6b7280; -fx-font-size: 11;" />
+			</VBox>
 
-        </VBox>
-    </center>
+		</VBox>
+	</center>
 
 </BorderPane>
