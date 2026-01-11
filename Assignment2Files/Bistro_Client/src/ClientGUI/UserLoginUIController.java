@@ -1,5 +1,6 @@
 package ClientGUI;
 
+import java.io.IOException;
 import java.net.URL;
 
 import javafx.event.ActionEvent;
@@ -32,11 +33,6 @@ public class UserLoginUIController {
     // Buttons defined in FXML
     @FXML private Button resTerminal;
     @FXML private Button loginGuest;
-    
-    // Server Settings
-    @FXML private VBox serverSettingsBox;
-    @FXML private TextField hostField;
-    @FXML private TextField portField;
 
     /**
      * Initializes the controller class.
@@ -44,27 +40,6 @@ public class UserLoginUIController {
     @FXML
     private void initialize() {
         if (statusLabel != null) statusLabel.setText("");
-
-        if (serverSettingsBox != null) {
-            serverSettingsBox.setVisible(false);
-            serverSettingsBox.setManaged(false);
-        }
-    }
-
-    /**
-     * Toggles the visibility of the server settings panel.
-     */
-    @FXML
-    private void onServerSettingsToggle(ActionEvent event) {
-        if (serverSettingsBox == null) return;
-
-        boolean show = !serverSettingsBox.isVisible();
-        serverSettingsBox.setVisible(show);
-        serverSettingsBox.setManaged(show);
-
-        Node source = (Node) event.getSource();
-        Stage stage = (Stage) source.getScene().getWindow();
-        stage.sizeToScene();
     }
 
     /**

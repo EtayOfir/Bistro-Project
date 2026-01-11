@@ -244,6 +244,7 @@ public class EchoServer extends AbstractServer {
                     command.equals("#GET_RESERVATIONS_BY_DATE") ||
                     command.equals("#CANCEL_RESERVATION") ||
                     command.equals("#DELETE_EXPIRED_RESERVATIONS") ||
+                    command.equals("#GET_REPORTS_DATA") ||
                     command.equals("#RECEIVE_TABLE");
 
             boolean needsBillDao =
@@ -257,6 +258,7 @@ public class EchoServer extends AbstractServer {
                     command.equals("#UPDATE_WAITING_STATUS") ||
                     command.equals("#UPDATE_WAITING_ENTRY") ||
                     command.equals("#DELETE_WAITING_ID") ||
+                    command.equals("#GET_REPORTS_DATA") ||
                     command.equals("#DELETE_WAITING_CODE");
 
             if ((needsReservationDao && reservationDAO == null) ||
@@ -655,6 +657,30 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#MARK_RESERVATION_EXPIRED": {
+                    // Format: #MARK_RESERVATION_EXPIRED <reservationId>
+                    if (parts.length < 2) {
+                        ans = "ERROR|BAD_FORMAT_MARK_EXPIRED";
+                        break;
+                    }
+                    try {
+                        int reservationId = Integer.parseInt(parts[1]);
+                        boolean marked = reservationDAO.markSingleReservationExpired(reservationId);
+                        if (marked) {
+                            ans = "MARKED_EXPIRED|" + reservationId;
+                            System.out.println("DEBUG: Marked reservation ID " + reservationId + " as Expired");
+                        } else {
+                            ans = "ERROR|RESERVATION_NOT_FOUND_OR_NOT_CONFIRMED";
+                        }
+                    } catch (NumberFormatException e) {
+                        ans = "ERROR|INVALID_RESERVATION_ID";
+                    } catch (Exception e) {
+                        System.err.println("ERROR marking single reservation as expired: " + e.getMessage());
+                        e.printStackTrace();
+                        ans = "ERROR|MARK_EXPIRED_FAILED " + e.getMessage();
+                    }
+                    break;
+                }
                 case "#GET_ALL_SUBSCRIBERS": {
                     try {
                         if (subscriberDAO == null) {
@@ -711,6 +737,61 @@ public class EchoServer extends AbstractServer {
                         }
                     } catch (Exception e) {
                         ans = "ERROR|DB_FETCH_FAILED";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+                case "#GET_REPORTS_DATA": {
+                    // Format: #GET_REPORTS_DATA <startDate> <endDate>
+                    // startDate and endDate in format: yyyy-MM-dd
+                    try {
+                        if (parts.length < 3) {
+                            ans = "ERROR|BAD_FORMAT_REPORTS_DATA";
+                            break;
+                        }
+                        String startDateStr = parts[1];
+                        String endDateStr = parts[2];
+                        java.sql.Date startDate = java.sql.Date.valueOf(startDateStr);
+                        java.sql.Date endDate = java.sql.Date.valueOf(endDateStr);
+
+                        java.util.Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(startDate, endDate);
+                        java.util.Map<Integer, Integer> timeDistribution = reservationDAO.getReservationTimeDistribution(startDate, endDate);
+                        java.util.List<java.util.Map<String, Object>> waitingListData = waitingListDAO.getWaitingListByDateRange(startDate, endDate);
+
+                        StringBuilder sb = new StringBuilder("REPORTS_DATA|");
+                        sb.append("STATS:")
+                          .append(stats.getOrDefault("total", 0)).append(",")
+                          .append(stats.getOrDefault("confirmed", 0)).append(",")
+                          .append(stats.getOrDefault("arrived", 0)).append(",")
+                          .append(stats.getOrDefault("late", 0)).append(",")
+                          .append(stats.getOrDefault("expired", 0)).append(",")
+                          .append(stats.getOrDefault("totalGuests", 0)).append("|");
+
+                        sb.append("TIME_DIST:");
+                        boolean firstTime = true;
+                        for (java.util.Map.Entry<Integer, Integer> entry : timeDistribution.entrySet()) {
+                            if (!firstTime) sb.append(";");
+                            sb.append(entry.getKey()).append(",").append(entry.getValue());
+                            firstTime = false;
+                        }
+                        sb.append("|");
+
+                        sb.append("WAITING:");
+                        boolean firstWaiting = true;
+                        for (java.util.Map<String, Object> row : waitingListData) {
+                            if (!firstWaiting) sb.append(";");
+                            Object entryDate = row.get("EntryDate");
+                            Object waitingCount = row.get("WaitingCount");
+                            Object servedCount = row.get("ServedCount");
+                            sb.append(entryDate != null ? entryDate.toString() : "").append(",")
+                              .append(waitingCount != null ? waitingCount.toString() : "0").append(",")
+                              .append(servedCount != null ? servedCount.toString() : "0");
+                            firstWaiting = false;
+                        }
+
+                        ans = sb.toString();
+                    } catch (Exception e) {
+                        ans = "ERROR|REPORTS_DATA_FAILED " + e.getMessage();
                         e.printStackTrace();
                     }
                     break;

@@ -223,7 +223,8 @@ public class ReservationDAO {
         List<Reservation> results = new ArrayList<>();
 
         final String sql =
-                "SELECT ReservationID, NumOfDiners, ReservationDate, ReservationTime, ConfirmationCode, SubscriberID " +
+                "SELECT ReservationID, NumOfDiners, ReservationDate, ReservationTime, " +
+                "ConfirmationCode, SubscriberID, Status, CustomerType " +
                 "FROM ActiveReservations " +
                 "WHERE ReservationDate = ? AND Status != 'Canceled' " +
                 "ORDER BY ReservationTime";
@@ -293,10 +294,59 @@ public class ReservationDAO {
     }
 
     /**
+     * Marks a single specific reservation as expired.
+     * Only marks the reservation if it's in 'Confirmed' status.
+     * 
+     * @param reservationId the ID of the reservation to mark as expired
+     * @return true if the reservation was successfully marked as expired, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public boolean markSingleReservationExpired(int reservationId) throws SQLException {
+        try (Connection conn = dataSource.getConnection()) {
+            // First check if reservation exists and is Confirmed
+            try (PreparedStatement checkPs = conn.prepareStatement(
+                    "SELECT Status, ReservationDate, ReservationTime FROM ActiveReservations WHERE ReservationID = ?")) {
+                checkPs.setInt(1, reservationId);
+                
+                try (ResultSet rs = checkPs.executeQuery()) {
+                    if (!rs.next()) {
+                        System.out.println("DEBUG: Reservation ID " + reservationId + " not found");
+                        return false;
+                    }
+                    
+                    String status = rs.getString("Status");
+                    System.out.println("DEBUG: Reservation ID " + reservationId + " has status: " + status);
+                    
+                    // Only mark if it's Confirmed
+                    if (!"Confirmed".equalsIgnoreCase(status)) {
+                        System.out.println("DEBUG: Reservation ID " + reservationId + " is not Confirmed, skipping mark as expired");
+                        return false;
+                    }
+                }
+            }
+            
+            // Update the reservation to Expired
+            try (PreparedStatement updatePs = conn.prepareStatement(
+                    "UPDATE ActiveReservations SET Status = 'Expired' WHERE ReservationID = ?")) {
+                updatePs.setInt(1, reservationId);
+                int rowsAffected = updatePs.executeUpdate();
+                
+                if (rowsAffected > 0) {
+                    System.out.println("DEBUG: Successfully marked reservation ID " + reservationId + " as Expired");
+                    return true;
+                } else {
+                    System.out.println("DEBUG: Failed to update reservation ID " + reservationId);
+                    return false;
+                }
+            }
+        }
+    }
+
+    /**
      * Marks expired reservations as 'Expired' instead of deleting them.
      * This preserves the reservation history while flagging them as no longer active.
      * 
-     * A reservation is considered expired if its scheduled time has passed by more than 30 minutes
+     * A reservation is considered expired if its scheduled time has passed by more than 15 minutes
      * and its status is still 'Confirmed'.
      * Scans the ENTIRE database for all expired reservations.
      *
@@ -306,28 +356,55 @@ public class ReservationDAO {
     public int deleteExpiredReservations() throws SQLException {
         try (Connection conn = dataSource.getConnection()) {
             
-            // First, ensure the Status column ENUM includes 'Expired'
-            try {
-                System.out.println("DEBUG: Ensuring Status column supports 'Expired' value...");
-                String alterSQL = "ALTER TABLE ActiveReservations MODIFY COLUMN Status ENUM('Confirmed','Arrived','Late','Canceled','Completed','Paid','Expired')";
-                try (Statement stmt = conn.createStatement()) {
-                    stmt.executeUpdate(alterSQL);
-                    System.out.println("DEBUG: Status column updated to support 'Expired' value");
+            // First, check if Status column exists and what its type is
+            boolean statusColumnExists = false;
+            String currentColumnType = "";
+            
+            try (PreparedStatement checkColPs = conn.prepareStatement(
+                    "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS " +
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ActiveReservations' AND COLUMN_NAME = 'Status'")) {
+                try (ResultSet rs = checkColPs.executeQuery()) {
+                    if (rs.next()) {
+                        statusColumnExists = true;
+                        currentColumnType = rs.getString(1);
+                        System.out.println("DEBUG: Status column exists with type: " + currentColumnType);
+                    }
                 }
             } catch (SQLException e) {
-                // Column might already have 'Expired', or alter might fail - continue anyway
-                System.out.println("DEBUG: Status column already supports 'Expired' or migration not needed: " + e.getMessage());
+                System.out.println("DEBUG: Could not check Status column: " + e.getMessage());
+            }
+            
+            // If Status column exists, ensure it supports 'Expired'
+            if (statusColumnExists) {
+                try {
+                    System.out.println("DEBUG: Ensuring Status column supports 'Expired' value...");
+                    String alterSQL = "ALTER TABLE ActiveReservations MODIFY COLUMN Status ENUM('Confirmed','Arrived','Late','Canceled','Completed','Paid','Expired')";
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.executeUpdate(alterSQL);
+                        System.out.println("DEBUG: Status column updated to support 'Expired' value");
+                    }
+                } catch (SQLException e) {
+                    // Column might already have 'Expired', or alter might fail - continue anyway
+                    System.out.println("DEBUG: Status column alter skipped: " + e.getMessage());
+                }
+            } else {
+                System.out.println("WARNING: Status column does not exist in ActiveReservations table!");
+                return 0;
             }
             
             java.util.List<Integer> expiredIds = new java.util.ArrayList<>();
             
             // First, check for ALL confirmed reservations that should be expired
-            System.out.println("DEBUG: Scanning entire database for confirmed reservations with expired times (30+ minutes past)...");
+            System.out.println("DEBUG: Scanning entire database for confirmed reservations with expired times (15+ minutes past)...");
+            System.out.println("DEBUG: Current server time: " + new java.util.Date());
+            
             try (PreparedStatement checkPs = conn.prepareStatement(
-                    "SELECT ReservationID, ConfirmationCode, ReservationDate, ReservationTime, Status " +
+                    "SELECT ReservationID, ConfirmationCode, ReservationDate, ReservationTime, Status, " +
+                    "DATE_ADD(CONCAT(ReservationDate, ' ', ReservationTime), INTERVAL 15 MINUTE) as ExpiredThreshold, " +
+                    "NOW() as CurrentTime " +
                     "FROM ActiveReservations " +
                     "WHERE Status = 'Confirmed' " +
-                    "AND DATE_ADD(CONCAT(ReservationDate, ' ', ReservationTime), INTERVAL 30 MINUTE) < NOW() " +
+                    "AND DATE_ADD(CONCAT(ReservationDate, ' ', ReservationTime), INTERVAL 15 MINUTE) < NOW() " +
                     "ORDER BY ReservationDate ASC, ReservationTime ASC")) {
                 try (ResultSet rs = checkPs.executeQuery()) {
                     while (rs.next()) {
@@ -336,10 +413,16 @@ public class ReservationDAO {
                         System.out.println("DEBUG: Found expired reservation - ID: " + resId + 
                                          ", Code: " + rs.getString(2) + 
                                          ", DateTime: " + rs.getDate(3) + " " + rs.getTime(4) +
+                                         ", Expired Threshold: " + rs.getTimestamp(6) +
+                                         ", Current Time: " + rs.getTimestamp(7) +
                                          ", Status: " + rs.getString(5));
                     }
                     System.out.println("DEBUG: Total expired Confirmed reservations found in entire database: " + expiredIds.size());
                 }
+            } catch (SQLException e) {
+                System.err.println("ERROR scanning for expired reservations: " + e.getMessage());
+                e.printStackTrace();
+                return 0;
             }
             
             // Now update each reservation individually
@@ -353,11 +436,14 @@ public class ReservationDAO {
                     for (Integer resId : expiredIds) {
                         try {
                             updatePs.setInt(1, resId);
-                            updatePs.executeUpdate();
-                            updated++;
-                            System.out.println("DEBUG: Updated reservation ID " + resId + " to Expired");
+                            int rowsAffected = updatePs.executeUpdate();
+                            if (rowsAffected > 0) {
+                                updated++;
+                                System.out.println("DEBUG: Updated reservation ID " + resId + " to Expired");
+                            }
                         } catch (SQLException e) {
                             System.err.println("ERROR updating reservation ID " + resId + ": " + e.getMessage());
+                            e.printStackTrace();
                         }
                     }
                 }
@@ -373,6 +459,8 @@ public class ReservationDAO {
                             System.out.println("DEBUG: Total Expired reservations in database now: " + totalExpired);
                         }
                     }
+                } catch (SQLException e) {
+                    System.out.println("DEBUG: Could not verify expired count: " + e.getMessage());
                 }
             }
             
@@ -553,6 +641,8 @@ public class ReservationDAO {
 
     /**
      * Gets reservation statistics for a date range.
+     * DEBUG: Includes detailed logging of query execution and results.
+     * 
      * @param startDate the start date (SQL Date)
      * @param endDate the end date (SQL Date)
      * @return a map with keys: "total", "confirmed", "arrived", "late", "expired", "totalGuests"
@@ -568,7 +658,6 @@ public class ReservationDAO {
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_RESERVATION_STATS_BY_DATE_RANGE)) {
-            
             ps.setDate(1, startDate);
             ps.setDate(2, endDate);
 
@@ -583,7 +672,6 @@ public class ReservationDAO {
                 }
             }
         }
-
         return stats;
     }
 

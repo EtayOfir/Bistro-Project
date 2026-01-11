@@ -302,10 +302,46 @@ public class ClientUIController implements ChatIF {
     	}
 
     	if (message.startsWith("RESERVATION|")) {
-            // Protocol: RESERVATION|id|guests|date|time|code|subId|status
+            // Protocol: RESERVATION|id|guests|date|time|code|subId|status|customerType
             String[] parts = message.split("\\|");
 
-            if (parts.length >= 8) {
+            if (parts.length >= 9) {
+                String rId    = parts[1];
+                String guests = parts[2];
+                String date   = parts[3];
+                String time   = parts[4];
+                String code   = parts[5];
+                String subId  = parts[6];
+                String status  = parts[7];
+                String customerType = parts[8];
+
+                this.currentReservationId = rId;
+
+                reservationIdLabel.setText(rId);
+                numberOfGuestsField.setText(guests);
+                reservationDateField.setText(date);
+                reservationTimeField.setText(time);
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("Reservation Details\n");
+                sb.append("-------------------\n");
+                sb.append("Reservation ID    : ").append(rId).append("\n");
+                sb.append("Customer Type     : ").append(customerType).append("\n");
+                sb.append("Guests            : ").append(guests).append("\n");
+                sb.append("Date              : ").append(date).append("\n");
+                sb.append("Time              : ").append(time).append("\n");
+                sb.append("Confirmation Code : ").append(code).append("\n");
+                
+                // Only show Subscriber ID for Subscriber reservations
+                if ("Subscriber".equalsIgnoreCase(customerType)) {
+                    sb.append("Subscriber ID     : ").append(subId).append("\n");
+                }
+                
+                sb.append("Reservation Status: ").append(status).append("\n");
+
+                reservationDetailsTextArea.setText(sb.toString());
+            } else if (parts.length >= 8) {
+                // Fallback for old protocol without CustomerType
                 String rId    = parts[1];
                 String guests = parts[2];
                 String date   = parts[3];
@@ -461,6 +497,13 @@ public class ClientUIController implements ChatIF {
         if (ClientUI.chat == null) {
         	safeAppend("Not connected to server.\n");
             return;
+        }
+
+        // Trigger cleanup of expired reservations on server before canceling
+        try {
+            ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
+        } catch (Exception e) {
+            System.err.println("Failed to trigger expired reservations cleanup: " + e.getMessage());
         }
 
         javafx.scene.control.TextInputDialog dialog = new javafx.scene.control.TextInputDialog();

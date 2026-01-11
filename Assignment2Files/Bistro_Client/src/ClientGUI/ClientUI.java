@@ -41,7 +41,7 @@ public class ClientUI extends Application {
     /**
      * Starts the JavaFX application.
      * <p>
-     * Initializes the client connection once, then loads the initial login view.
+     * Opens the Server Settings screen first, then loads the login view after connection.
      *
      * @param primaryStage the primary stage provided by the JavaFX runtime
      * @throws Exception if the FXML file cannot be loaded
@@ -49,46 +49,23 @@ public class ClientUI extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
 
-        // Initialize a shared client connection (once).
-        initClientConnection();
-
-        // Load initial view
-        URL fxmlLocation = ClientUI.class.getResource("UserLoginUIView.fxml");
+        // Load Server Settings view first
+        URL fxmlLocation = ClientUI.class.getResource("ServerSettingsUI.fxml");
         System.out.println("FXML URL = " + fxmlLocation);
 
         if (fxmlLocation == null) {
             throw new IllegalStateException(
-                    "Cannot find UserLoginUIView.fxml. Ensure it is located in the ClientGUI package under src."
+                    "Cannot find ServerSettingsUI.fxml. Ensure it is located in the ClientGUI package under src."
             );
         }
 
         FXMLLoader loader = new FXMLLoader(fxmlLocation);
         Parent root = loader.load();
 
-        primaryStage.setTitle("Bistro – User Login");
+        primaryStage.setTitle("Bistro – Server Settings");
         primaryStage.setScene(new Scene(root));
+        primaryStage.setResizable(false);
         primaryStage.show();
-    }
-
-    /**
-     * Initializes the shared {@link ChatClient} connection if not already initialized.
-     *
-     * <p>The {@link ClientUIController} acts as the {@link ChatIF} router that receives
-     * all server messages via {@link ChatIF#display(String)}.
-     */
-    private void initClientConnection() {
-        if (chat != null) return;
-
-        try {
-            chat = new ChatClient("localhost", 5555, new ClientMessageRouter());
-            chat.openConnection();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            Platform.runLater(() -> {
-                System.out.println("ERROR: Could not connect to server.");
-            });
-        }
     }
 
     /**

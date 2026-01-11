@@ -27,9 +27,8 @@ public class ReportsUIController {
     @FXML private DatePicker startDatePicker;
     @FXML private DatePicker endDatePicker;
     @FXML private PieChart reservationStatusChart;
-    @FXML private BarChart<String, Number> guestStatsChart;
+    @FXML private LineChart<String, Number> guestStatsChart;
     @FXML private LineChart<String, Number> timeDistributionChart;
-    @FXML private AreaChart<String, Number> waitingListChart;
     @FXML private Label totalReservationsLabel;
     @FXML private Label expiredReservationsLabel;
     @FXML private Label confirmedReservationsLabel;
@@ -45,8 +44,15 @@ public class ReportsUIController {
         startDatePicker.setValue(today.minusDays(30));
         endDatePicker.setValue(today);
 
-        // Load initial reports
-        loadReports();
+        // Defer initial reports load to allow UI to fully initialize
+        Platform.runLater(() -> {
+            try {
+                Thread.sleep(500); // Small delay to ensure connection is ready
+                loadReports();
+            } catch (InterruptedException e) {
+                System.err.println("Interrupted while loading reports: " + e.getMessage());
+            }
+        });
     }
 
     @FXML
@@ -112,132 +118,234 @@ public class ReportsUIController {
         LocalDate startDate = startDatePicker.getValue();
         LocalDate endDate = endDatePicker.getValue();
 
+        // Validate dates
+        if (startDate == null || endDate == null) {
+            showAlert(Alert.AlertType.WARNING, "Warning", "Please select valid dates");
+            return;
+        }
+
+        if (startDate.isAfter(endDate)) {
+            showAlert(Alert.AlertType.WARNING, "Warning", "Start date must be before end date");
+            return;
+        }
+
         // Query server for reservation data
         String request = "#GET_REPORTS_DATA " + startDate + " " + endDate;
-        ClientUI.chat.handleMessageFromClientUI(request);
+        
+        try {
+            if (ClientUI.chat == null || !ClientUI.chat.isConnected()) {
+                showAlert(Alert.AlertType.ERROR, "Connection Error", "Not connected to server. Please check your connection and try again.");
+                return;
+            }
 
-        // For now, use demo data
-        loadDemoData(startDate, endDate);
+            System.out.println("Sending report request: " + request);
+            ClientUI.chat.handleMessageFromClientUI(request);
+            
+            // Wait for response from server (with reasonable timeout)
+            String response = null;
+            try {
+                response = ClientUI.chat.waitForMessage();
+                System.out.println("Received response: " + (response != null ? response.substring(0, Math.min(100, response.length())) + "..." : "null"));
+            } catch (Exception timeout) {
+                response = null;
+                System.err.println("Timeout waiting for server response: " + timeout.getMessage());
+            }
+            
+            if (response != null && response.startsWith("REPORTS_DATA|")) {
+                System.out.println("Successfully received REPORTS_DATA from server");
+                parseReportsData(response, startDate, endDate);
+                showAlert(Alert.AlertType.INFORMATION, "Success", "Reports loaded successfully from database!");
+            } else if (response != null && response.startsWith("ERROR|")) {
+                String errorMsg = response.substring(6);
+                System.err.println("Server returned error: " + errorMsg);
+                showAlert(Alert.AlertType.ERROR, "Database Error", "Failed to retrieve data: " + errorMsg);
+            } else {
+                System.err.println("Invalid response from server: " + response);
+                showAlert(Alert.AlertType.ERROR, "Server Error", "Invalid response from server. Response was: " + (response != null ? response : "NULL"));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Exception in loadReports: " + e.getMessage());
+            showAlert(Alert.AlertType.ERROR, "Error", "Failed to load reports: " + e.getMessage());
+        }
     }
+    
+    /**
+     * Parses the reports data response from the server.
+     * Format: REPORTS_DATA|STATS:total,confirmed,arrived,late,expired,totalGuests|TIME_DIST:hour,count;hour,count|WAITING:date,waiting,served;date,waiting,served
+     */
+    private void parseReportsData(String response, LocalDate startDate, LocalDate endDate) {
+        try {
+            reportData = new ReportData();
+            reportData.startDate = startDate;
+            reportData.endDate = endDate;
 
-    private void loadDemoData(LocalDate startDate, LocalDate endDate) {
-        reportData = new ReportData();
+            String data = response.substring("REPORTS_DATA|".length());
+            String[] sections = data.split("\\|");
 
-        // Demo data - in production this would come from the server
-        reportData.totalReservations = 15;
-        reportData.confirmedCount = 8;
-        reportData.arrivedCount = 0;  // Will be populated in future
-        reportData.lateCount = 0;     // Will be populated in future
-        reportData.expiredReservations = 5;
-        reportData.totalGuests = 45;
-        reportData.startDate = startDate;
-        reportData.endDate = endDate;
+            // Parse STATS section
+            if (sections.length > 0 && sections[0].startsWith("STATS:")) {
+                String statsData = sections[0].substring("STATS:".length());
+                String[] stats = statsData.split(",");
+                reportData.totalReservations = Integer.parseInt(stats[0]);
+                reportData.confirmedCount = Integer.parseInt(stats[1]);
+                reportData.arrivedCount = Integer.parseInt(stats[2]);
+                reportData.lateCount = Integer.parseInt(stats[3]);
+                reportData.expiredReservations = Integer.parseInt(stats[4]);
+                reportData.totalGuests = Integer.parseInt(stats[5]);
+            }
 
-        updateUI();
+            // Parse TIME_DIST
+            reportData.timeDistribution = new java.util.TreeMap<>();
+            if (sections.length > 1 && sections[1].startsWith("TIME_DIST:")) {
+                String timeData = sections[1].substring("TIME_DIST:".length());
+                if (!timeData.isEmpty()) {
+                    for (String pair : timeData.split(";")) {
+                        String[] kv = pair.split(",");
+                        if (kv.length == 2) {
+                            reportData.timeDistribution.put(Integer.parseInt(kv[0]), Integer.parseInt(kv[1]));
+                        }
+                    }
+                }
+            }
+
+            // Parse WAITING
+            reportData.waitingListData = new java.util.ArrayList<>();
+            if (sections.length > 2 && sections[2].startsWith("WAITING:")) {
+                String waitingData = sections[2].substring("WAITING:".length());
+                if (!waitingData.isEmpty()) {
+                    for (String row : waitingData.split(";")) {
+                        String[] parts = row.split(",");
+                        if (parts.length == 3) {
+                            WaitingListEntry entry = new WaitingListEntry();
+                            entry.date = parts[0];
+                            entry.waitingCount = Integer.parseInt(parts[1]);
+                            entry.servedCount = Integer.parseInt(parts[2]);
+                            reportData.waitingListData.add(entry);
+                        }
+                    }
+                }
+            }
+
+            updateUI();
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert(Alert.AlertType.ERROR, "Error", "Failed to parse reports data: " + e.getMessage());
+        }
     }
 
     private void updateUI() {
         Platform.runLater(() -> {
-            // Update summary labels
-            totalReservationsLabel.setText(String.valueOf(reportData.totalReservations));
-            expiredReservationsLabel.setText(String.valueOf(reportData.expiredReservations));
-            confirmedReservationsLabel.setText(String.valueOf(reportData.confirmedCount));
-            totalGuestsLabel.setText(String.valueOf(reportData.totalGuests));
+            // Update summary labels to reflect only Subscriber data
+            totalReservationsLabel.setText("Total Subscriber Reservations: " + reportData.totalReservations);
+            expiredReservationsLabel.setText("Expired: " + reportData.expiredReservations);
+            confirmedReservationsLabel.setText("Confirmed: " + reportData.confirmedCount);
+            totalGuestsLabel.setText("Subscriber Guests: " + reportData.totalGuests);
 
-            // Update Pie Chart - Reservation Status
-            ObservableList<PieChart.Data> pieData = FXCollections.observableArrayList(
-                    new PieChart.Data("Confirmed", reportData.confirmedCount),
-                    new PieChart.Data("Arrived", reportData.arrivedCount),
-                    new PieChart.Data("Late", reportData.lateCount),
-                    new PieChart.Data("Expired", reportData.expiredReservations)
-            );
+            // Pie chart with per-status slices (Subscribers only)
+            ObservableList<PieChart.Data> pieData = FXCollections.observableArrayList();
+            pieData.add(new PieChart.Data("Confirmed", reportData.confirmedCount));
+            pieData.add(new PieChart.Data("Arrived", reportData.arrivedCount));
+            pieData.add(new PieChart.Data("Late", reportData.lateCount));
+            pieData.add(new PieChart.Data("Expired", reportData.expiredReservations));
             reservationStatusChart.setData(pieData);
-            reservationStatusChart.setTitle("Reservation Status Distribution");
+            reservationStatusChart.setTitle("Subscriber Reservation Status Distribution");
 
-            // Update Bar Chart - Guest Statistics
-            XYChart.Series<String, Number> guestSeries = new XYChart.Series<>();
-            guestSeries.setName("Number of Guests");
-            guestSeries.getData().add(new XYChart.Data<>("Total Guests", reportData.totalGuests));
-            guestSeries.getData().add(new XYChart.Data<>("Avg per Reservation", 
-                    reportData.totalReservations > 0 ? reportData.totalGuests / reportData.totalReservations : 0));
-            guestSeries.getData().add(new XYChart.Data<>("Confirmed Guests", 
-                    reportData.confirmedCount > 0 ? reportData.totalGuests : 0));
+            // Line chart: daily guest statistics (Subscribers only)
+            updateGuestStatsChart();
 
-            guestStatsChart.getData().clear();
-            guestStatsChart.getData().add(guestSeries);
-
-            // Update Line Chart - Time Distribution of Reservations
+            // Time distribution chart (Subscribers only)
             updateTimeDistributionChart();
-
-            // Update Area Chart - Waiting List Statistics
-            updateWaitingListChart();
         });
+    }
+
+    private void updateGuestStatsChart() {
+        guestStatsChart.getData().clear();
+        
+        // We need to aggregate data by date
+        // Create a map of date -> (totalGuests, reservationCount, waitingCount)
+        Map<String, DailyStats> dailyStatsMap = new TreeMap<>();
+        
+        // Get date range
+        LocalDate start = reportData.startDate;
+        LocalDate end = reportData.endDate;
+        
+        // Initialize all dates in range with zero values
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            dailyStatsMap.put(date.toString(), new DailyStats());
+        }
+        
+        // Populate waiting list data from server response
+        if (reportData.waitingListData != null) {
+            for (WaitingListEntry entry : reportData.waitingListData) {
+                DailyStats stats = dailyStatsMap.get(entry.date);
+                if (stats != null) {
+                    stats.waitingCount = entry.waitingCount;
+                }
+            }
+        }
+        
+        // Note: We don't have per-day reservation counts from server yet
+        // For now, we'll show total/average across the period
+        // In a future enhancement, you could request daily reservation counts from server
+        
+        // Create three series for the line chart
+        XYChart.Series<String, Number> waitingSeries = new XYChart.Series<>();
+        waitingSeries.setName("Waiting List");
+        
+        // Add data points
+        for (Map.Entry<String, DailyStats> entry : dailyStatsMap.entrySet()) {
+            String dateStr = entry.getKey();
+            DailyStats stats = entry.getValue();
+            waitingSeries.getData().add(new XYChart.Data<>(dateStr, stats.waitingCount));
+        }
+        
+        guestStatsChart.getData().addAll(waitingSeries);
+        guestStatsChart.setTitle("Daily Subscriber Statistics");
+    }
+    
+    // Helper class to hold daily statistics
+    private static class DailyStats {
+        int totalGuests = 0;
+        int reservationCount = 0;
+        int waitingCount = 0;
     }
 
     private void updateTimeDistributionChart() {
         XYChart.Series<String, Number> timeSeries = new XYChart.Series<>();
-        timeSeries.setName("Reservations by Time");
+        timeSeries.setName("Subscriber Reservations by Time");
 
-        // Demo data for time slots throughout the day
-        String[] timeSlots = {"09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", 
-                              "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"};
-        int[] reservationCounts = {1, 2, 3, 5, 7, 8, 6, 4, 3, 9, 11, 8, 5, 2};
-
-        for (int i = 0; i < timeSlots.length; i++) {
-            timeSeries.getData().add(new XYChart.Data<>(timeSlots[i], reservationCounts[i]));
+        if (reportData.timeDistribution != null && !reportData.timeDistribution.isEmpty()) {
+            // Use real data from database (Subscribers only)
+            for (java.util.Map.Entry<Integer, Integer> entry : reportData.timeDistribution.entrySet()) {
+                int hour = entry.getKey();
+                int count = entry.getValue();
+                String timeLabel = String.format("%02d:00", hour);
+                timeSeries.getData().add(new XYChart.Data<>(timeLabel, count));
+            }
         }
 
         timeDistributionChart.getData().clear();
         timeDistributionChart.getData().add(timeSeries);
-        timeDistributionChart.setTitle("Peak Reservation Times");
-    }
-
-    private void updateWaitingListChart() {
-        // Create two series for waiting list data
-        XYChart.Series<String, Number> waitingCountSeries = new XYChart.Series<>();
-        waitingCountSeries.setName("Waiting Count");
-
-        XYChart.Series<String, Number> servedCountSeries = new XYChart.Series<>();
-        servedCountSeries.setName("Served");
-
-        // Demo data for each day of the month
-        String[] dates = {"Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "Day 8", 
-                         "Day 9", "Day 10", "Day 11", "Day 12", "Day 13", "Day 14", "Day 15",
-                         "Day 16", "Day 17", "Day 18", "Day 19", "Day 20", "Day 21", "Day 22",
-                         "Day 23", "Day 24", "Day 25", "Day 26", "Day 27", "Day 28", "Day 29", "Day 30"};
-        
-        int[] waitingCounts = {2, 3, 5, 2, 4, 6, 3, 5, 4, 7, 2, 5, 8, 3, 4,
-                               6, 5, 7, 3, 4, 5, 2, 6, 4, 3, 5, 7, 2, 4, 3};
-        
-        int[] servedCounts = {5, 6, 7, 5, 8, 9, 6, 7, 8, 10, 6, 8, 11, 7, 8,
-                             9, 8, 10, 6, 7, 8, 5, 9, 7, 6, 8, 10, 5, 7, 6};
-
-        for (int i = 0; i < dates.length; i++) {
-            waitingCountSeries.getData().add(new XYChart.Data<>(dates[i], waitingCounts[i]));
-            servedCountSeries.getData().add(new XYChart.Data<>(dates[i], servedCounts[i]));
-        }
-
-        waitingListChart.getData().clear();
-        waitingListChart.getData().add(waitingCountSeries);
-        waitingListChart.getData().add(servedCountSeries);
-        waitingListChart.setTitle("Monthly Waiting List & Service Statistics");
+        timeDistributionChart.setTitle("Peak Subscriber Reservation Times");
     }
 
     private void generateCsvReport() throws Exception {
-        String filename = "Bistro_Report_" + LocalDate.now() + ".csv";
+        String filename = "Bistro_Subscriber_Report_" + LocalDate.now() + ".csv";
         try (FileWriter writer = new FileWriter(filename)) {
             // Write header
-            writer.write("BISTRO RESERVATION REPORT\n");
+            writer.write("BISTRO SUBSCRIBER RESERVATION REPORT\n");
             writer.write("Date Range: " + reportData.startDate + " to " + reportData.endDate + "\n\n");
             
             // Write summary
-            writer.write("SUMMARY\n");
-            writer.write("Total Reservations," + reportData.totalReservations + "\n");
+            writer.write("SUMMARY (SUBSCRIBERS ONLY)\n");
+            writer.write("Total Subscriber Reservations," + reportData.totalReservations + "\n");
             writer.write("Confirmed Reservations," + reportData.confirmedCount + "\n");
             writer.write("Arrived Reservations," + reportData.arrivedCount + "\n");
             writer.write("Late Reservations," + reportData.lateCount + "\n");
             writer.write("Expired Reservations," + reportData.expiredReservations + "\n");
-            writer.write("Total Guests," + reportData.totalGuests + "\n");
+            // Removed Completed and Canceled lines due to reverted protocol
+            writer.write("Total Subscriber Guests," + reportData.totalGuests + "\n");
             
             if (reportData.totalReservations > 0) {
                 double avgGuests = (double) reportData.totalGuests / reportData.totalReservations;
@@ -245,31 +353,24 @@ public class ReportsUIController {
             }
             
             // Write time distribution data
-            writer.write("\nTIME DISTRIBUTION - Peak Reservation Times\n");
+            writer.write("\nTIME DISTRIBUTION - Peak Subscriber Reservation Times\n");
             writer.write("Time Slot,Number of Reservations\n");
-            String[] timeSlots = {"09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", 
-                                  "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"};
-            int[] reservationCounts = {1, 2, 3, 5, 7, 8, 6, 4, 3, 9, 11, 8, 5, 2};
-            for (int i = 0; i < timeSlots.length; i++) {
-                writer.write(timeSlots[i] + "," + reservationCounts[i] + "\n");
+            
+            if (reportData.timeDistribution != null && !reportData.timeDistribution.isEmpty()) {
+                for (java.util.Map.Entry<Integer, Integer> entry : reportData.timeDistribution.entrySet()) {
+                    String timeSlot = String.format("%02d:00", entry.getKey());
+                    writer.write(timeSlot + "," + entry.getValue() + "\n");
+                }
             }
             
             // Write waiting list data
-            writer.write("\nMONTHLY WAITING LIST & SERVICE STATISTICS\n");
-            writer.write("Day,Waiting Count,Served\n");
-            String[] dates = {"Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "Day 8", 
-                             "Day 9", "Day 10", "Day 11", "Day 12", "Day 13", "Day 14", "Day 15",
-                             "Day 16", "Day 17", "Day 18", "Day 19", "Day 20", "Day 21", "Day 22",
-                             "Day 23", "Day 24", "Day 25", "Day 26", "Day 27", "Day 28", "Day 29", "Day 30"};
+            writer.write("\nWAITING LIST & SERVICE STATISTICS\n");
+            writer.write("Date,Waiting Count,Served\n");
             
-            int[] waitingCounts = {2, 3, 5, 2, 4, 6, 3, 5, 4, 7, 2, 5, 8, 3, 4,
-                                   6, 5, 7, 3, 4, 5, 2, 6, 4, 3, 5, 7, 2, 4, 3};
-            
-            int[] servedCounts = {5, 6, 7, 5, 8, 9, 6, 7, 8, 10, 6, 8, 11, 7, 8,
-                                 9, 8, 10, 6, 7, 8, 5, 9, 7, 6, 8, 10, 5, 7, 6};
-
-            for (int i = 0; i < dates.length; i++) {
-                writer.write(dates[i] + "," + waitingCounts[i] + "," + servedCounts[i] + "\n");
+            if (reportData.waitingListData != null && !reportData.waitingListData.isEmpty()) {
+                for (WaitingListEntry entry : reportData.waitingListData) {
+                    writer.write(entry.date + "," + entry.waitingCount + "," + entry.servedCount + "\n");
+                }
             }
         }
 
@@ -292,7 +393,16 @@ public class ReportsUIController {
         int lateCount;
         int expiredReservations;
         int totalGuests;
-        LocalDate startDate;
-        LocalDate endDate;
+        java.time.LocalDate startDate;
+        java.time.LocalDate endDate;
+        java.util.Map<Integer, Integer> timeDistribution;
+        java.util.List<WaitingListEntry> waitingListData;
+    }
+    
+    // Inner class to hold waiting list entry data
+    private static class WaitingListEntry {
+        String date;
+        int waitingCount;
+        int servedCount;
     }
 }

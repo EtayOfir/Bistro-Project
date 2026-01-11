@@ -195,13 +195,13 @@ public final class SQLQueries {
 
     /**
      * Marks expired reservations as 'Expired' instead of deleting them.
-     * A reservation is considered expired if the reservation time has passed by more than 30 minutes
+     * A reservation is considered expired if the reservation time has passed by more than 15 minutes
      * and it hasn't been canceled or completed.
      */
     public static final String MARK_EXPIRED_RESERVATIONS = 
         "UPDATE ActiveReservations SET Status = 'Expired' " +
         "WHERE Status = 'Confirmed' " +
-        "AND (UNIX_TIMESTAMP(CONCAT_WS(' ', ReservationDate, ReservationTime)) + 1800) < UNIX_TIMESTAMP(NOW())";
+        "AND (UNIX_TIMESTAMP(CONCAT_WS(' ', ReservationDate, ReservationTime)) + 900) < UNIX_TIMESTAMP(NOW())";
     
     // WaitingList
     
@@ -301,7 +301,7 @@ public final class SQLQueries {
             "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
             "ReservationDate AS order_date, ReservationTime AS order_time, " +
             "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
-            "Status " +
+            "Status, CustomerType " +
             "FROM ActiveReservations " +
             "WHERE ReservationID = ?";
 
@@ -337,7 +337,7 @@ public final class SQLQueries {
             "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
             "ReservationDate AS order_date, ReservationTime AS order_time, " +
             "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
-            "Status " +
+            "Status, CustomerType " +
             "FROM ActiveReservations " +
             "WHERE SubscriberID = ?";
     
@@ -438,17 +438,17 @@ public final class SQLQueries {
 
     // Reports Queries
     
-    /** Get reservation statistics for a date range. */
+    /** Get reservation statistics for a date range (Subscribers only). */
     public static final String GET_RESERVATION_STATS_BY_DATE_RANGE =
             "SELECT " +
-            "COUNT(*) as TotalReservations, " +
-            "SUM(CASE WHEN Status = 'Confirmed' THEN 1 ELSE 0 END) as ConfirmedCount, " +
-            "SUM(CASE WHEN Status = 'Arrived' THEN 1 ELSE 0 END) as ArrivedCount, " +
-            "SUM(CASE WHEN Status = 'Late' THEN 1 ELSE 0 END) as LateCount, " +
-            "SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END) as ExpiredCount, " +
-            "SUM(NumOfDiners) as TotalGuests " +
+            "COUNT(CASE WHEN Status != 'Canceled' AND CustomerType = 'Subscriber' THEN 1 END) as TotalReservations, " +
+            "SUM(CASE WHEN Status = 'Confirmed' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as ConfirmedCount, " +
+            "SUM(CASE WHEN Status = 'Arrived' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as ArrivedCount, " +
+            "SUM(CASE WHEN Status = 'Late' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as LateCount, " +
+            "SUM(CASE WHEN Status = 'Expired' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as ExpiredCount, " +
+            "SUM(CASE WHEN Status != 'Canceled' AND CustomerType = 'Subscriber' THEN NumOfDiners ELSE 0 END) as TotalGuests " +
             "FROM ActiveReservations " +
-            "WHERE ReservationDate >= ? AND ReservationDate <= ?";
+            "WHERE ReservationDate >= ? AND ReservationDate <= ? AND CustomerType = 'Subscriber'";
 
     /** Get detailed reservations for export. */
     public static final String GET_DETAILED_RESERVATIONS_BY_DATE_RANGE =
@@ -458,16 +458,16 @@ public final class SQLQueries {
             "WHERE ReservationDate >= ? AND ReservationDate <= ? " +
             "ORDER BY ReservationDate DESC, ReservationTime DESC";
 
-    /** Get reservation count grouped by time for time distribution analysis. */
+    /** Get reservation count grouped by time for time distribution analysis (Subscribers only). */
     public static final String GET_RESERVATION_TIME_DISTRIBUTION =
             "SELECT HOUR(ReservationTime) as Hour, COUNT(*) as ReservationCount " +
             "FROM ActiveReservations " +
             "WHERE ReservationDate >= ? AND ReservationDate <= ? " +
-            "AND Status IN ('Confirmed', 'Expired', 'Arrived', 'Late') " +
+            "AND CustomerType = 'Subscriber' " +
             "GROUP BY HOUR(ReservationTime) " +
             "ORDER BY Hour ASC";
 
-    /** Get waiting list count grouped by date for monthly overview. */
+    /** Get waiting list count grouped by date for overview. */
     public static final String GET_WAITING_LIST_BY_DATE =
             "SELECT DATE(EntryTime) as EntryDate, COUNT(*) as WaitingCount, " +
             "SUM(CASE WHEN Status = 'Served' THEN 1 ELSE 0 END) as ServedCount " +

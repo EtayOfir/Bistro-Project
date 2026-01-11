@@ -49,7 +49,7 @@ public class SubscriberDAO {
     /**
      * Inserts a new subscriber and returns generated SubscriberID, or -1 on failure.
      */
-    public int insert(String fullName, String phone, String email, String userName, String qrCode, String role)
+    public int insert(String fullName, String phone, String email, String userName, String qrCode)
             throws SQLException {
 
         try (Connection conn = dataSource.getConnection();
@@ -60,7 +60,6 @@ public class SubscriberDAO {
             ps.setString(3, email == null ? "" : email);
             ps.setString(4, userName == null ? "" : userName);
             ps.setString(5, qrCode == null ? "" : qrCode);
-            ps.setString(6, role == null ? "" : role);
 
             int updated = ps.executeUpdate();
             if (updated != 1) return -1;
