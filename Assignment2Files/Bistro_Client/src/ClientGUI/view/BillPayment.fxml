@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="ClientGUI.controller.BillPaymentController"
+      spacing="10">
+    
+    <padding>
+        <Insets top="16" right="16" bottom="16" left="16"/>
+    </padding>
+
+    <Label text="Bill Payment" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+
+    <HBox spacing="10">
+        <Label text="Confirmation Code:"/>
+        <TextField fx:id="codeField" prefWidth="180"/>
+        <Button text="Load Bill" onAction="#onLoadBill"/>
+    </HBox>
+
+    <GridPane hgap="10" vgap="8">
+        <columnConstraints>
+            <ColumnConstraints minWidth="120"/>
+            <ColumnConstraints hgrow="ALWAYS"/>
+        </columnConstraints>
+
+        <Label text="Diners:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+        <Label fx:id="dinersLabel" text="-" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+        <Label text="Subtotal:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <Label fx:id="subtotalLabel" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+        <Label text="Discount:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <Label fx:id="discountLabel" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+        <Label text="Total:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+        <Label fx:id="totalLabel" text="-" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+    </GridPane>
+
+    <HBox spacing="10">
+        <Label text="Payment Method:"/>
+        <ComboBox fx:id="methodCombo" prefWidth="180"/>
+        <Button text="Pay" onAction="#onPay"/>
+    </HBox>
+
+    <TextArea fx:id="resultArea" editable="false" wrapText="true" prefRowCount="8"/>
+
+    <Separator/>
+    
+    <HBox alignment="CENTER" spacing="20">
+        <Button text="Back" onAction="#onBack" 
+                style="-fx-background-color: #e5e7eb; -fx-text-fill: black; -fx-min-width: 80;"/>
+                
+        <Button text="Exit" onAction="#onExit" 
+                style="-fx-background-color: #ef4444; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 80;"/>
+    </HBox>
+
+</VBox>

@@ -95,7 +95,7 @@
                         <Font size="13.0" />
                      </font>
                   </Label>
-                  <TextArea fx:id="serverLogTextArea" editable="false" style="-fx-font-family: 'Courier New'; -fx-font-size: 10; -fx-control-inner-background: #f5f5f5; -fx-text-fill: black;" wrapText="true" VBox.vgrow="ALWAYS" />
+                  <TextArea fx:id="serverLogTextArea" editable="false" style="-fx-font-family: 'Courier New'; -fx-font-size: 16; -fx-control-inner-background: #f5f5f5; -fx-text-fill: black;" wrapText="true" VBox.vgrow="ALWAYS" />
                </children>
                <VBox.vgrow>ALWAYS</VBox.vgrow>
             </VBox>
