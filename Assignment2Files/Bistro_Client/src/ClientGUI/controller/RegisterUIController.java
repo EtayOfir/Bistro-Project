@@ -23,7 +23,7 @@ public class RegisterUIController {
     @FXML private TextField phoneField;
     @FXML private TextField emailField;
     @FXML private TextField usernameField;
-    @FXML private PasswordField passwordField;   // ✅ NEW
+    @FXML private PasswordField passwordField;
     @FXML private ComboBox<String> roleCombo;
     @FXML private Label statusLabel;
 

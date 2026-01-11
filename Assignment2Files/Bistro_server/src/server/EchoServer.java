@@ -223,33 +223,61 @@ public class EchoServer extends AbstractServer {
                         ans = "REGISTER_ERROR|BAD_FORMAT";
                         break;
                     }
-                    String[] p = parts[1].split("\\|", -1);
-                    if (p.length < 7) {
-                        ans = "REGISTER_ERROR|BAD_FORMAT_PAYLOAD";
+
+                    if (subscriberDAO == null) {
+                        ans = "REGISTER_ERROR|DB_POOL_NOT_READY";
                         break;
                     }
-                    try {
-                        String creatorRole = p[0].trim();
-                        String fullName = p[1].trim();
-                        String phone = p[2].trim();
-                        String email = p[3].trim();
-                        String userName = p[4].trim();
-                        String password = p[5].trim();
-                        String targetRole = p[6].trim();
 
-                        if (subscriberDAO.getByUsername(userName) != null) {
+                    String[] p = parts[1].split("\\|", -1);
+                    if (p.length < 7) {
+                        ans = "REGISTER_ERROR|BAD_FORMAT";
+                        break;
+                    }
+
+                    String creatorRole = p[0].trim();
+                    String fullName    = p[1].trim();
+                    String phone       = p[2].trim();
+                    String email       = p[3].trim();
+                    String userName    = p[4].trim();
+                    String password    = p[5].trim();
+                    String targetRole  = p[6].trim();
+
+                    if (fullName.isEmpty() || phone.isEmpty() || email.isEmpty()
+                            || userName.isEmpty() || password.isEmpty() || targetRole.isEmpty()) {
+                        ans = "REGISTER_ERROR|MISSING_FIELDS";
+                        break;
+                    }
+
+                    try {
+                        Subscriber existing = subscriberDAO.getByUsername(userName);
+                        if (existing != null) {
                             ans = "REGISTER_ERROR|USERNAME_TAKEN";
-                        } else {
-                            int newId = subscriberDAO.insert(fullName, phone, email, userName, password, targetRole);
-                            ans = (newId > 0) ? "REGISTER_OK|" + newId : "REGISTER_ERROR|FAILED";
+                            break;
                         }
+
+                        Subscriber newSub = new Subscriber();
+                        newSub.setFullName(fullName);
+                        newSub.setPhoneNumber(phone);
+                        newSub.setEmail(email);
+                        newSub.setUserName(userName);
+                        newSub.setPassword(password);
+                        newSub.setRole(targetRole);
+
+                        Subscriber created = subscriberDAO.register(newSub, creatorRole);
+
+                        if (created != null && created.getSubscriberId() > 0) {
+                            ans = "REGISTER_OK|" + created.getSubscriberId();
+                        } else {
+                            ans = "REGISTER_ERROR|FAILED";
+                        }
+
                     } catch (Exception e) {
                         e.printStackTrace();
                         ans = "REGISTER_ERROR|EXCEPTION";
                     }
                     break;
                 }
-
                 case "#GET_RESERVATION": {
                     try {
                         int resId = Integer.parseInt(parts[1]);

@@ -45,7 +45,7 @@ public class SubscriberDAO {
             ps.setString(3, email == null ? "" : email);
             ps.setString(4, userName == null ? "" : userName);
             ps.setString(5, qrCode == null ? "" : qrCode);
-            ps.setString(6, role == null ? "Subscriber" : role);
+            ps.setString(6, role == null ? "" : role);
 
             int updated = ps.executeUpdate();
             if (updated != 1) return -1;
@@ -71,4 +71,57 @@ public class SubscriberDAO {
             }
         }
     }
+    
+    public Subscriber register(Subscriber newSub, String creatorRole) {
+	    // Representative can only create Subscribers
+	    if ("Representative".equalsIgnoreCase(creatorRole)) {
+	        newSub.setRole("Subscriber");
+	    }
+
+	    // Manager can create Manager / Representative / Subscriber
+	    if ("Manager".equalsIgnoreCase(creatorRole)) {
+	        String r = newSub.getRole();
+	        boolean ok = "Manager".equalsIgnoreCase(r)
+	                  || "Representative".equalsIgnoreCase(r)
+	                  || "Subscriber".equalsIgnoreCase(r);
+	        if (!ok) return null;
+	    }
+
+	    // If someone else tries (optional)
+	    if (!"Manager".equalsIgnoreCase(creatorRole) && !"Representative".equalsIgnoreCase(creatorRole)) {
+	        return null;
+	    }
+
+	    String qr = "qr_" + newSub.getFullName().trim().replaceAll("\\s+", "_");
+
+	   
+	    try (Connection conn = dataSource.getConnection();
+	         PreparedStatement ps = conn.prepareStatement(SQLQueries.REGISTER_SUBSCRIBER, Statement.RETURN_GENERATED_KEYS)) {
+
+	        ps.setString(1, newSub.getFullName());
+	        ps.setString(2, newSub.getPhoneNumber());
+	        ps.setString(3, newSub.getEmail());
+	        ps.setString(4, newSub.getUserName());
+	        ps.setString(5, newSub.getPassword());
+	        ps.setString(6, qr);                    // qr_<name>
+	        ps.setString(7, newSub.getRole());      // Manager / Representative / Subscriber
+
+	        int rows = ps.executeUpdate();
+	        if (rows == 0) return null;
+
+	        try (ResultSet keys = ps.getGeneratedKeys()) {
+	            if (keys.next()) newSub.setSubscriberId(keys.getInt(1));
+	        }
+
+	        // (Only if you add these fields to Subscriber class)
+	        // newSub.setQRCode(qr);
+
+	        return newSub;
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	        return null;
+	    }
+	}
+    
 }
