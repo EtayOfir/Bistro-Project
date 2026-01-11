@@ -25,19 +25,12 @@ import entities.WaitingEntry;
 
 /**
  * Main TCP server of the Bistro system (Phase 1).
- * <p>
- * This server is responsible for:
- * <ul>
- * <li>Accepting and managing multiple client connections</li>
- * <li>Receiving client commands using a simple text-based protocol</li>
- * <li>Delegating database operations to DAO classes</li>
- * <li>Returning responses to clients in a consistent response format</li>
- * </ul>
+ * Handles client connections, commands, and database interactions.
  */
 public class EchoServer extends AbstractServer {
+
     // Class variables *************************************************
 
-    /** The default port to listen on. */
     final public static int DEFAULT_PORT = 5555;
 
     /** Optional UI controller for logging and client table updates (server GUI). */
@@ -49,14 +42,14 @@ public class EchoServer extends AbstractServer {
     /** Date-time formatter used for connection logging. */
     private DateTimeFormatter dateTimeFormatter;
 
-    /** DAOs used to perform DB operations (uses pooled connections). */
+    /** DAOs used to perform DB operations. */
     private ReservationDAO reservationDAO;
     private BillPaymentDAO billPaymentDAO;
     private WaitingListDAO waitingListDAO;
     private SubscriberDAO subscriberDAO;
     private LoginDAO loginDAO;
 
-    // Managers that subscribed to live waiting-list updates
+    /** Managers that subscribed to live waiting-list updates. */
     private final java.util.Set<ConnectionToClient> waitingListSubscribers = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     // Constructors ****************************************************
@@ -69,26 +62,12 @@ public class EchoServer extends AbstractServer {
 
     // Instance methods ************************************************
 
-    private void ensureClientRemoved(ConnectionToClient client) {
-        if (client == null) return;
-        try {
-            String clientIP = client.getInetAddress().getHostAddress();
-            if (connectedClients.containsKey(client)) {
-                System.out.println("[ENSURE_REMOVE] Client still in map, removing: " + clientIP);
-                removeConnectedClient(client, "Client disconnected (double-check removal)");
-            } else {
-                System.out.println("[ENSURE_REMOVE] Client already removed: " + clientIP);
-            }
-        } catch (Exception e) {
-            System.err.println("ERROR in ensureClientRemoved: " + e.getMessage());
-        }
-    }
-
+    /**
+     * Safely removes a client from the map and updates the UI.
+     */
     private synchronized void removeConnectedClient(ConnectionToClient client, String message) {
-        if (client == null) {
-            System.err.println("ERROR: removeConnectedClient called with null client");
-            return;
-        }
+        if (client == null) return;
+
         try {
             String clientIP = "Unknown";
             try {
@@ -102,13 +81,11 @@ public class EchoServer extends AbstractServer {
             if (removedClient != null) {
                 // Update UI
                 if (uiController != null) {
-                    callUIMethod("addLog", new Class<?>[] { String.class }, new Object[] { message + ": " + removedClient.getClientIP() });
-                    callUIMethod("updateClientCount", new Class<?>[] { int.class }, new Object[] { connectedClients.size() });
-                    callUIMethod("removeClientFromTable", new Class<?>[] { GetClientInfo.class }, new Object[] { removedClient });
+                    callUIMethod("addLog", new Class<?>[]{String.class}, new Object[]{message + ": " + removedClient.getClientIP()});
+                    callUIMethod("updateClientCount", new Class<?>[]{int.class}, new Object[]{connectedClients.size()});
+                    callUIMethod("removeClientFromTable", new Class<?>[]{GetClientInfo.class}, new Object[]{removedClient});
                 }
                 System.out.println("Client removed: " + removedClient.getClientIP());
-            } else {
-                System.out.println("Client reference not found in map, attempting fallback removal...");
             }
         } catch (Exception e) {
             System.err.println("ERROR in removeConnectedClient: " + e.getMessage());
@@ -116,8 +93,18 @@ public class EchoServer extends AbstractServer {
         }
     }
 
-    public Map<ConnectionToClient, GetClientInfo> getConnectedClients() {
-        return connectedClients;
+    /**
+     * Helper to ensure client removal even if connection reference is tricky.
+     */
+    private void ensureClientRemoved(ConnectionToClient client) {
+        if (client == null) return;
+        try {
+            if (connectedClients.containsKey(client)) {
+                removeConnectedClient(client, "Client disconnected (double-check removal)");
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR in ensureClientRemoved: " + e.getMessage());
+        }
     }
 
     public void disconnectClient(ConnectionToClient client) {
@@ -130,14 +117,14 @@ public class EchoServer extends AbstractServer {
         }
     }
 
-    /**
-     * Handles a message received from a client connection.
-     */
+    // Message Handling ************************************************
+
     @Override
     public void handleMessageFromClient(Object msg, ConnectionToClient client) {
         if (msg instanceof String) {
             String message = (String) msg;
 
+            // Handle Identification
             if (message.startsWith("IDENTIFY|")) {
                 String[] parts = message.split("\\|");
                 if (parts.length >= 3) {
@@ -148,7 +135,6 @@ public class EchoServer extends AbstractServer {
                     GetClientInfo info = connectedClients.get(client);
                     if (info != null) {
                         info.setClientName(role + ", " + username);
-
                         if (uiController != null) {
                             uiController.addLog("Client identified: IP=" + clientIP + ", Username=" + username + ", Role=" + role);
                             uiController.refreshClientTable();
@@ -173,11 +159,11 @@ public class EchoServer extends AbstractServer {
             String[] parts = messageStr.trim().split("\\s+");
             String command = (parts.length > 0) ? parts[0] : "";
 
-            // Check if DB is ready
+            // --- Check if DB is ready for specific commands ---
             boolean needsReservationDao = command.equals("#GET_RESERVATION") || command.equals("#UPDATE_RESERVATION")
                     || command.equals("#CREATE_RESERVATION") || command.equals("#GET_RESERVATIONS_BY_DATE")
                     || command.equals("#CANCEL_RESERVATION") || command.equals("#DELETE_EXPIRED_RESERVATIONS")
-                    || command.equals("#RECEIVE_TABLE") || command.equals("#GET_ACTIVE_RESERVATIONS") 
+                    || command.equals("#RECEIVE_TABLE") || command.equals("#GET_ACTIVE_RESERVATIONS")
                     || command.equals("#GET_REPORTS_DATA") || command.equals("#MARK_RESERVATION_EXPIRED");
 
             boolean needsBillDao = command.equals("#GET_BILL") || command.equals("#PAY_BILL");
@@ -185,7 +171,7 @@ public class EchoServer extends AbstractServer {
             boolean needsWaitingDao = command.equals("#ADD_WAITING_LIST") || command.equals("#GET_WAITING_LIST")
                     || command.equals("#SUBSCRIBE_WAITING_LIST") || command.equals("#UPDATE_WAITING_STATUS")
                     || command.equals("#UPDATE_WAITING_ENTRY") || command.equals("#DELETE_WAITING_ID")
-                    || command.equals("#DELETE_WAITING_CODE") || command.equals("#GET_REPORTS_DATA");
+                    || command.equals("#DELETE_WAITING_CODE");
 
             boolean needsSubDao = command.equals("#REGISTER") || command.equals("#GET_ALL_SUBSCRIBERS");
             boolean needsLoginDao = command.equals("#LOGIN");
@@ -199,495 +185,371 @@ public class EchoServer extends AbstractServer {
 
             switch (command) {
 
-            case "#LOGIN": {
-                // Format: #LOGIN <username> <password>
-                if (parts.length < 3) {
-                    ans = "ERROR|BAD_FORMAT_LOGIN";
-                    break;
-                }
-                String username = parts[1];
-                String password = parts[2];
+                case "#LOGIN": {
+                    if (parts.length < 3) {
+                        ans = "ERROR|BAD_FORMAT_LOGIN";
+                        break;
+                    }
+                    String username = parts[1];
+                    String password = parts[2];
+                    String role = loginDAO.identifyUserRole(username, password);
 
-                // 1. Identify Role (Returns String)
-                String role = loginDAO.identifyUserRole(username, password);
-
-                if (role != null) {
-                    // 2. Fetch Subscriber details if applicable
-                    if ("Subscriber".equalsIgnoreCase(role)) {
-                        Subscriber sub = subscriberDAO.getByUsername(username);
-                        if (sub != null) {
-                            // Protocol: LOGIN_SUCCESS|Role|ID|Name
-                            ans = "LOGIN_SUCCESS|" + role + "|" + sub.getSubscriberId() + "|" + sub.getFullName();
+                    if (role != null) {
+                        if ("Subscriber".equalsIgnoreCase(role)) {
+                            Subscriber sub = subscriberDAO.getByUsername(username);
+                            if (sub != null) {
+                                ans = "LOGIN_SUCCESS|" + role + "|" + sub.getSubscriberId() + "|" + sub.getFullName();
+                            } else {
+                                ans = "LOGIN_SUCCESS|" + role + "|0|" + username;
+                            }
                         } else {
-                            // Fallback if data inconsistent
                             ans = "LOGIN_SUCCESS|" + role + "|0|" + username;
                         }
                     } else {
-                        // Manager or Representative (Hardcoded in LoginDAO, no ID)
-                        ans = "LOGIN_SUCCESS|" + role + "|0|" + username;
+                        ans = "LOGIN_FAILED";
                     }
-                    System.out.println("User " + username + " logged in as " + role);
-                } else {
-                    ans = "LOGIN_FAILED";
-                }
-                break;
-            }
-
-            case "#REGISTER": {
-                // Format: #REGISTER creatorRole|FullName|Phone|Email|UserName|Password|TargetRole
-                if (parts.length < 2) {
-                    ans = "REGISTER_ERROR|BAD_FORMAT";
-                    break;
-                }
-                String[] p = parts[1].split("\\|", -1);
-                if (p.length < 7) {
-                    ans = "REGISTER_ERROR|BAD_FORMAT_PAYLOAD";
                     break;
                 }
 
-                String creatorRole = p[0].trim();
-                String fullName    = p[1].trim();
-                String phone       = p[2].trim();
-                String email       = p[3].trim();
-                String userName    = p[4].trim();
-                String password    = p[5].trim();
-                String targetRole  = p[6].trim();
-
-                if (fullName.isEmpty() || phone.isEmpty() || email.isEmpty() ||
-                    userName.isEmpty() || password.isEmpty() || targetRole.isEmpty()) {
-                    ans = "REGISTER_ERROR|MISSING_FIELDS";
-                    break;
-                }
-
-                try {
-                    // Check duplicates
-                    Subscriber existing = subscriberDAO.getByUsername(userName);
-                    if (existing != null) {
-                        ans = "REGISTER_ERROR|USERNAME_TAKEN";
+                case "#REGISTER": {
+                    if (parts.length < 2) {
+                        ans = "REGISTER_ERROR|BAD_FORMAT";
                         break;
                     }
-
-                    // Insert using DAO
-                    // Note: Your SubscriberDAO.insert currently does not take a password parameter.
-                    // Assumes DB default or handled internally.
-                    int newId = subscriberDAO.insert(fullName, phone, email, userName, null, targetRole);
-
-                    if (newId > 0) {
-                        ans = "REGISTER_OK|" + newId;
-                    } else {
-                        ans = "REGISTER_ERROR|FAILED";
+                    String[] p = parts[1].split("\\|", -1);
+                    if (p.length < 7) {
+                        ans = "REGISTER_ERROR|BAD_FORMAT_PAYLOAD";
+                        break;
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    ans = "REGISTER_ERROR|EXCEPTION";
-                }
-                break;
-            }
-
-            case "#GET_RESERVATION": {
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT";
-                    break;
-                }
-                try {
-                    int resId = Integer.parseInt(parts[1]);
-                    Reservation r = reservationDAO.getReservationById(resId);
-                    ans = (r == null) ? "RESERVATION_NOT_FOUND" : reservationToProtocolString(r);
-                } catch (NumberFormatException e) {
-                    ans = "ERROR|INVALID_ID_FORMAT";
-                }
-                break;
-            }
-
-            case "#GET_BILL": {
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT_GET_BILL";
-                    break;
-                }
-                String code = parts[1];
-                BillPaymentDAO.BillDetails b = billPaymentDAO.getBillDetails(code);
-                if (b == null) {
-                    ans = "BILL_NOT_FOUND";
-                } else {
-                    ans = "BILL|" + b.getConfirmationCode() + "|" + b.getDiners() + "|"
-                            + b.getSubtotal().toPlainString() + "|" + b.getDiscountPercent() + "|"
-                            + b.getTotal().toPlainString() + "|" + b.getCustomerType();
-                }
-                break;
-            }
-
-            case "#PAY_BILL": {
-                if (parts.length < 3) {
-                    ans = "ERROR|BAD_FORMAT_PAY_BILL";
-                    break;
-                }
-                String code = parts[1];
-                String method = parts[2];
-                BillPaymentDAO.PaidResult paid = billPaymentDAO.payBill(code, method);
-                if (paid == null) {
-                    ans = "BILL_NOT_FOUND";
-                } else {
-                    ans = "BILL_PAID|" + paid.getConfirmationCode() + "|" + paid.getTotal().toPlainString();
-                }
-                break;
-            }
-
-            case "#GET_RESERVATIONS_BY_DATE": {
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT_DATE";
-                    break;
-                }
-                try {
-                    Date date = Date.valueOf(parts[1]);
-                    java.util.List<Reservation> reservations = reservationDAO.getReservationsByDate(date);
-                    StringBuilder sb = new StringBuilder("RESERVATIONS_FOR_DATE|").append(parts[1]);
-                    for (Reservation r : reservations) {
-                        sb.append("|").append(r.getReservationTime().toString());
-                    }
-                    ans = sb.toString();
-                } catch (Exception e) {
-                    ans = "ERROR|DB_ERROR " + e.getMessage();
-                    e.printStackTrace();
-                }
-                break;
-            }
-
-            case "#CANCEL_RESERVATION": {
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT_CANCEL";
-                    break;
-                }
-                try {
-                    String confirmationCode = parts[1].trim();
-                    Reservation res = reservationDAO.getReservationByConfirmationCode(confirmationCode);
-                    if (res == null) {
-                        ans = "ERROR|RESERVATION_NOT_FOUND";
-                    } else {
-                        boolean canceled = reservationDAO.cancelReservationByConfirmationCode(confirmationCode);
-                        ans = canceled ? "RESERVATION_CANCELED|" + confirmationCode : "ERROR|CANCEL_FAILED";
-                    }
-                } catch (Exception e) {
-                    ans = "ERROR|CANCEL_DB_ERROR " + e.getMessage();
-                }
-                break;
-            }
-
-            case "#UPDATE_RESERVATION": {
-                if (parts.length < 5) {
-                    ans = "ERROR|BAD_FORMAT_UPDATE";
-                    break;
-                }
-                try {
-                    int id = Integer.parseInt(parts[1]);
-                    int guests = Integer.parseInt(parts[2]);
-                    Date date = Date.valueOf(parts[3]);
-                    Time time = Time.valueOf(parts[4]);
-                    boolean updated = reservationDAO.updateReservation(id, guests, date, time);
-                    ans = updated ? "RESERVATION_UPDATED" : "RESERVATION_NOT_FOUND";
-                } catch (Exception e) {
-                    ans = "ERROR|INVALID_DATA_TYPE";
-                }
-                break;
-            }
-
-            case "#CREATE_RESERVATION": {
-                if (parts.length < 6) {
-                    ans = "ERROR|BAD_FORMAT_CREATE";
-                    break;
-                }
-                try {
-                    int numGuests = Integer.parseInt(parts[1]);
-                    Date date = Date.valueOf(parts[2]);
-                    Time time = Time.valueOf(parts[3]);
-                    String confirmationCode = parts[4];
-                    int subscriberId = Integer.parseInt(parts[5]);
-                    String phone = parts.length > 6 ? parts[6] : "";
-                    String email = parts.length > 7 ? parts[7] : "";
-
-                    String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
-                    Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
-                    int generatedId = reservationDAO.insertReservation(newRes, phone, email);
-
-                    ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
-                }
-                break;
-            }
-
-            case "#ADD_WAITING_LIST": {
-                if (parts.length < 4) {
-                    ans = "ERROR|BAD_FORMAT_ADD_WAITING";
-                    break;
-                }
-                try {
-                    int numDiners = Integer.parseInt(parts[1]);
-                    String contactInfo = decodeB64Url(parts[2]);
-                    String confirmationCode = parts[3];
-                    Integer subscriberId = null;
-                    if (parts.length >= 5) {
-                        try { subscriberId = Integer.parseInt(parts[4]); } catch (NumberFormatException ignored) {}
-                    }
-
-                    boolean inserted = waitingListDAO.insert(contactInfo, subscriberId, numDiners, confirmationCode, "Waiting");
-                    ans = inserted ? ("WAITING_ADDED|" + confirmationCode) : "ERROR|INSERT_FAILED";
-                    if (inserted) broadcastWaitingListSnapshot();
-                } catch (Exception e) {
-                    ans = "ERROR|DATA_PARSE_FAILURE";
-                    e.printStackTrace();
-                }
-                break;
-            }
-
-            case "#RECEIVE_TABLE": {
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT";
-                    break;
-                }
-                try {
-                    String code = parts[1];
-                    int tableNum = reservationDAO.allocateTableForCustomer(code);
-                    ans = "TABLE_ASSIGNED|" + tableNum;
-                } catch (Exception e) {
-                    ans = e.getMessage();
-                }
-                break;
-            }
-
-            case "#GET_WAITING_LIST": {
-                try {
-                    ans = buildWaitingListProtocol();
-                } catch (Exception e) {
-                    ans = "ERROR|DB_READ_FAILED";
-                    e.printStackTrace();
-                }
-                break;
-            }
-
-            case "#SUBSCRIBE_WAITING_LIST": {
-                waitingListSubscribers.add(client);
-                try {
-                    ans = buildWaitingListProtocol();
-                } catch (Exception e) {
-                    ans = "ERROR|DB_READ_FAILED";
-                }
-                break;
-            }
-
-            case "#UNSUBSCRIBE_WAITING_LIST": {
-                waitingListSubscribers.remove(client);
-                ans = "UNSUBSCRIBED";
-                break;
-            }
-
-            case "#UPDATE_WAITING_STATUS": {
-                if (parts.length < 3) {
-                    ans = "ERROR|BAD_FORMAT_UPDATE_WAITING_STATUS";
-                    break;
-                }
-                try {
-                    String confirmationCode = parts[1];
-                    String status = parts[2];
-                    boolean updated = waitingListDAO.updateStatusByCode(confirmationCode, status);
-                    ans = updated ? "WAITING_STATUS_UPDATED" : "WAITING_NOT_FOUND";
-                    if (updated) broadcastWaitingListSnapshot();
-                } catch (Exception e) {
-                    ans = "ERROR|DB_UPDATE_FAILED";
-                }
-                break;
-            }
-
-            case "#UPDATE_WAITING_ENTRY": {
-                if (parts.length < 5) {
-                    ans = "ERROR|BAD_FORMAT_UPDATE_WAITING_ENTRY";
-                    break;
-                }
-                try {
-                    int waitingId = Integer.parseInt(parts[1]);
-                    int numDiners = Integer.parseInt(parts[2]);
-                    String contactInfo = decodeB64Url(parts[3]);
-                    String status = parts[4];
-                    boolean updated = waitingListDAO.updateById(waitingId, contactInfo, numDiners, status);
-                    ans = updated ? "WAITING_ENTRY_UPDATED" : "WAITING_NOT_FOUND";
-                    if (updated) broadcastWaitingListSnapshot();
-                } catch (Exception e) {
-                    ans = "ERROR|DATA_PARSE_FAILURE";
-                }
-                break;
-            }
-
-            case "#DELETE_WAITING_ID": {
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT_DELETE_WAITING_ID";
-                    break;
-                }
-                try {
-                    int waitingId = Integer.parseInt(parts[1]);
-                    boolean deleted = waitingListDAO.deleteById(waitingId);
-                    ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
-                    if (deleted) broadcastWaitingListSnapshot();
-                } catch (Exception e) {
-                    ans = "ERROR|DATA_PARSE_FAILURE";
-                }
-                break;
-            }
-                
-            case "#DELETE_WAITING_CODE": {
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT_DELETE_WAITING_CODE";
-                    break;
-                }
-                try {
-                    String confirmationCode = parts[1];
-                    boolean deleted = waitingListDAO.deleteByConfirmationCode(confirmationCode);
-                    ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
-                    if (deleted) broadcastWaitingListSnapshot();
-                } catch (Exception e) {
-                    ans = "ERROR|DB_DELETE_FAILED";
-                }
-                break;
-            }
-
-            case "#MARK_RESERVATION_EXPIRED": {
-                // Format: #MARK_RESERVATION_EXPIRED <reservationId>
-                if (parts.length < 2) {
-                    ans = "ERROR|BAD_FORMAT_MARK_EXPIRED";
-                    break;
-                }
-                try {
-                    int reservationId = Integer.parseInt(parts[1]);
-                    boolean marked = reservationDAO.markSingleReservationExpired(reservationId);
-                    if (marked) {
-                        ans = "MARKED_EXPIRED|" + reservationId;
-                        System.out.println("DEBUG: Marked reservation ID " + reservationId + " as Expired");
-                    } else {
-                        ans = "ERROR|RESERVATION_NOT_FOUND_OR_NOT_CONFIRMED";
-                    }
-                } catch (NumberFormatException e) {
-                    ans = "ERROR|INVALID_RESERVATION_ID";
-                } catch (Exception e) {
-                    System.err.println("ERROR marking single reservation as expired: " + e.getMessage());
-                    e.printStackTrace();
-                    ans = "ERROR|MARK_EXPIRED_FAILED " + e.getMessage();
-                }
-                break;
-            }
-                
-            case "#DELETE_EXPIRED_RESERVATIONS": {
-                try {
-                    int marked = reservationDAO.deleteExpiredReservations();
-                    ans = "DELETED_EXPIRED|" + marked;
-                    System.out.println("DEBUG: Marked " + marked + " expired reservations as Expired");
-                } catch (Exception e) {
-                    ans = "ERROR|DELETE_EXPIRED_FAILED " + e.getMessage();
-                }
-                break;
-            }
-
-            case "#GET_ALL_SUBSCRIBERS": {
-                try {
-                    List<Subscriber> subs = subscriberDAO.getAllSubscribers();
-                    if (subs == null || subs.isEmpty()) {
-                        ans = "SUBSCRIBERS_LIST|EMPTY";
-                    } else {
-                        StringBuilder sb = new StringBuilder("SUBSCRIBERS_LIST|");
-                        for (int i = 0; i < subs.size(); i++) {
-                            Subscriber s = subs.get(i);
-                            sb.append(s.getSubscriberId()).append(",")
-                              .append(s.getFullName()).append(",")
-                              .append(s.getPhoneNumber()).append(",")
-                              .append(s.getEmail()).append(",")
-                              .append(s.getUserName());
-                            if (i < subs.size() - 1) sb.append("~");
-                        }
-                        ans = sb.toString();
-                    }
-                } catch (Exception e) {
-                    ans = "ERROR|DB_FETCH_FAILED " + e.getMessage();
-                }
-                break;
-            }
-
-            case "#GET_ACTIVE_RESERVATIONS": {
-                try {
-                    List<Reservation> list = reservationDAO.getAllActiveReservations();
-                    if (list == null || list.isEmpty()) {
-                        ans = "ACTIVE_RESERVATIONS|EMPTY";
-                    } else {
-                        StringBuilder sb = new StringBuilder("ACTIVE_RESERVATIONS|");
-                        for (int i = 0; i < list.size(); i++) {
-                            Reservation r = list.get(i);
-                            sb.append(r.getReservationId()).append(",")
-                              .append(r.getCustomerType()).append(",")
-                              .append(r.getReservationDate().toString()).append(",")
-                              .append(r.getReservationTime().toString()).append(",")
-                              .append(r.getNumberOfGuests()).append(",")
-                              .append(r.getStatus());
-                            if (i < list.size() - 1) sb.append("~");
-                        }
-                        ans = sb.toString();
-                    }
-                } catch (Exception e) {
-                    ans = "ERROR|DB_FETCH_FAILED";
-                }
-                break;
-            }
-                case "#GET_REPORTS_DATA": {
-                    // Format: #GET_REPORTS_DATA <startDate> <endDate>
-                    // startDate and endDate in format: yyyy-MM-dd
                     try {
-                        if (parts.length < 3) {
-                            ans = "ERROR|BAD_FORMAT_REPORTS_DATA";
-                            break;
+                        String creatorRole = p[0].trim();
+                        String fullName = p[1].trim();
+                        String phone = p[2].trim();
+                        String email = p[3].trim();
+                        String userName = p[4].trim();
+                        String password = p[5].trim();
+                        String targetRole = p[6].trim();
+
+                        if (subscriberDAO.getByUsername(userName) != null) {
+                            ans = "REGISTER_ERROR|USERNAME_TAKEN";
+                        } else {
+                            int newId = subscriberDAO.insert(fullName, phone, email, userName, password, targetRole);
+                            ans = (newId > 0) ? "REGISTER_OK|" + newId : "REGISTER_ERROR|FAILED";
                         }
-                        String startDateStr = parts[1];
-                        String endDateStr = parts[2];
-                        java.sql.Date startDate = java.sql.Date.valueOf(startDateStr);
-                        java.sql.Date endDate = java.sql.Date.valueOf(endDateStr);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        ans = "REGISTER_ERROR|EXCEPTION";
+                    }
+                    break;
+                }
 
-                        java.util.Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(startDate, endDate);
-                        java.util.Map<Integer, Integer> timeDistribution = reservationDAO.getReservationTimeDistribution(startDate, endDate);
-                        java.util.List<java.util.Map<String, Object>> waitingListData = waitingListDAO.getWaitingListByDateRange(startDate, endDate);
+                case "#GET_RESERVATION": {
+                    try {
+                        int resId = Integer.parseInt(parts[1]);
+                        Reservation r = reservationDAO.getReservationById(resId);
+                        ans = (r == null) ? "RESERVATION_NOT_FOUND" : reservationToProtocolString(r);
+                    } catch (Exception e) {
+                        ans = "ERROR|INVALID_ID";
+                    }
+                    break;
+                }
 
-                        StringBuilder sb = new StringBuilder("REPORTS_DATA|");
-                        sb.append("STATS:")
-                          .append(stats.getOrDefault("total", 0)).append(",")
-                          .append(stats.getOrDefault("confirmed", 0)).append(",")
-                          .append(stats.getOrDefault("arrived", 0)).append(",")
-                          .append(stats.getOrDefault("late", 0)).append(",")
-                          .append(stats.getOrDefault("expired", 0)).append(",")
-                          .append(stats.getOrDefault("totalGuests", 0)).append("|");
-
-                        sb.append("TIME_DIST:");
-                        boolean firstTime = true;
-                        for (java.util.Map.Entry<Integer, Integer> entry : timeDistribution.entrySet()) {
-                            if (!firstTime) sb.append(";");
-                            sb.append(entry.getKey()).append(",").append(entry.getValue());
-                            firstTime = false;
+                case "#GET_ACTIVE_RESERVATIONS": {
+                    try {
+                        List<Reservation> list = reservationDAO.getAllActiveReservations();
+                        if (list == null || list.isEmpty()) {
+                            ans = "ACTIVE_RESERVATIONS|EMPTY";
+                        } else {
+                            StringBuilder sb = new StringBuilder("ACTIVE_RESERVATIONS|");
+                            for (int i = 0; i < list.size(); i++) {
+                                Reservation r = list.get(i);
+                                sb.append(r.getReservationId()).append(",")
+                                        .append(r.getCustomerType()).append(",")
+                                        .append(r.getReservationDate().toString()).append(",")
+                                        .append(r.getReservationTime().toString()).append(",")
+                                        .append(r.getNumberOfGuests()).append(",")
+                                        .append(r.getStatus());
+                                if (i < list.size() - 1) sb.append("~");
+                            }
+                            ans = sb.toString();
                         }
-                        sb.append("|");
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_FETCH_FAILED";
+                    }
+                    break;
+                }
 
-                        sb.append("WAITING:");
-                        boolean firstWaiting = true;
-                        for (java.util.Map<String, Object> row : waitingListData) {
-                            if (!firstWaiting) sb.append(";");
-                            Object entryDate = row.get("EntryDate");
-                            Object waitingCount = row.get("WaitingCount");
-                            Object servedCount = row.get("ServedCount");
-                            sb.append(entryDate != null ? entryDate.toString() : "").append(",")
-                              .append(waitingCount != null ? waitingCount.toString() : "0").append(",")
-                              .append(servedCount != null ? servedCount.toString() : "0");
-                            firstWaiting = false;
+                case "#CREATE_RESERVATION": {
+                    try {
+                        int numGuests = Integer.parseInt(parts[1]);
+                        Date date = Date.valueOf(parts[2]);
+                        Time time = Time.valueOf(parts[3]);
+                        String confirmationCode = parts[4];
+                        int subscriberId = Integer.parseInt(parts[5]);
+                        String phone = parts.length > 6 ? parts[6] : "";
+                        String email = parts.length > 7 ? parts[7] : "";
+                        String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
+
+                        Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
+                        int generatedId = reservationDAO.insertReservation(newRes, phone, email);
+                        ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
+                    } catch (Exception e) {
+                        ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
+                    }
+                    break;
+                }
+
+                case "#UPDATE_RESERVATION": {
+                    try {
+                        int id = Integer.parseInt(parts[1]);
+                        int guests = Integer.parseInt(parts[2]);
+                        Date date = Date.valueOf(parts[3]);
+                        Time time = Time.valueOf(parts[4]);
+                        boolean updated = reservationDAO.updateReservation(id, guests, date, time);
+                        ans = updated ? "RESERVATION_UPDATED" : "RESERVATION_NOT_FOUND";
+                    } catch (Exception e) {
+                        ans = "ERROR|INVALID_DATA";
+                    }
+                    break;
+                }
+
+                case "#CANCEL_RESERVATION": {
+                    try {
+                        String code = parts[1].trim();
+                        boolean canceled = reservationDAO.cancelReservationByConfirmationCode(code);
+                        ans = canceled ? "RESERVATION_CANCELED|" + code : "ERROR|CANCEL_FAILED";
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_ERROR";
+                    }
+                    break;
+                }
+
+                case "#GET_RESERVATIONS_BY_DATE": {
+                    try {
+                        Date date = Date.valueOf(parts[1]);
+                        List<Reservation> list = reservationDAO.getReservationsByDate(date);
+                        StringBuilder sb = new StringBuilder("RESERVATIONS_FOR_DATE|").append(parts[1]);
+                        for (Reservation r : list) {
+                            sb.append("|").append(r.getReservationTime().toString());
                         }
-
                         ans = sb.toString();
                     } catch (Exception e) {
-                        ans = "ERROR|REPORTS_DATA_FAILED " + e.getMessage();
+                        ans = "ERROR|DB_ERROR";
+                    }
+                    break;
+                }
+
+                case "#MARK_RESERVATION_EXPIRED": {
+                    try {
+                        int resId = Integer.parseInt(parts[1]);
+                        boolean marked = reservationDAO.markSingleReservationExpired(resId);
+                        ans = marked ? "MARKED_EXPIRED|" + resId : "ERROR|RESERVATION_NOT_FOUND_OR_NOT_CONFIRMED";
+                    } catch (Exception e) {
+                        ans = "ERROR|MARK_EXPIRED_FAILED";
+                    }
+                    break;
+                }
+
+                case "#DELETE_EXPIRED_RESERVATIONS": {
+                    try {
+                        int count = reservationDAO.deleteExpiredReservations();
+                        ans = "DELETED_EXPIRED|" + count;
+                    } catch (Exception e) {
+                        ans = "ERROR|DELETE_FAILED";
+                    }
+                    break;
+                }
+
+                case "#RECEIVE_TABLE": {
+                    try {
+                        int tableNum = reservationDAO.allocateTableForCustomer(parts[1]);
+                        ans = "TABLE_ASSIGNED|" + tableNum;
+                    } catch (Exception e) {
+                        ans = "ERROR|" + e.getMessage();
+                    }
+                    break;
+                }
+
+                // --- WAITING LIST ---
+
+                case "#ADD_WAITING_LIST": {
+                    try {
+                        int diners = Integer.parseInt(parts[1]);
+                        String contact = decodeB64Url(parts[2]);
+                        String code = parts[3];
+                        Integer subId = (parts.length >= 5) ? Integer.parseInt(parts[4]) : null;
+                        boolean added = waitingListDAO.insert(contact, subId, diners, code, "Waiting");
+                        ans = added ? "WAITING_ADDED|" + code : "ERROR|INSERT_FAILED";
+                        if (added) broadcastWaitingListSnapshot();
+                    } catch (Exception e) {
+                        ans = "ERROR|PARSE_FAILURE";
+                    }
+                    break;
+                }
+
+                case "#GET_WAITING_LIST": {
+                    try {
+                        ans = buildWaitingListProtocol();
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_READ_FAILED";
+                    }
+                    break;
+                }
+
+                case "#SUBSCRIBE_WAITING_LIST": {
+                    waitingListSubscribers.add(client);
+                    try {
+                        ans = buildWaitingListProtocol();
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_READ_FAILED";
+                    }
+                    break;
+                }
+
+                case "#UNSUBSCRIBE_WAITING_LIST": {
+                    waitingListSubscribers.remove(client);
+                    ans = "UNSUBSCRIBED";
+                    break;
+                }
+
+                case "#UPDATE_WAITING_STATUS": {
+                    try {
+                        String code = parts[1];
+                        String status = parts[2];
+                        boolean updated = waitingListDAO.updateStatusByCode(code, status);
+                        ans = updated ? "WAITING_STATUS_UPDATED" : "WAITING_NOT_FOUND";
+                        if (updated) broadcastWaitingListSnapshot();
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_UPDATE";
+                    }
+                    break;
+                }
+
+                case "#UPDATE_WAITING_ENTRY": {
+                    try {
+                        int id = Integer.parseInt(parts[1]);
+                        int diners = Integer.parseInt(parts[2]);
+                        String contact = decodeB64Url(parts[3]);
+                        String status = parts[4];
+                        boolean updated = waitingListDAO.updateById(id, contact, diners, status);
+                        ans = updated ? "WAITING_ENTRY_UPDATED" : "WAITING_NOT_FOUND";
+                        if (updated) broadcastWaitingListSnapshot();
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_UPDATE";
+                    }
+                    break;
+                }
+
+                case "#DELETE_WAITING_ID": {
+                    try {
+                        int id = Integer.parseInt(parts[1]);
+                        boolean deleted = waitingListDAO.deleteById(id);
+                        ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
+                        if (deleted) broadcastWaitingListSnapshot();
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_DELETE";
+                    }
+                    break;
+                }
+
+                case "#DELETE_WAITING_CODE": {
+                    try {
+                        String code = parts[1];
+                        boolean deleted = waitingListDAO.deleteByConfirmationCode(code);
+                        ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
+                        if (deleted) broadcastWaitingListSnapshot();
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_DELETE";
+                    }
+                    break;
+                }
+
+                // --- BILLS ---
+
+                case "#GET_BILL": {
+                    String code = parts[1];
+                    BillPaymentDAO.BillDetails b = billPaymentDAO.getBillDetails(code);
+                    if (b == null) ans = "BILL_NOT_FOUND";
+                    else ans = "BILL|" + b.getConfirmationCode() + "|" + b.getDiners() + "|"
+                            + b.getSubtotal().toPlainString() + "|" + b.getDiscountPercent() + "|"
+                            + b.getTotal().toPlainString() + "|" + b.getCustomerType();
+                    break;
+                }
+
+                case "#PAY_BILL": {
+                    String code = parts[1];
+                    String method = parts[2];
+                    BillPaymentDAO.PaidResult res = billPaymentDAO.payBill(code, method);
+                    if (res == null) ans = "BILL_NOT_FOUND";
+                    else ans = "BILL_PAID|" + res.getConfirmationCode() + "|" + res.getTotal().toPlainString();
+                    break;
+                }
+
+                // --- REPORTS ---
+
+                case "#GET_REPORTS_DATA": {
+                    try {
+                        Date start = Date.valueOf(parts[1]);
+                        Date end = Date.valueOf(parts[2]);
+                        Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(start, end);
+                        Map<Integer, Integer> timeDist = reservationDAO.getReservationTimeDistribution(start, end);
+                        List<Map<String, Object>> waitData = waitingListDAO.getWaitingListByDateRange(start, end);
+
+                        StringBuilder sb = new StringBuilder("REPORTS_DATA|STATS:");
+                        sb.append(stats.getOrDefault("total", 0)).append(",")
+                                .append(stats.getOrDefault("confirmed", 0)).append(",")
+                                .append(stats.getOrDefault("arrived", 0)).append(",")
+                                .append(stats.getOrDefault("late", 0)).append(",")
+                                .append(stats.getOrDefault("expired", 0)).append(",")
+                                .append(stats.getOrDefault("totalGuests", 0)).append("|TIME_DIST:");
+
+                        boolean first = true;
+                        for (Map.Entry<Integer, Integer> entry : timeDist.entrySet()) {
+                            if (!first) sb.append(";");
+                            sb.append(entry.getKey()).append(",").append(entry.getValue());
+                            first = false;
+                        }
+                        sb.append("|WAITING:");
+                        first = true;
+                        for (Map<String, Object> row : waitData) {
+                            if (!first) sb.append(";");
+                            sb.append(row.get("EntryDate")).append(",")
+                                    .append(row.get("WaitingCount")).append(",")
+                                    .append(row.get("ServedCount"));
+                            first = false;
+                        }
+                        ans = sb.toString();
+                    } catch (Exception e) {
+                        ans = "ERROR|REPORTS_FAILED";
                         e.printStackTrace();
                     }
                     break;
                 }
+
+                case "#GET_ALL_SUBSCRIBERS": {
+                    try {
+                        List<Subscriber> subs = subscriberDAO.getAllSubscribers();
+                        if (subs == null || subs.isEmpty()) {
+                            ans = "SUBSCRIBERS_LIST|EMPTY";
+                        } else {
+                            StringBuilder sb = new StringBuilder("SUBSCRIBERS_LIST|");
+                            for (int i = 0; i < subs.size(); i++) {
+                                Subscriber s = subs.get(i);
+                                sb.append(s.getSubscriberId()).append(",")
+                                        .append(s.getFullName()).append(",")
+                                        .append(s.getPhoneNumber()).append(",")
+                                        .append(s.getEmail()).append(",")
+                                        .append(s.getUserName());
+                                if (i < subs.size() - 1) sb.append("~");
+                            }
+                            ans = sb.toString();
+                        }
+                    } catch (Exception e) {
+                        ans = "ERROR|DB_FETCH_FAILED";
+                    }
+                    break;
+                }
+
                 default:
                     ans = "ERROR|UNKNOWN_COMMAND";
                     break;
@@ -706,9 +568,11 @@ public class EchoServer extends AbstractServer {
         }
     }
 
+    // Helpers ********************************************************
+
     private String reservationToProtocolString(Reservation r) {
         return "RESERVATION|" + r.getReservationId() + "|" + r.getNumberOfGuests() + "|"
-                + r.getReservationDate().toString() + "|" + r.getReservationTime().toString() + "|"
+                + r.getReservationDate() + "|" + r.getReservationTime() + "|"
                 + r.getConfirmationCode() + "|" + r.getSubscriberId() + "|" + r.getStatus() + "|" + r.getCustomerType();
     }
 
@@ -720,76 +584,6 @@ public class EchoServer extends AbstractServer {
         } catch (Exception e) {
             System.err.println("ERROR calling UI method " + methodName + ": " + e.getMessage());
         }
-    }
-
-    @Override
-    protected void serverStarted() {
-        System.out.println("Server listening for connections on port " + getPort());
-        try {
-            reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
-            billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
-            waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
-            subscriberDAO = new SubscriberDAO(mysqlConnection1.getDataSource());
-            loginDAO = new LoginDAO(mysqlConnection1.getDataSource());
-
-            if (uiController != null) uiController.addLog("Server started + DB pool ready");
-        } catch (Exception e) {
-            System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
-            if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
-            reservationDAO = null;
-            billPaymentDAO = null;
-            waitingListDAO = null;
-        }
-    }
-
-    @Override
-    protected void serverStopped() {
-        System.out.println("Server has stopped listening for connections.");
-        if (uiController != null) uiController.addLog("Server stopped listening.");
-        try {
-            Object[] clients = connectedClients.keySet().toArray();
-            for (Object o : clients) {
-                ConnectionToClient client = (ConnectionToClient) o;
-                try { client.close(); } catch (Exception ignored) {}
-            }
-            connectedClients.clear();
-        } catch (Exception e) {
-            System.err.println("Error cleaning clients on stop: " + e.getMessage());
-        }
-        mysqlConnection1.shutdownPool();
-    }
-
-    @Override
-    synchronized protected void clientConnected(ConnectionToClient client) {
-        System.out.println("Client connected: " + client);
-        String clientIP = client.getInetAddress().getHostAddress();
-        String clientName = "Client-" + clientIP.replace(".", "-");
-        String connectionTime = LocalDateTime.now().format(dateTimeFormatter);
-
-        GetClientInfo clientInfo = new GetClientInfo(clientIP, clientName, connectionTime);
-        connectedClients.put(client, clientInfo);
-
-        if (uiController != null) {
-            uiController.addLog("New client connected: " + clientIP);
-            uiController.updateClientCount(connectedClients.size());
-            uiController.addClientToTable(clientInfo);
-        }
-    }
-
-    @Override
-    protected void clientDisconnected(ConnectionToClient client) {
-        System.out.println("Client disconnected: " + client);
-        removeConnectedClient(client, "Client disconnected");
-    }
-
-    @Override
-    synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
-        System.out.println("Client exception: " + exception.getMessage());
-        removeConnectedClient(client, "Client crashed/disconnected");
-    }
-
-    public void setUIController(ServerUIController controller) {
-        this.uiController = controller;
     }
 
     private String encodeB64Url(String s) {
@@ -832,14 +626,12 @@ public class EchoServer extends AbstractServer {
         for (int i = 0; i < list.size(); i++) {
             WaitingEntry e = list.get(i);
             String entryTime = (e.getEntryTime() == null) ? "" : e.getEntryTime().toString();
-
             Integer subscriberId = e.getSubscriberId();
             if (subscriberId == null) subscriberId = extractSubscriberIdFromContactInfo(e.getContactInfo());
 
             String row = e.getWaitingId() + "," + encodeB64Url(e.getContactInfo()) + "," + e.getNumOfDiners() + ","
                     + e.getConfirmationCode() + "," + (subscriberId == null ? "" : subscriberId.toString()) + ","
                     + e.getStatus() + "," + entryTime;
-
             sb.append(row);
             if (i < list.size() - 1) sb.append("~");
         }
@@ -847,23 +639,84 @@ public class EchoServer extends AbstractServer {
     }
 
     private void broadcastWaitingListSnapshot() {
-        String payload;
         try {
-            payload = buildWaitingListProtocol();
-        } catch (Exception e) {
-            System.err.println("ERROR building waiting list snapshot: " + e.getMessage());
-            if (uiController != null) uiController.addLog("ERROR building waiting list snapshot: " + e.getMessage());
-            return;
-        }
-        Object[] subs = waitingListSubscribers.toArray();
-        for (Object o : subs) {
-            ConnectionToClient c = (ConnectionToClient) o;
-            try {
-                c.sendToClient(payload);
-            } catch (Exception ex) {
-                waitingListSubscribers.remove(c);
+            String payload = buildWaitingListProtocol();
+            for (Object o : waitingListSubscribers.toArray()) {
+                ConnectionToClient c = (ConnectionToClient) o;
+                try {
+                    c.sendToClient(payload);
+                } catch (Exception ex) {
+                    waitingListSubscribers.remove(c);
+                }
             }
+        } catch (Exception e) {
+            if (uiController != null) uiController.addLog("ERROR building waiting list snapshot: " + e.getMessage());
         }
+    }
+
+    // Lifecycle ******************************************************
+
+    @Override
+    protected void serverStarted() {
+        System.out.println("Server listening on port " + getPort());
+        try {
+            reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
+            billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
+            waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
+            subscriberDAO = new SubscriberDAO(mysqlConnection1.getDataSource());
+            loginDAO = new LoginDAO(mysqlConnection1.getDataSource());
+            if (uiController != null) uiController.addLog("Server started + DB pool ready");
+        } catch (Exception e) {
+            System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
+            if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
+        }
+    }
+
+    @Override
+    protected void serverStopped() {
+        System.out.println("Server has stopped listening.");
+        if (uiController != null) uiController.addLog("Server stopped listening.");
+        try {
+            for (Object o : connectedClients.keySet().toArray()) {
+                try { ((ConnectionToClient) o).close(); } catch (Exception ignored) {}
+            }
+            connectedClients.clear();
+        } catch (Exception e) {
+            System.err.println("Error cleaning clients: " + e.getMessage());
+        }
+        mysqlConnection1.shutdownPool();
+    }
+
+    @Override
+    synchronized protected void clientConnected(ConnectionToClient client) {
+        System.out.println("Client connected: " + client);
+        String clientIP = client.getInetAddress().getHostAddress();
+        String clientName = "Client-" + clientIP.replace(".", "-");
+        String connectionTime = LocalDateTime.now().format(dateTimeFormatter);
+        GetClientInfo clientInfo = new GetClientInfo(clientIP, clientName, connectionTime);
+        connectedClients.put(client, clientInfo);
+
+        if (uiController != null) {
+            uiController.addLog("New client connected: " + clientIP);
+            uiController.updateClientCount(connectedClients.size());
+            uiController.addClientToTable(clientInfo);
+        }
+    }
+
+    @Override
+    protected void clientDisconnected(ConnectionToClient client) {
+        System.out.println("Client disconnected: " + client);
+        ensureClientRemoved(client);
+    }
+
+    @Override
+    synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
+        System.out.println("Client exception: " + exception.getMessage());
+        ensureClientRemoved(client);
+    }
+
+    public void setUIController(ServerUIController controller) {
+        this.uiController = controller;
     }
 
     public static void main(String[] args) {

@@ -29,10 +29,15 @@ public class UserLoginUIController {
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
     @FXML private Label statusLabel;
-    
+
     // Buttons defined in FXML
     @FXML private Button resTerminal;
     @FXML private Button loginGuest;
+
+    // Server Settings (Preserved from your local version)
+    @FXML private VBox serverSettingsBox;
+    @FXML private TextField hostField;
+    @FXML private TextField portField;
 
     /**
      * Initializes the controller class.
@@ -40,6 +45,33 @@ public class UserLoginUIController {
     @FXML
     private void initialize() {
         if (statusLabel != null) statusLabel.setText("");
+
+        // Initialize Server Settings visibility
+        if (serverSettingsBox != null) {
+            serverSettingsBox.setVisible(false);
+            serverSettingsBox.setManaged(false);
+        }
+        
+        // Set defaults if empty
+        if (hostField != null && hostField.getText().isEmpty()) hostField.setText("localhost");
+        if (portField != null && portField.getText().isEmpty()) portField.setText("5555");
+    }
+
+    /**
+     * Toggles the visibility of the server settings panel.
+     */
+    @FXML
+    private void onServerSettingsToggle(ActionEvent event) {
+        if (serverSettingsBox == null) return;
+
+        boolean show = !serverSettingsBox.isVisible();
+        serverSettingsBox.setVisible(show);
+        serverSettingsBox.setManaged(show);
+
+        // Adjust window size
+        Node source = (Node) event.getSource();
+        Stage stage = (Stage) source.getScene().getWindow();
+        stage.sizeToScene();
     }
 
     /**
@@ -50,19 +82,29 @@ public class UserLoginUIController {
     private void onLoginClicked(ActionEvent event) {
         String username = usernameField.getText() == null ? "" : usernameField.getText().trim();
         String password = passwordField.getText() == null ? "" : passwordField.getText().trim();
-        
+
         // 1. Input Validation
         if (username.isEmpty() || password.isEmpty()) {
             showError("Please enter username and password.");
             return;
         }
 
-     // 2. Connect ONLY on Login click (if not connected yet)
+        // 2. Connect ONLY on Login click (if not connected yet)
         try {
             if (ClientUI.chat == null) {
-                ClientUI.chat = new ChatClient("localhost", 5555, new ClientMessageRouter());
-                // אם יש לך host/port מה-Server Settings, תשים אותם כאן במקום localhost/5555
-                System.out.println("✅ Connected to server on Login click");
+                // Use settings from fields if available, otherwise default
+                String host = (hostField != null && !hostField.getText().isEmpty()) ? hostField.getText() : "localhost";
+                int port = 5555;
+                try {
+                    if (portField != null && !portField.getText().isEmpty()) {
+                        port = Integer.parseInt(portField.getText());
+                    }
+                } catch (NumberFormatException e) {
+                    showError("Invalid Port Number. Using 5555.");
+                }
+
+                ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                System.out.println("✅ Connected to server (" + host + ":" + port + ") on Login click");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -94,7 +136,7 @@ public class UserLoginUIController {
                 String[] parts = response.split("\\|");
                 String role = (parts.length > 1) ? parts[1] : "";
 
-                // ✅ Step 3: tell the server who logged in (for server table + logs)
+                // ✅ Tell the server who logged in (for server table + logs)
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + username + "|" + role);
 
                 navigateBasedOnRole(event, username, role);
@@ -102,7 +144,6 @@ public class UserLoginUIController {
             } else {
                 showError(response);
             }
-
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -121,55 +162,42 @@ public class UserLoginUIController {
 
             // --- MANAGER ---
             if ("Manager".equalsIgnoreCase(role)) {
-                // Requires ManagerUI.fxml and ManagerUIController in ClientGUI package
                 loader = new FXMLLoader(getClass().getResource("ManagerUI.fxml"));
                 root = loader.load();
                 
-                // Using reflection or assuming ManagerUIController exists
-                // If ManagerUIController is missing, this line will cause a compile error.
-                // You can temporarily comment the controller lines out if needed.
-                /*
-                ManagerUIController controller = loader.getController();
-                controller.setManagerName(username);
-                */
-                
+                // ManagerUIController controller = loader.getController();
+                // controller.setManagerName(username); // Uncomment when controller is ready
+
                 stage.setTitle("Manager Dashboard - " + username);
                 stage.setScene(new Scene(root));
                 stage.show();
             } 
             // --- REPRESENTATIVE ---
             else if ("Representative".equalsIgnoreCase(role)) {
-                // Requires RepresentativeMenuUI.fxml
                 loader = new FXMLLoader(getClass().getResource("RepresentativeMenuUI.fxml"));
                 root = loader.load();
                 
-                /*
-                RepresentativeMenuUIController controller = loader.getController();
-                controller.setRepresentativeName(username);
-                */
-                
+                // RepresentativeMenuUIController controller = loader.getController();
+                // controller.setRepresentativeName(username); // Uncomment when ready
+
                 stage.setTitle("Representative Dashboard - " + username);
                 stage.setScene(new Scene(root));
                 stage.show();
             }
             // --- SUBSCRIBER ---
             else if ("Subscriber".equalsIgnoreCase(role)) {
-                // Requires LoginSubscriberUI.fxml
                 loader = new FXMLLoader(getClass().getResource("LoginSubscriberUI.fxml"));
                 root = loader.load();
                 
-                /*
-                LoginSubscriberUIController controller = loader.getController();
-                controller.setSubscriberName(username);
-                */
-                
+                // LoginSubscriberUIController controller = loader.getController();
+                // controller.setSubscriberName(username); // Uncomment when ready
+
                 stage.setTitle("Subscriber Menu - " + username);
                 stage.setScene(new Scene(root));
                 stage.show();
             }
             // --- FALLBACK / CUSTOMER ---
             else {
-                // Fallback to standard ClientUIView if role is Customer or unknown
                 URL fxmlLocation = getClass().getResource("ClientUIView.fxml");
                 if (fxmlLocation == null) {
                     showError("Cannot find ClientUIView.fxml");
@@ -199,6 +227,7 @@ public class UserLoginUIController {
     private void onTerminal(ActionEvent event) {
         if (ClientUI.chat == null) {
             statusLabel.setText("Not connected to server.");
+            // Optional: Auto-connect or show error
             return;
         }
 
