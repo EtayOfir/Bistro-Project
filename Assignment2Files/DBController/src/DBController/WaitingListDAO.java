@@ -161,4 +161,38 @@ public class WaitingListDAO {
             rs.getTimestamp("EntryTime")
         );
     }
+
+    // -------------------------
+    // Reports: Get waiting list statistics by date
+    // -------------------------
+    /**
+     * Gets waiting list statistics grouped by date for reports.
+     * @param startDate the start date (SQL Date)
+     * @param endDate the end date (SQL Date)
+     * @return a list of maps containing date, waiting count, and served count
+     */
+    public List<java.util.Map<String, Object>> getWaitingListByDateRange(Date startDate, Date endDate) throws SQLException {
+        List<java.util.Map<String, Object>> result = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_WAITING_LIST_BY_DATE)) {
+            
+            // Set date parameters (SQL will handle the time portion)
+            ps.setDate(1, startDate);
+            ps.setDate(2, endDate);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    java.util.Map<String, Object> row = new java.util.HashMap<>();
+                    Date entryDate = rs.getDate("EntryDate");
+                    row.put("EntryDate", entryDate != null ? entryDate.toString() : "");
+                    row.put("WaitingCount", rs.getInt("WaitingCount"));
+                    row.put("ServedCount", rs.getInt("ServedCount"));
+                    result.add(row);
+                }
+            }
+        }
+
+        return result;
+    }
 }

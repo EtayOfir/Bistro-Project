@@ -33,11 +33,13 @@ public class RepresentativeMenuUIController {
 
     @FXML
     void onMakeReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
     }
 
     @FXML
     void onCancelReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ClientUIView.fxml");
     }
 
@@ -50,6 +52,11 @@ public class RepresentativeMenuUIController {
     void onLeaveWaitingList(ActionEvent event) {
         navigate(event, "ClientWaitingList.fxml");
     }
+    @FXML
+    void onRegister(ActionEvent event) {
+        navigate(event, "RegisterUI.fxml");
+    }
+
 
     @FXML
     void onGetTable(ActionEvent event) {
@@ -106,6 +113,19 @@ public class RepresentativeMenuUIController {
 
     // --- Navigation ---
 
+    private void triggerExpiredReservationsCleanup() {
+        try {
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
+                System.out.println("DEBUG: Triggered expired reservations cleanup (Representative)");
+            } else {
+                System.out.println("DEBUG: ClientUI.chat is null, skipping expired reservations cleanup");
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR triggering expired reservations cleanup: " + e.getMessage());
+        }
+    }
+
     @FXML
     void onBack(ActionEvent event) {
         navigate(event, "UserLoginUIView.fxml");
@@ -156,6 +176,11 @@ public class RepresentativeMenuUIController {
                 case RepresentativeViewDetailsUIController c -> {
                 c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
                 }
+                case RegisterUIController c -> {
+                    c.setUserContext(currentUserName, "Representative");
+                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                }
+
                 default -> {}
             }
 
