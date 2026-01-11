@@ -1,85 +1,44 @@
 package ServerGUI;
 
-import java.util.HashMap;
-import java.util.Map;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import ocsf.server.ConnectionToClient;
-
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.layout.VBox;
 import server.EchoServer;
 import server.GetClientInfo;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-	
+
 /**
  * Controller class for the Server UI
  * Handles all user interactions and communication with the server
  */
 public class ServerUIController {
 
-	
     // UI Components
-    @FXML
-    private Label serverStatusLabel;
+    @FXML private Label serverStatusLabel;
+    @FXML private TextArea serverLogTextArea;
+    @FXML private Label connectedClientsLabel;
     
-    @FXML
-    private TextArea serverLogTextArea;
-    
-    @FXML
-    private Label connectedClientsLabel;
-    
-    @FXML
-    private ListView<String> connectedClientsListView;
-    
-    @FXML
-    private Button startServerButton;
-    
-    @FXML
-    private Button stopServerButton;
-    
-    @FXML
-    private Button clearLogsButton;
-    
-    @FXML
-    private Button doneButton;
-    
-    @FXML
-    private ComboBox<Integer> portComboBox;
-    
-    @FXML
-    private Spinner<Integer> portSpinner;
-    
-    @FXML
-    private Label portStatusLabel;
-    
-    @FXML
-    private ProgressIndicator loadingIndicator;
-    
-    @FXML
-    private TableView<GetClientInfo> clientsTableView;
-    
-    @FXML
-    private TableColumn<GetClientInfo, String> clientIPColumn;
-    
-    @FXML
-    private TableColumn<GetClientInfo, String> clientNameColumn;
-    
-    @FXML
-    private TableColumn<GetClientInfo, String> connectionTimeColumn;
-    
-    @FXML
-    private TextField dbUserField;
-    
-    @FXML
-    private PasswordField dbPasswordField;
+    @FXML private Button startServerButton;
+    @FXML private Button stopServerButton;
+    @FXML private Button clearLogsButton;
+    @FXML private Button doneButton;
+
+    @FXML private ComboBox<Integer> portComboBox;
+    @FXML private Spinner<Integer> portSpinner;
+    @FXML private Label portStatusLabel;
+    @FXML private ProgressIndicator loadingIndicator;
+
+    @FXML private TableView<GetClientInfo> clientsTableView;
+    @FXML private TableColumn<GetClientInfo, String> clientIPColumn;
+    @FXML private TableColumn<GetClientInfo, String> clientNameColumn;
+    @FXML private TableColumn<GetClientInfo, String> connectionTimeColumn;
+
+    @FXML private TextField dbUserField;
+    @FXML private PasswordField dbPasswordField;
 
     private EchoServer echoServer;
     private DateTimeFormatter dateTimeFormatter;
@@ -97,12 +56,12 @@ public class ServerUIController {
         setupDatabaseFields();
         setupButtons();
         setupTableColumns();
-        
+
         // Initialize the table with an empty observable list
         if (clientsTableView.getItems() == null) {
             clientsTableView.setItems(FXCollections.observableArrayList());
         }
-        
+
         updateServerStatus(false);
     }
 
@@ -112,6 +71,11 @@ public class ServerUIController {
     public void setEchoServer(EchoServer server) {
         this.echoServer = server;
     }
+
+    /**
+     * Refreshes the client table with the latest list from the server.
+     * This is called by EchoServer when a client identifies themselves.
+     */
     public void refreshClientTable() {
         Platform.runLater(() -> {
             if (clientsTableView != null && echoServer != null) {
@@ -121,61 +85,64 @@ public class ServerUIController {
         });
     }
 
-    
-
-
     /**
      * Setup port selector options
      */
     private void setupPortSelector() {
-        portComboBox.getItems().addAll(5555, 5556, 5557, 8888, 9999, 3306);
-        portComboBox.setValue(5555);
-        
-        portSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535, 5555));
-        
-        // Keep spinner in sync with dropdown; startServer reads spinner value
-        portComboBox.setOnAction(event -> {
-            Integer selectedPort = portComboBox.getValue();
-            if (selectedPort != null && portSpinner.getValueFactory() != null) {
-                portSpinner.getValueFactory().setValue(selectedPort);
-                portStatusLabel.setText("Ready");
-            }
-        });
+        if (portComboBox != null) {
+            portComboBox.getItems().addAll(5555, 5556, 5557, 8888, 9999, 3306);
+            portComboBox.setValue(5555);
+
+            // Keep spinner in sync with dropdown
+            portComboBox.setOnAction(event -> {
+                Integer selectedPort = portComboBox.getValue();
+                if (selectedPort != null && portSpinner != null) {
+                    if (portSpinner.getValueFactory() == null) {
+                        portSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535, 5555));
+                    }
+                    portSpinner.getValueFactory().setValue(selectedPort);
+                    if (portStatusLabel != null) portStatusLabel.setText("Ready");
+                }
+            });
+        }
+
+        if (portSpinner != null) {
+            portSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535, 5555));
+        }
     }
 
     /**
      * Setup database credential fields with default values
      */
     private void setupDatabaseFields() {
-        if (dbUserField != null) {
-            dbUserField.setText("root");
-        }
-        if (dbPasswordField != null) {
-            dbPasswordField.setText("");
-        }
+        if (dbUserField != null) dbUserField.setText("root");
+        if (dbPasswordField != null) dbPasswordField.setText(""); // Default empty for localhost
     }
 
     /**
      * Setup button event handlers
      */
     private void setupButtons() {
-        startServerButton.setOnAction(event -> startServer());
-        stopServerButton.setOnAction(event -> stopServer());
-        clearLogsButton.setOnAction(event -> clearLogs());
-        doneButton.setOnAction(event -> done());
+        if (startServerButton != null) startServerButton.setOnAction(event -> startServer());
+        if (stopServerButton != null) stopServerButton.setOnAction(event -> stopServer());
+        if (clearLogsButton != null) clearLogsButton.setOnAction(event -> clearLogs());
+        if (doneButton != null) doneButton.setOnAction(event -> done());
     }
 
     /**
      * Setup table columns for client display
      */
     private void setupTableColumns() {
-        clientIPColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("clientIP"));
-        clientNameColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("clientName"));
-        connectionTimeColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("connectionTime"));
+        if (clientIPColumn != null)
+            clientIPColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("clientIP"));
+        if (clientNameColumn != null)
+            clientNameColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("clientName"));
+        if (connectionTimeColumn != null)
+            connectionTimeColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("connectionTime"));
     }
-    
+
     /**
-     * Add a client to the table view
+     * Add a client to the table view (Called by EchoServer)
      */
     public void addClientToTable(GetClientInfo clientInfo) {
         Platform.runLater(() -> {
@@ -187,13 +154,15 @@ public class ServerUIController {
             }
         });
     }
-    
+
     /**
-     * Remove a client from the table view
+     * Remove a client from the table view (Called by EchoServer)
      */
     public void removeClientFromTable(GetClientInfo clientInfo) {
         Platform.runLater(() -> {
-            clientsTableView.getItems().remove(clientInfo);
+            if (clientsTableView != null && clientsTableView.getItems() != null) {
+                clientsTableView.getItems().remove(clientInfo);
+            }
         });
     }
 
@@ -204,15 +173,16 @@ public class ServerUIController {
     private void startServer() {
         if (echoServer != null) {
             try {
-                int port = portSpinner.getValue();
-                echoServer.setPort(port);
+                int port = 5555;
+                if (portSpinner != null) port = portSpinner.getValue();
                 
+                echoServer.setPort(port);
+
                 new Thread(() -> {
                     try {
                         echoServer.listen();
                         Platform.runLater(() -> {
                             updateServerStatus(true);
-                            // serverStarted() hook will log the message, don't duplicate it here
                         });
                     } catch (IOException e) {
                         Platform.runLater(() -> {
@@ -221,11 +191,11 @@ public class ServerUIController {
                         });
                     }
                 }).start();
-                
-                startServerButton.setDisable(true);
-                stopServerButton.setDisable(false);
-                portSpinner.setDisable(true);
-                portComboBox.setDisable(true);
+
+                if (startServerButton != null) startServerButton.setDisable(true);
+                if (stopServerButton != null) stopServerButton.setDisable(false);
+                if (portSpinner != null) portSpinner.setDisable(true);
+                if (portComboBox != null) portComboBox.setDisable(true);
             } catch (Exception e) {
                 addLog("ERROR: " + e.getMessage());
             }
@@ -242,10 +212,11 @@ public class ServerUIController {
                 echoServer.close();
                 updateServerStatus(false);
                 addLog("Server stopped");
-                startServerButton.setDisable(false);
-                stopServerButton.setDisable(true);
-                portSpinner.setDisable(false);
-                portComboBox.setDisable(false);
+                
+                if (startServerButton != null) startServerButton.setDisable(false);
+                if (stopServerButton != null) stopServerButton.setDisable(true);
+                if (portSpinner != null) portSpinner.setDisable(false);
+                if (portComboBox != null) portComboBox.setDisable(false);
             } catch (IOException e) {
                 addLog("ERROR stopping server: " + e.getMessage());
             }
@@ -257,7 +228,7 @@ public class ServerUIController {
      */
     @FXML
     private void clearLogs() {
-        serverLogTextArea.clear();
+        if (serverLogTextArea != null) serverLogTextArea.clear();
     }
 
     /**
@@ -267,14 +238,14 @@ public class ServerUIController {
     private void done() {
         try {
             addLog("Shutting down server...");
-            if (echoServer != null && echoServer.isListening()) {
-                echoServer.close();
+            if (echoServer != null) {
+                echoServer.close(); // AbstractServer.close() stops listening and closes all connections
             }
             addLog("Server closed. Exiting application...");
         } catch (IOException e) {
             addLog("ERROR while closing server: " + e.getMessage());
         }
-        
+
         // Wait a moment for the log to be displayed, then exit
         new Thread(() -> {
             try {
@@ -287,32 +258,26 @@ public class ServerUIController {
     }
 
     /**
-     * Add a message to the server log
+     * Add a message to the server log (Called by EchoServer via reflection)
      */
     public void addLog(String message) {
-        if (message == null) {
-            System.err.println("ERROR: addLog called with null message");
-            return;
-        }
-        
+        if (message == null) return;
+
         Platform.runLater(() -> {
             if (serverLogTextArea == null) {
                 System.err.println("ERROR: serverLogTextArea is null!");
                 return;
             }
-            
+
             try {
                 String timestamp = LocalDateTime.now().format(dateTimeFormatter);
                 String logEntry = "[" + timestamp + "] " + message;
-                
-                // Append text to TextArea
+
                 serverLogTextArea.appendText(logEntry + "\n");
-                
-                // Position caret at the end to make it visible
                 serverLogTextArea.positionCaret(serverLogTextArea.getLength());
-                
-                System.out.println("✓ GUI LOG DISPLAYED: " + logEntry);
-                
+
+                System.out.println("✓ GUI LOG: " + logEntry);
+
             } catch (Exception e) {
                 System.err.println("ERROR in addLog: " + e.getMessage());
                 e.printStackTrace();
@@ -325,30 +290,31 @@ public class ServerUIController {
      */
     private void updateServerStatus(boolean isRunning) {
         Platform.runLater(() -> {
+            if (serverStatusLabel == null) return;
+            
             if (isRunning) {
                 serverStatusLabel.setText(SERVER_RUNNING);
                 serverStatusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
-                loadingIndicator.setVisible(false);
+                if (loadingIndicator != null) loadingIndicator.setVisible(false);
             } else {
                 serverStatusLabel.setText(SERVER_STOPPED);
                 serverStatusLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
-                loadingIndicator.setVisible(false);
+                if (loadingIndicator != null) loadingIndicator.setVisible(false);
             }
         });
     }
 
     /**
-     * Update connected clients count
+     * Update connected clients count (Called by EchoServer via reflection)
      */
     public void updateClientCount(int count) {
         Platform.runLater(() -> {
-            connectedClientsLabel.setText("Connected Clients: " + count);
+            if (connectedClientsLabel != null) {
+                connectedClientsLabel.setText("Connected Clients: " + count);
+            }
         });
     }
 
-    /**
-     * Shutdown the server and cleanup resources
-     */
     public void shutdown() {
         if (echoServer != null) {
             try {
@@ -359,25 +325,17 @@ public class ServerUIController {
         }
     }
 
-    /**
-     * Get the database username from the UI
-     * @return database username
-     */
     public String getDbUser() {
         if (dbUserField != null && !dbUserField.getText().trim().isEmpty()) {
             return dbUserField.getText().trim();
         }
-        return "root"; // default
+        return "root";
     }
 
-    /**
-     * Get the database password from the UI
-     * @return database password
-     */
     public String getDbPassword() {
         if (dbPasswordField != null) {
             return dbPasswordField.getText();
         }
-        return ""; // default
+        return "";
     }
 }

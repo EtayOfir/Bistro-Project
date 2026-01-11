@@ -107,6 +107,13 @@ public class EchoServer extends AbstractServer {
         }
     }
 
+    /**
+     * Returns the map of currently connected clients.
+     */
+    public Map<ConnectionToClient, GetClientInfo> getConnectedClients() {
+        return connectedClients;
+    }
+
     public void disconnectClient(ConnectionToClient client) {
         try {
             System.out.println("MANUAL Disconnecting client.");
