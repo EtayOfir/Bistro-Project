@@ -4,15 +4,22 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.stage.Stage;
+
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.List;
 
+import ClientGUI.util.ViewLoader;
 import entities.Subscriber;
 import entities.Reservation;
 import entities.WaitingEntry;
@@ -188,28 +195,33 @@ public class RepresentativeViewDetailsUIController {
     @FXML
     void getBackBtn(ActionEvent event) {
         try {
-            if (returnFxml == null) {
+        	if (returnFxml == null) {
                 System.err.println("Error: Return path not set!");
                 return;
             }
 
-            // טעינת המסך הקודם
-            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource(returnFxml));
-            javafx.scene.Parent root = loader.load();
+        	// 1. Clean up the current instance so it stops listening to Server messages
+            instance = null; 
+
+            // 2. Use the central ViewLoader
+            // Ensure returnFxml includes the extension, e.g., "ManagerUI.fxml"
+            FXMLLoader loader = ClientGUI.util.ViewLoader.fxml(returnFxml);
+            Parent root = loader.load();
             Object controller = loader.getController();
 
-            // שחזור הקשר (שם המשתמש) בהתאם לסוג המסך שאליו חוזרים
+            // 3. Restore Context (Pass the username back to the previous screen)
             if (controller instanceof ManagerUIController) {
                 ((ManagerUIController) controller).setManagerName(currentUserName);
             } 
             else if (controller instanceof RepresentativeMenuUIController) {
                 ((RepresentativeMenuUIController) controller).setRepresentativeName(currentUserName);
             }
+            // Add other controllers here if needed (e.g., Subscriber)
 
-            // מעבר למסך
-            javafx.stage.Stage stage = (javafx.stage.Stage)((javafx.scene.Node)event.getSource()).getScene().getWindow();
+            // 4. Switch Scene
+            Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new javafx.scene.Scene(root));
+            stage.setScene(new Scene(root));
             stage.show();
 
         } catch (java.io.IOException e) {
