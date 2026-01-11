@@ -129,14 +129,12 @@ public class ManagerUIController {
     }
     
     /**
-     * Navigates to a new screen and sets the "Return Path" so the user can navigate back.
+     * Triggers a cleanup of expired reservations.
      * <p>
-     * This method loads the FXML file, retrieves its controller, and injects the return path
-     * (ManagerUI) into the destination controller.
+     * This method sends a command to the server via {@code ClientUI.chat} requesting
+     * that any reservations that have expired be removed, and logs the outcome.
+     * If the client connection is not available, the cleanup request is skipped.
      * </p>
-     *
-     * @param event        The action event that triggered navigation.
-     * @param fxmlFileName The name of the FXML file to load (e.g., "ClientWaitingList.fxml").
      */
     private void triggerExpiredReservationsCleanup() {
         try {
