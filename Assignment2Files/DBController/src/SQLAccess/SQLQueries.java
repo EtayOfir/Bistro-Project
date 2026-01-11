@@ -32,6 +32,11 @@ public final class SQLQueries {
      * Usage: Primarily used to populate the "Subscribers Details" table in the 
      * Representative Dashboard.
      */
+    
+    public static final String REGISTER_SUBSCRIBER =
+    	    "INSERT INTO Subscribers (FullName, PhoneNumber, Email, UserName, Password, QRCode, Role) " +
+    	    "VALUES (?, ?, ?, ?, ?, ?, ?)";
+
     public static final String GET_ALL_SUBSCRIBERS = 
         "SELECT SubscriberID, FullName, PhoneNumber, Email, UserName FROM Subscribers";
     
@@ -51,13 +56,15 @@ public final class SQLQueries {
 
     /** Find subscriber by username (unique). */
     public static final String GET_SUBSCRIBER_BY_USERNAME =
-            "SELECT SubscriberID, FullName, PhoneNumber, Email, UserName, QRCode, CreatedAt " +
+            "SELECT SubscriberID, FullName, PhoneNumber, Email, UserName, QRCode,Password,Role, CreatedAt " +
             "FROM Subscribers WHERE UserName = ?";
     
     /** Check subscriber credentials (Username + Password). */
     public static final String LOGIN_SUBSCRIBER =
             "SELECT SubscriberID FROM Subscribers WHERE UserName = ? AND Password = ?";
-    
+   
+    public static final String LOGIN_SUB =
+            "SELECT * FROM Subscribers WHERE UserName = ? AND Password = ?";
     /** Update subscriber personal details. */
     public static final String UPDATE_SUBSCRIBER_BY_ID =
             "UPDATE Subscribers SET FullName = ?, PhoneNumber = ?, Email = ?, QRCode = ? " +

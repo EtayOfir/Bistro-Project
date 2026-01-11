@@ -52,6 +52,11 @@ public class RepresentativeMenuUIController {
     void onLeaveWaitingList(ActionEvent event) {
         navigate(event, "ClientWaitingList.fxml");
     }
+    @FXML
+    void onRegister(ActionEvent event) {
+        navigate(event, "RegisterUI.fxml");
+    }
+
 
     @FXML
     void onGetTable(ActionEvent event) {
@@ -171,6 +176,11 @@ public class RepresentativeMenuUIController {
                 case RepresentativeViewDetailsUIController c -> {
                 c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
                 }
+                case RegisterUIController c -> {
+                    c.setUserContext(currentUserName, "Representative");
+                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                }
+
                 default -> {}
             }
 

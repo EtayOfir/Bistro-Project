@@ -1,10 +1,14 @@
 package ClientGUI;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
@@ -25,7 +29,6 @@ public class HostDashboardController {
 
     // Header
     @FXML private Label loggedInUserLabel;
-    @FXML private Button reportsButton;
 
     // Map info
     @FXML private Label selectedTableLabel;
@@ -42,13 +45,18 @@ public class HostDashboardController {
 
     private final Map<Button, Boolean> occupied = new HashMap<>(); // true=occupied, false=available
     private Button selectedTableBtn = null;
-    private String userRole = null;
 
     private static final String BASE_TABLE_STYLE =
             "-fx-background-radius:999;" +
             "-fx-text-fill:white;" +
             "-fx-font-weight:bold;" +
             "-fx-cursor: hand;";
+
+    // Back navigation fields (same names)
+    private String returnScreenFXML = "UserLoginUIView.fxml";
+    private String returnTitle = "Login";
+    private String currentUserName = "";
+    private String currentUserRole = "";
 
     @FXML
     private void initialize() {
@@ -60,31 +68,50 @@ public class HostDashboardController {
 
         queueTable.setItems(reservations);
 
-        // demo queue data
+        // Auto-fit columns to full width (the table is now full width)
+        queueTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
+
+        // Give reasonable min widths so text won't get squeezed too much
+        colCustomer.setMinWidth(260);
+        colGuests.setMinWidth(90);
+        colTime.setMinWidth(110);
+        colStatus.setMinWidth(220);
+
+        // demo queue data (you can remove later)
         reservations.addAll(
-                new ReservationRow("David Levi", 2, "12:30", "Waiting"),
-                new ReservationRow("Noa Cohen", 4, "12:45", "Waiting"),
-                new ReservationRow("Amit Ben", 3, "13:00", "Checked In")
+                new ReservationRow("David Levi", 2, "12:30", "4"),
+                new ReservationRow("Noa Cohen", 4, "12:45", "3"),
+                new ReservationRow("Amit Ben", 3, "13:00", "1")
         );
 
         // initial selected table
         if (selectedTableLabel != null) selectedTableLabel.setText("None");
 
-        // demo map state
-        occupied.put(table1Btn, false);
-        occupied.put(table2Btn, true);
-        occupied.put(table3Btn, false);
-        occupied.put(table4Btn, false);
-        occupied.put(table5Btn, true);
-        occupied.put(table6Btn, false);
+        // Init map state safely
+        if (table1Btn != null) occupied.put(table1Btn, false);
+        if (table2Btn != null) occupied.put(table2Btn, true);
+        if (table3Btn != null) occupied.put(table3Btn, false);
+        if (table4Btn != null) occupied.put(table4Btn, false);
+        if (table5Btn != null) occupied.put(table5Btn, true);
+        if (table6Btn != null) occupied.put(table6Btn, false);
 
         refreshTableColors();
+
+        // Optional: open maximized for comfort (not required)
+        Platform.runLater(() -> {
+            if (queueTable != null && queueTable.getScene() != null) {
+                Stage stage = (Stage) queueTable.getScene().getWindow();
+                if (stage != null) stage.setMaximized(true);
+            }
+        });
     }
 
     public void setUserContext(String username, String role) {
-        this.userRole = role;
+        this.currentUserName = (username == null) ? "" : username;
+        this.currentUserRole = (role == null) ? "" : role;
+
         if (loggedInUserLabel != null) {
-            loggedInUserLabel.setText(role + " - " + username);
+            loggedInUserLabel.setText(this.currentUserRole + " - " + this.currentUserName);
         }
     }
 
@@ -105,7 +132,6 @@ public class HostDashboardController {
 
         selectedReservation.setStatus("Checked In");
 
-        // Optional: mark selected table as occupied when checking in
         if (selectedTableBtn != null && occupied.containsKey(selectedTableBtn)) {
             occupied.put(selectedTableBtn, true);
             refreshTableColors();
@@ -121,7 +147,6 @@ public class HostDashboardController {
 
         selectedReservation.setStatus("Canceled");
 
-        // Optional: mark selected table as available when canceling
         if (selectedTableBtn != null && occupied.containsKey(selectedTableBtn)) {
             occupied.put(selectedTableBtn, false);
             refreshTableColors();
@@ -147,6 +172,8 @@ public class HostDashboardController {
     }
 
     private void applyTableStyle(Button btn, boolean isOccupied, boolean isSelected) {
+        if (btn == null) return;
+
         String color = isOccupied ? "#ef4444" : "#22c55e"; // red / green
 
         String selectedBorder = isSelected
@@ -160,82 +187,30 @@ public class HostDashboardController {
                 selectedBorder +
                 shadow);
     }
-    
- // ==========================================
-    //           Navigation Logic (Back Button)
-    // ==========================================
 
-    /** The FXML file path of the screen to return to. Default is the Login screen. */
-    private String returnScreenFXML = "UserLoginUIView.fxml";
-
-    /** The title of the window for the previous screen. */
-    private String returnTitle = "Login";
-
-    /** The username of the currently logged-in user, used to restore context. */
-    private String currentUserName = "";
-
-    /** The role of the currently logged-in user. */
-    private String currentUserRole = "";
-
-    /**
-     * Sets the navigation parameters required to return to the previous screen.
-     * This method should be called by the calling controller before navigating to this screen.
-     *
-     * @param fxml  The name of the FXML file to load when 'Back' is clicked.
-     * @param title The title to set for the window upon returning.
-     * @param user  The username of the active user to restore context.
-     * @param role  The role of the active user.
-     */
+    // ==========================
+    // Navigation Logic (Back)
+    // ==========================
     public void setReturnPath(String fxml, String title, String user, String role) {
-        this.returnScreenFXML = fxml;
-        this.returnTitle = title;
-        this.currentUserName = user;
-        this.currentUserRole = role;
+        this.returnScreenFXML = (fxml == null || fxml.isBlank()) ? "UserLoginUIView.fxml" : fxml;
+        this.returnTitle = (title == null || title.isBlank()) ? "Login" : title;
+        this.currentUserName = (user == null) ? "" : user;
+        this.currentUserRole = (role == null) ? "" : role;
     }
 
-    /**
-     * Handles the action when the "Back" button is clicked.
-     * <p>
-     * This method loads the FXML file specified by {@link #returnScreenFXML},
-     * retrieves its controller, and attempts to restore the user session (name/role)
-     * using a switch-case structure based on the controller type.
-     * Finally, it switches the current scene to the previous one.
-     * </p>
-     *
-     * @param event The {@link ActionEvent} triggered by the button click.
-     */
     @FXML
     private void onBack(ActionEvent event) {
         try {
-            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource(returnScreenFXML));
-            javafx.scene.Parent root = loader.load();
+            FXMLLoader loader = new FXMLLoader(getClass().getResource(returnScreenFXML));
+            Parent root = loader.load();
 
-            Object controller = loader.getController();
-
-            // Using Switch Case (Pattern Matching) to identify controller and restore context
-            switch (controller) {
-                // 1. Manager Dashboard
-                case ManagerUIController c -> 
-                    c.setManagerName(currentUserName);
-
-                // 2. Representative Dashboard (Menu)
-                case RepresentativeMenuUIController c -> 
-                    c.setRepresentativeName(currentUserName);
-
-                default -> {
-                    // Log or handle unknown controller types if necessary
-                    System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
-                }
-            }
-
-            javafx.stage.Stage stage = (javafx.stage.Stage)((javafx.scene.Node)event.getSource()).getScene().getWindow();
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new javafx.scene.Scene(root));
+            stage.setScene(new Scene(root));
             stage.show();
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    
 }
