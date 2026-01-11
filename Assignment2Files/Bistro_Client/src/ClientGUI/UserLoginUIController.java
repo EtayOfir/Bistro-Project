@@ -2,7 +2,7 @@ package ClientGUI;
 
 import java.io.IOException;
 import java.net.URL;
-
+import client.ChatClient;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -57,9 +57,16 @@ public class UserLoginUIController {
             return;
         }
 
-        // 2. Check Connection
-        if (ClientUI.chat == null) {
-            showError("Not connected to server (ClientUI.chat is null).");
+     // 2. Connect ONLY on Login click (if not connected yet)
+        try {
+            if (ClientUI.chat == null) {
+                ClientUI.chat = new ChatClient("localhost", 5555, new ClientMessageRouter());
+                // אם יש לך host/port מה-Server Settings, תשים אותם כאן במקום localhost/5555
+                System.out.println("✅ Connected to server on Login click");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            showError("Failed to connect to server: " + e.getMessage());
             return;
         }
 
@@ -87,12 +94,15 @@ public class UserLoginUIController {
                 String[] parts = response.split("\\|");
                 String role = (parts.length > 1) ? parts[1] : "";
 
+                // ✅ Step 3: tell the server who logged in (for server table + logs)
+                ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + username + "|" + role);
+
                 navigateBasedOnRole(event, username, role);
 
             } else {
-                // Handle generic errors (e.g. ERROR|DB_NOT_READY)
                 showError(response);
             }
+
 
         } catch (Exception e) {
             e.printStackTrace();

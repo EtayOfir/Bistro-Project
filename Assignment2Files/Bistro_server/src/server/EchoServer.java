@@ -631,6 +631,8 @@ public class EchoServer extends AbstractServer {
                 } catch (Exception e) {
                     ans = "ERROR|DB_FETCH_FAILED";
                 }
+                break;
+            }
                 case "#GET_REPORTS_DATA": {
                     // Format: #GET_REPORTS_DATA <startDate> <endDate>
                     // startDate and endDate in format: yyyy-MM-dd
