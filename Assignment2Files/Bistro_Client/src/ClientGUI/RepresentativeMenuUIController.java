@@ -33,11 +33,13 @@ public class RepresentativeMenuUIController {
 
     @FXML
     void onMakeReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
     }
 
     @FXML
     void onCancelReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ClientUIView.fxml");
     }
 
@@ -110,6 +112,19 @@ public class RepresentativeMenuUIController {
     }
 
     // --- Navigation ---
+
+    private void triggerExpiredReservationsCleanup() {
+        try {
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
+                System.out.println("DEBUG: Triggered expired reservations cleanup (Representative)");
+            } else {
+                System.out.println("DEBUG: ClientUI.chat is null, skipping expired reservations cleanup");
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR triggering expired reservations cleanup: " + e.getMessage());
+        }
+    }
 
     @FXML
     void onBack(ActionEvent event) {

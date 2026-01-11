@@ -44,7 +44,6 @@
            <HBox alignment="CENTER_RIGHT" prefHeight="33.0" prefWidth="254.0" spacing="10" GridPane.columnIndex="2" GridPane.rowIndex="4">
                <Button onAction="#onLoginClicked" prefHeight="33.0" prefWidth="252.0" style="-fx-background-color: #2563eb; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 14;" text="Login" />
            </HBox>
-            <Button onAction="#onServerSettingsToggle" style="-fx-background-color: #e5e7eb; -fx-background-radius: 8; -fx-padding: 8 14;" text="Server Settings" GridPane.rowIndex="10" />
    
                     <Label fx:id="statusLabel" prefWidth="0.0" textFill="red" wrapText="true" GridPane.columnIndex="2" GridPane.rowIndex="7" />
    
@@ -84,25 +83,5 @@
             <RowConstraints minHeight="10.0" prefHeight="30.0" />
          </rowConstraints>
         </GridPane>
-
-                          <VBox fx:id="serverSettingsBox" spacing="8" style="-fx-background-color: #f3f4f6; -fx-padding: 10; -fx-background-radius: 8;">
-            <Label style="-fx-font-weight: bold; -fx-text-fill: #374151;" text="Connection settings" />
-            <GridPane hgap="8" vgap="8">
-                <columnConstraints>
-                    <ColumnConstraints percentWidth="40" />
-                    <ColumnConstraints percentWidth="60" />
-               <ColumnConstraints minWidth="10.0" percentWidth="60.0" prefWidth="100.0" />
-               <ColumnConstraints minWidth="10.0" percentWidth="60.0" prefWidth="100.0" />
-                </columnConstraints>
-                <Label text="Host:" />
-                <TextField fx:id="hostField" promptText="localhost" GridPane.columnIndex="1" />
-                <Label text="Port:" GridPane.rowIndex="1" />
-                <TextField fx:id="portField" promptText="5555" GridPane.columnIndex="1" GridPane.rowIndex="1" />
-            <rowConstraints>
-               <RowConstraints />
-               <RowConstraints />
-            </rowConstraints>
-            </GridPane>
-        </VBox>
     </VBox>
 </StackPane>

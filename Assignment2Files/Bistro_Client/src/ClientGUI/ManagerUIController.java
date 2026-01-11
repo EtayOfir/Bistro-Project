@@ -34,11 +34,13 @@ public class ManagerUIController {
 
     @FXML
     void onMakeReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
     }
 
     @FXML
     void onCancelReservation(ActionEvent event) {
+        triggerExpiredReservationsCleanup();
         navigate(event, "ClientUIView.fxml");
     }
 
@@ -133,6 +135,27 @@ public class ManagerUIController {
     
 
     
+    /**
+     * Triggers a cleanup of expired reservations.
+     * <p>
+     * This method sends a command to the server via {@code ClientUI.chat} requesting
+     * that any reservations that have expired be removed, and logs the outcome.
+     * If the client connection is not available, the cleanup request is skipped.
+     * </p>
+     */
+    private void triggerExpiredReservationsCleanup() {
+        try {
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
+                System.out.println("DEBUG: Triggered expired reservations cleanup (Manager)");
+            } else {
+                System.out.println("DEBUG: ClientUI.chat is null, skipping expired reservations cleanup");
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR triggering expired reservations cleanup: " + e.getMessage());
+        }
+    }
+
     /**
      * Navigates to a new screen and sets the "Return Path" so the user can navigate back.
      * <p>
