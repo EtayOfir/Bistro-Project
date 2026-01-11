@@ -8,6 +8,11 @@ public class Subscriber {
 	private String userName;
 	private String phoneNumber;
 	private String email;
+	private String role;
+	private String password;
+	private String qr_code;
+
+
 	private List<ActiveReservation> activeReservations;
 	private List<VisitHistory> visitHistory;
 
@@ -27,12 +32,27 @@ public class Subscriber {
 		this.fullName = fullName;
 	}
 
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
 	public String getUserName() {
 		return userName;
 	}
 
 	public void setUserName(String userName) {
 		this.userName = userName;
+	}
+
+	public String getRole() {
+		return role;
+	}
+
+	public void setRole(String role) {
+		this.role = role;
 	}
 
 	public String getPhoneNumber() {
@@ -50,20 +70,28 @@ public class Subscriber {
 	public void setEmail(String email) {
 		this.email = email;
 	}
-	
+
 	public List<ActiveReservation> getActiveReservations() {
-	    return activeReservations;
+		return activeReservations;
 	}
 
 	public void setActiveReservations(List<ActiveReservation> activeReservations) {
-	    this.activeReservations = activeReservations;
+		this.activeReservations = activeReservations;
 	}
-	
-	public List<VisitHistory> getVisitHistory() {
-        return visitHistory;
-    }
 
-    public void setVisitHistory(List<VisitHistory> visitHistory) {
-        this.visitHistory = visitHistory;
-    }
+	public List<VisitHistory> getVisitHistory() {
+		return visitHistory;
+	}
+
+	public void setVisitHistory(List<VisitHistory> visitHistory) {
+		this.visitHistory = visitHistory;
+	}
+
+	public String getQr_code() {
+		return qr_code;
+	}
+
+	public void setQr_code(String qr_code) {
+		this.qr_code = qr_code;
+	}
 }
