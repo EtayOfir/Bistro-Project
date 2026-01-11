@@ -32,7 +32,7 @@ public class LoginDAO {
             return "Representative";
         }
 
-        // 2. Check if user is a Subscriber in the DB (Username AND Password)
+     // 2. Check if user is a Subscriber in the DB (Username AND Password)
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.LOGIN_SUBSCRIBER)) {
             
@@ -72,7 +72,7 @@ public class LoginDAO {
                     sub.setPhoneNumber(rs.getString("PhoneNumber"));
                     sub.setEmail(rs.getString("Email"));
                     sub.setUserName(rs.getString("UserName"));
-                    sub.setRole(rs.getString("role"));
+                    sub.setRole(rs.getString("Role"));
                 }
             }
 

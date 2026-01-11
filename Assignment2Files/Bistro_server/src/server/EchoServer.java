@@ -192,31 +192,35 @@ public class EchoServer extends AbstractServer {
 
             switch (command) {
 
-                case "#LOGIN": {
-                    if (parts.length < 3) {
-                        ans = "ERROR|BAD_FORMAT_LOGIN";
-                        break;
-                    }
-                    String username = parts[1];
-                    String password = parts[2];
-                    String role = loginDAO.identifyUserRole(username, password);
-
-                    if (role != null) {
-                        if ("Subscriber".equalsIgnoreCase(role)) {
-                            Subscriber sub = subscriberDAO.getByUsername(username);
-                            if (sub != null) {
-                                ans = "LOGIN_SUCCESS|" + role + "|" + sub.getSubscriberId() + "|" + sub.getFullName();
-                            } else {
-                                ans = "LOGIN_SUCCESS|" + role + "|0|" + username;
-                            }
-                        } else {
-                            ans = "LOGIN_SUCCESS|" + role + "|0|" + username;
-                        }
-                    } else {
-                        ans = "LOGIN_FAILED";
-                    }
-                    break;
-                }
+	            case "#LOGIN": {
+					// Format: #LOGIN <username> <password>
+					if (parts.length < 3) {
+						ans = "ERROR|BAD_FORMAT_LOGIN";
+						break;
+					}
+	
+					String username = parts[1];
+					String password = parts[2];
+	
+					// Use SubscriberDAO (since it returns a Subscriber object)
+					if (subscriberDAO == null) {
+						ans = "ERROR|DB_NOT_READY";
+						break;
+					}
+					
+					Subscriber sub = loginDAO.doLogin(username, password);
+	
+					if (sub != null) {
+						// Backward compatible: clients that only expect role can still read parts[1]
+						ans = "LOGIN_SUCCESS|" + sub.getRole() + "|" + sub.getSubscriberId() + "|" + sub.getFullName();
+	
+						System.out.println("User " + username + " logged in as " + sub.getRole());
+					} else {
+						ans = "LOGIN_FAILED";
+					}
+	
+					break;
+				}
 
                 case "#REGISTER": {
                     if (parts.length < 2) {
