@@ -1,5 +1,7 @@
 package ServerGUI;
 
+import java.net.URL;
+
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
@@ -19,8 +21,13 @@ public class ServerUI extends Application {
     public void start(Stage primaryStage) {
         try {
             // Load the FXML file
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("ServerUIView.fxml"));
-            BorderPane root = loader.load();
+        	URL url = getClass().getResource("ServerUIView.fxml");
+        	if (url == null) {
+        	    throw new IllegalStateException("Missing ServerUIView.fxml in ServerGUI package");
+        	}
+
+        	FXMLLoader loader = new FXMLLoader(url);
+        	BorderPane root = loader.load();
 
             // Get the controller and pass the server reference	
             ServerUIController controller = loader.getController();
