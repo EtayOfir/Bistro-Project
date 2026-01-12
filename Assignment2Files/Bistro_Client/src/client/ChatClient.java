@@ -106,14 +106,19 @@ public class ChatClient extends AbstractClient {
             System.err.println("ERROR: RepresentativeViewUIController is NULL, cannot update table!");
             }}
 		if (s.startsWith("WAITING_LIST|")) {
-            System.out.println("DEBUG: ChatClient received WAITING_LIST"); 
-            
-            if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
-            	ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateWaitingListFromMessage(s);
-            } else {
-                System.err.println("ERROR: Controller Instance is NULL - Check initialize()");
-            }
-       }
+		    System.out.println("DEBUG: ChatClient received WAITING_LIST");
+
+		    // NEW: update Host Dashboard if open
+		    if (ClientGUI.controller.HostDashboardController.instance != null) {
+		        ClientGUI.controller.HostDashboardController.instance.updateWaitingListFromMessage(s);
+		    }
+
+		    // existing representative screen (if open)
+		    if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
+		        ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateWaitingListFromMessage(s);
+		    }
+		}
+
 		if (s.startsWith("ACTIVE_RESERVATIONS|")) {
             if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
                 ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateReservationsFromMessage(s);
