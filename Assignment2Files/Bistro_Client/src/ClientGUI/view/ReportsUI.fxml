@@ -16,7 +16,7 @@
 <?import javafx.scene.layout.Pane?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane prefHeight="700" prefWidth="1200" style="-fx-background-color: #f6f8fa;" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientGUI.controller.ReportsUIController">
+<BorderPane prefHeight="700" prefWidth="1200" style="-fx-background-color: #f6f8fa;" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientGUI.controller.ReportsUIController">
 
     <top>
         <HBox spacing="20" style="-fx-background-color: #2563eb;">

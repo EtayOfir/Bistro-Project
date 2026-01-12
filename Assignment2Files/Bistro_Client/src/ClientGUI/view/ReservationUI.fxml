@@ -81,8 +81,8 @@
                 
                 <Button onAction="#onCheckAvailability" text="Check Availability" />
                 <Button onAction="#onBook" text="Book" />
-                <Button onAction="#onBack" style="-fx-background-color: #e5e7eb; -fx-text-fill: black;" text="Back" />
-                <Button onAction="#onClose" text="Close" />
+                <Button onAction="#onBack" text="Back" />
+                <Button onAction="#onExit" text="Exit" />
             </HBox>
             <Label style="-fx-text-fill: #4b5563;" text="Alternative times (if unavailable):" />
             <ListView fx:id="alternativesList" prefHeight="120" />
