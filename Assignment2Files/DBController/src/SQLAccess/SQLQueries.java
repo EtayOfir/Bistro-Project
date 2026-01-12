@@ -108,7 +108,7 @@ public final class SQLQueries {
      * Removed the "WHERE Status != 'Canceled'" filter.
      */
     public static final String GET_ALL_ACTIVE_RESERVATIONS =
-            "SELECT ReservationID, CustomerType, ReservationDate, ReservationTime, " +
+            "SELECT ReservationID, Role, ReservationDate, ReservationTime, " +
             "NumOfDiners, Status, ConfirmationCode, SubscriberID " +
             "FROM ActiveReservations " +
             "ORDER BY ReservationDate ASC, ReservationTime ASC";
@@ -125,26 +125,26 @@ public final class SQLQueries {
     
     /** Get reservation by confirmation code. */
     public static final String GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE =
-            "SELECT ReservationID, CustomerType, SubscriberID, CasualPhone, CasualEmail, " +
+            "SELECT ReservationID, Role, SubscriberID, CasualPhone, CasualEmail, " +
             "ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status " +
             "FROM ActiveReservations WHERE ConfirmationCode = ?";
 
     /** Get reservation by id. */
     public static final String GET_ACTIVE_RESERVATION_BY_ID =
-            "SELECT ReservationID, CustomerType, SubscriberID, CasualPhone, CasualEmail, " +
+            "SELECT ReservationID, Role, SubscriberID, CasualPhone, CasualEmail, " +
             "ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status " +
             "FROM ActiveReservations WHERE ReservationID = ?";
 
     /** Insert subscriber reservation. */
     public static final String INSERT_ACTIVE_RESERVATION_SUBSCRIBER =
             "INSERT INTO ActiveReservations " +
-            "(CustomerType, SubscriberID, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
+            "(Role, SubscriberID, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
             "VALUES ('Subscriber', ?, ?, ?, ?, ?, 'Confirmed')";
 
     /** Insert casual reservation. */
     public static final String INSERT_ACTIVE_RESERVATION_CASUAL =
             "INSERT INTO ActiveReservations " +
-            "(CustomerType, CasualPhone, CasualEmail, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
+            "(Role, CasualPhone, CasualEmail, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
             "VALUES ('Casual', ?, ?, ?, ?, ?, ?, 'Confirmed')";
 
     /** Update reservation details by confirmation code. */
@@ -308,7 +308,7 @@ public final class SQLQueries {
             "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
             "ReservationDate AS order_date, ReservationTime AS order_time, " +
             "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
-            "Status, CustomerType " +
+            "Status, Role " +
             "FROM ActiveReservations " +
             "WHERE ReservationID = ?";
 
@@ -328,7 +328,7 @@ public final class SQLQueries {
      */
     public static final String INSERT_RESERVATION =
             "INSERT INTO ActiveReservations " +
-            "(NumOfDiners, ReservationDate, ConfirmationCode, SubscriberID, CustomerType, Status, ReservationTime) " +
+            "(NumOfDiners, ReservationDate, ConfirmationCode, SubscriberID, Role, Status, ReservationTime) " +
             "VALUES (?, ?, ?, ?, 'Subscriber', 'Confirmed', ?)";
 
     /**
@@ -344,7 +344,7 @@ public final class SQLQueries {
             "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
             "ReservationDate AS order_date, ReservationTime AS order_time, " +
             "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
-            "Status, CustomerType " +
+            "Status, Role " +
             "FROM ActiveReservations " +
             "WHERE SubscriberID = ?";
     
@@ -448,19 +448,19 @@ public final class SQLQueries {
     /** Get reservation statistics for a date range (Subscribers only). */
     public static final String GET_RESERVATION_STATS_BY_DATE_RANGE =
             "SELECT " +
-            "COUNT(CASE WHEN Status != 'Canceled' AND CustomerType = 'Subscriber' THEN 1 END) as TotalReservations, " +
-            "SUM(CASE WHEN Status = 'Confirmed' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as ConfirmedCount, " +
-            "SUM(CASE WHEN Status = 'Arrived' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as ArrivedCount, " +
-            "SUM(CASE WHEN Status = 'Late' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as LateCount, " +
-            "SUM(CASE WHEN Status = 'Expired' AND CustomerType = 'Subscriber' THEN 1 ELSE 0 END) as ExpiredCount, " +
-            "SUM(CASE WHEN Status != 'Canceled' AND CustomerType = 'Subscriber' THEN NumOfDiners ELSE 0 END) as TotalGuests " +
+            "COUNT(CASE WHEN Status != 'Canceled' AND Role = 'Subscriber' THEN 1 END) as TotalReservations, " +
+            "SUM(CASE WHEN Status = 'Confirmed' AND Role = 'Subscriber' THEN 1 ELSE 0 END) as ConfirmedCount, " +
+            "SUM(CASE WHEN Status = 'Arrived' AND Role = 'Subscriber' THEN 1 ELSE 0 END) as ArrivedCount, " +
+            "SUM(CASE WHEN Status = 'Late' AND Role = 'Subscriber' THEN 1 ELSE 0 END) as LateCount, " +
+            "SUM(CASE WHEN Status = 'Expired' AND Role = 'Subscriber' THEN 1 ELSE 0 END) as ExpiredCount, " +
+            "SUM(CASE WHEN Status != 'Canceled' AND Role = 'Subscriber' THEN NumOfDiners ELSE 0 END) as TotalGuests " +
             "FROM ActiveReservations " +
-            "WHERE ReservationDate >= ? AND ReservationDate <= ? AND CustomerType = 'Subscriber'";
+            "WHERE ReservationDate >= ? AND ReservationDate <= ? AND Role = 'Subscriber'";
 
     /** Get detailed reservations for export. */
     public static final String GET_DETAILED_RESERVATIONS_BY_DATE_RANGE =
             "SELECT ReservationID, ConfirmationCode, ReservationDate, ReservationTime, " +
-            "NumOfDiners, Status, CustomerType, SubscriberID, CasualPhone, CasualEmail " +
+            "NumOfDiners, Status, Role, SubscriberID, CasualPhone, CasualEmail " +
             "FROM ActiveReservations " +
             "WHERE ReservationDate >= ? AND ReservationDate <= ? " +
             "ORDER BY ReservationDate DESC, ReservationTime DESC";
@@ -470,7 +470,7 @@ public final class SQLQueries {
             "SELECT HOUR(ReservationTime) as Hour, COUNT(*) as ReservationCount " +
             "FROM ActiveReservations " +
             "WHERE ReservationDate >= ? AND ReservationDate <= ? " +
-            "AND CustomerType = 'Subscriber' " +
+            "AND Role = 'Subscriber' " +
             "GROUP BY HOUR(ReservationTime) " +
             "ORDER BY Hour ASC";
 

@@ -35,7 +35,8 @@ public class ClientMessageRouter implements ChatIF {
         if (t != null) {
             if (message.startsWith("TABLE_ASSIGNED|")
                     || message.equals("NO_TABLE_AVAILABLE")
-                    || message.equals("INVALID_CONFIRMATION_CODE")) {
+                    || message.equals("INVALID_CONFIRMATION_CODE") 
+            	|| message.equals("RESERVATION_ALREADY_USED")) {
                 t.onReceiveTableResponse(message);
                 return;
             }

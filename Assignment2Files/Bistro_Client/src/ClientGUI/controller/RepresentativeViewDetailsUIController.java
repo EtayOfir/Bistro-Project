@@ -37,7 +37,7 @@ public class RepresentativeViewDetailsUIController {
     // --- Reservations Table ---
     @FXML private TableView<Reservation> reservationsTable;
     @FXML private TableColumn<Reservation, Integer> colResID;
-    @FXML private TableColumn<Reservation, String> colResType; // דורש הוספת שדה customerType ל-Reservation
+    @FXML private TableColumn<Reservation, String> colResType; // דורש הוספת שדה Role ל-Reservation
     @FXML private TableColumn<Reservation, Date> colResDate;
     @FXML private TableColumn<Reservation, Time> colResTime;
     @FXML private TableColumn<Reservation, Integer> colResDiners; 
@@ -167,7 +167,7 @@ public class RepresentativeViewDetailsUIController {
 
     private void setupReservationsColumns() {
         colResID.setCellValueFactory(new PropertyValueFactory<>("reservationId")); // getReservationId
-        colResType.setCellValueFactory(new PropertyValueFactory<>("customerType")); 
+        colResType.setCellValueFactory(new PropertyValueFactory<>("Role")); 
         colResDate.setCellValueFactory(new PropertyValueFactory<>("reservationDate"));
         colResTime.setCellValueFactory(new PropertyValueFactory<>("reservationTime"));
         colResDiners.setCellValueFactory(new PropertyValueFactory<>("numberOfGuests")); 

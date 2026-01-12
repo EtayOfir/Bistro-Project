@@ -124,4 +124,82 @@ public class SubscriberDAO {
 	    }
 	}
     
+ // 1. עדכון פרטי קשר (טלפון ומייל)
+    public boolean updateContactInfo(int id, String phone, String email) throws SQLException {
+        // SQLQueries.UPDATE_SUBSCRIBER_CONTACT_INFO = "UPDATE Subscribers SET PhoneNumber = ?, Email = ? WHERE SubscriberID = ?"
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.UPDATE_SUBSCRIBER_CONTACT_INFO)) {
+            ps.setString(1, phone);
+            ps.setString(2, email);
+            ps.setInt(3, id);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    // 2. שליפת היסטוריית ביקורים
+    public List<entities.VisitHistory> getSubscriberVisitHistory(int subscriberId) throws SQLException {
+        List<entities.VisitHistory> history = new ArrayList<>();
+        // SQLQueries.GET_SUBSCRIBER_VISIT_HISTORY
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_SUBSCRIBER_VISIT_HISTORY)) {
+            ps.setInt(1, subscriberId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    // יצירת אובייקט VisitHistory מה-ResultSet
+                    // יש לוודא שסדר הפרמטרים תואם לקונסטרקטור ב-VisitHistory.java
+                    entities.VisitHistory vh = new entities.VisitHistory(
+                        rs.getDate("OriginalReservationDate").toLocalDate(),
+                        rs.getTimestamp("ActualArrivalTime") != null ? rs.getTimestamp("ActualArrivalTime").toLocalDateTime() : null,
+                        rs.getTimestamp("ActualDepartureTime") != null ? rs.getTimestamp("ActualDepartureTime").toLocalDateTime() : null,
+                        rs.getDouble("TotalBill"),
+                        rs.getDouble("DiscountApplied"),
+                        rs.getString("Status")
+                    );
+                    history.add(vh);
+                }
+            }
+        }
+        return history;
+    }
+
+    // 3. שליפת הזמנות פעילות (Active Reservations)
+    public List<entities.ActiveReservation> getSubscriberActiveReservations(int subscriberId) throws SQLException {
+        List<entities.ActiveReservation> list = new ArrayList<>();
+        // SQLQueries.GET_SUBSCRIBER_ACTIVE_RESERVATIONS
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_SUBSCRIBER_ACTIVE_RESERVATIONS)) {
+            ps.setInt(1, subscriberId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    entities.ActiveReservation ar = new entities.ActiveReservation(
+                        rs.getDate("ReservationDate").toLocalDate(),
+                        rs.getTime("ReservationTime").toLocalTime(),
+                        rs.getInt("NumOfDiners"),
+                        rs.getString("ConfirmationCode"),
+                        rs.getString("Status")
+                    );
+                    list.add(ar);
+                }
+            }
+        }
+        return list;
+    }
+    
+    public Subscriber getSubscriberById(int id) throws SQLException {
+        try (Connection conn = dataSource.getConnection();
+        		PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_SUBSCRIBER_BY_ID)) {            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Subscriber s = new Subscriber();
+                    s.setSubscriberId(rs.getInt("SubscriberID"));
+                    s.setPhoneNumber(rs.getString("PhoneNumber"));
+                    s.setEmail(rs.getString("Email"));
+                    // אפשר להוסיף עוד שדות אם צריך
+                    return s;
+                }
+            }
+        }
+        return null;
+    }
+    
 }

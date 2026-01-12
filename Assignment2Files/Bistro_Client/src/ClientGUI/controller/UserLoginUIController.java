@@ -5,6 +5,7 @@ import java.net.URL;
 
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
+import entities.Subscriber;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -41,6 +42,9 @@ public class UserLoginUIController {
     @FXML private TextField hostField;
     @FXML private TextField portField;
 
+    private int tempSubscriberId = -1;
+    private String tempFullName = "";
+    
     /**
      * Initializes the controller class.
      */
@@ -138,6 +142,22 @@ public class UserLoginUIController {
                 String[] parts = response.split("\\|");
                 String role = (parts.length > 1) ? parts[1] : "";
 
+             // איפוס המשתנים הזמניים
+                this.tempSubscriberId = -1;
+                this.tempFullName = username;
+
+                // שמירת ה-ID במשתנה הגלובלי של המחלקה כדי שיהיה זמין לפונקציית הניווט
+                if (parts.length > 2) {
+                    try {
+                        this.tempSubscriberId = Integer.parseInt(parts[2]);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Failed to parse user ID: " + parts[2]);
+                    }
+                }
+                if (parts.length > 3) {
+                    this.tempFullName = parts[3];
+                }
+                
                 // ✅ Tell the server who logged in (for server table + logs)
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + username + "|" + role);
 
@@ -188,6 +208,17 @@ public class UserLoginUIController {
             	loader = ViewLoader.fxml("LoginSubscriberUI.fxml");
                 root = loader.load();
 
+             // 1. שחזור האובייקט המלא מתוך המשתנים הזמניים והפרמטרים
+                Subscriber sub = new Subscriber();
+                sub.setSubscriberId(this.tempSubscriberId); // שימוש במשתנה ששמרנו
+                sub.setUserName(username);
+                sub.setRole(role);
+                sub.setFullName(this.tempFullName); // שימוש במשתנה ששמרנו
+
+                // 2. העברה לקונטרולר הבא
+                LoginSubscriberUIController controller = loader.getController();
+                controller.setSubscriber(sub);
+                
                 stage.setTitle("Subscriber Menu - " + username);
                 stage.setScene(new Scene(root));
                 stage.show();

@@ -193,6 +193,13 @@ public class LoginSubscriberUIController {
 
             // Set the return path based on the controller type
             switch (controller) {
+            case SubscriberUIController c -> {
+                if (currentSubscriber != null) {
+                    c.loadSubscriber(currentSubscriber); 
+                } else {
+                    System.err.println("Error: currentSubscriber is null in LoginSubscriberUIController");
+                }
+            }
                 case ReservationUIController c -> {
                     c.setReturnPath("LoginSubscriberUI.fxml", "Subscriber Menu", subName, "Subscriber");
                     c.setSubscriber(currentSubscriber);

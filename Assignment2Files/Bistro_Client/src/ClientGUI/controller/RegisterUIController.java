@@ -67,12 +67,45 @@ public class RegisterUIController {
         String password = safe(passwordField.getText());
         String targetRole = roleCombo.getValue();
 
-        if (fullName.isEmpty() || phone.isEmpty() || email.isEmpty()
-                || username.isEmpty() || password.isEmpty() || targetRole == null) {
-            statusLabel.setText("Please fill all fields (including password).");
+        if (fullName.isEmpty()) {
+            statusLabel.setText("Full Name is missing.");
             return;
         }
 
+        if (phone.isEmpty()) {
+            statusLabel.setText("Phone Number is missing.");
+            return;
+        }
+
+        if (email.isEmpty()) {
+            statusLabel.setText("Email is missing.");
+            return;
+        }
+
+        if (username.isEmpty()) {
+            statusLabel.setText("Username is missing.");
+            return;
+        }
+
+        if (password.isEmpty()) {
+            statusLabel.setText("Password is missing.");
+            return;
+        }
+
+        if (targetRole == null) {
+            statusLabel.setText("Role is not selected.");
+            return;
+        }
+
+        if (!phone.matches("\\d+")) {
+            statusLabel.setText("Phone number must contain only digits.");
+            return;
+        }
+        if (phone.length() != 10) {
+            statusLabel.setText("Phone number must be exactly 10 digits.");
+            return;
+        }
+        
         // Representative can only create Subscriber (force)
         if ("Representative".equalsIgnoreCase(currentUserRole)) {
             targetRole = "Subscriber";

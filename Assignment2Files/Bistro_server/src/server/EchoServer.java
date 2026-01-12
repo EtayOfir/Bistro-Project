@@ -303,7 +303,7 @@ public class EchoServer extends AbstractServer {
                             for (int i = 0; i < list.size(); i++) {
                                 Reservation r = list.get(i);
                                 sb.append(r.getReservationId()).append(",")
-                                        .append(r.getCustomerType()).append(",")
+                                        .append(r.getRole()).append(",")
                                         .append(r.getReservationDate().toString()).append(",")
                                         .append(r.getReservationTime().toString()).append(",")
                                         .append(r.getNumberOfGuests()).append(",")
@@ -401,9 +401,26 @@ public class EchoServer extends AbstractServer {
 
                 case "#RECEIVE_TABLE": {
                     try {
-                        int tableNum = reservationDAO.allocateTableForCustomer(parts[1]);
-                        ans = "TABLE_ASSIGNED|" + tableNum;
+                        String code = parts[1];
+                        Reservation res = reservationDAO.getReservationByConfirmationCode(code);
+                        
+                        if (res == null) {
+                            ans = "INVALID_CONFIRMATION_CODE";
+                        } 
+                        else if ("Arrived".equalsIgnoreCase(res.getStatus())) {
+                            ans = "RESERVATION_ALREADY_USED";
+                        } 
+                        else {
+                            int tableNum = reservationDAO.allocateTableForCustomer(code);
+                            
+                            if (tableNum != -1) {                                
+                                ans = "TABLE_ASSIGNED|" + tableNum;
+                            } else {
+                                ans = "NO_TABLE_AVAILABLE";
+                            }
+                        }
                     } catch (Exception e) {
+                        e.printStackTrace();
                         ans = "ERROR|" + e.getMessage();
                     }
                     break;
@@ -511,7 +528,7 @@ public class EchoServer extends AbstractServer {
                     if (b == null) ans = "BILL_NOT_FOUND";
                     else ans = "BILL|" + b.getConfirmationCode() + "|" + b.getDiners() + "|"
                             + b.getSubtotal().toPlainString() + "|" + b.getDiscountPercent() + "|"
-                            + b.getTotal().toPlainString() + "|" + b.getCustomerType();
+                            + b.getTotal().toPlainString() + "|" + b.getRole();
                     break;
                 }
 
@@ -588,7 +605,74 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#UPDATE_SUBSCRIBER_INFO": {
+                    // Format: #UPDATE_SUBSCRIBER_INFO <id> <phone> <email>
+                    try {
+                        int subId = Integer.parseInt(parts[1]);
+                        String phone = parts[2];
+                        String email = parts[3];
+                        
+                        boolean updated = subscriberDAO.updateContactInfo(subId, phone, email);
+                        ans = updated ? "UPDATE_SUBSCRIBER_SUCCESS" : "ERROR|UPDATE_FAILED";
+                    } catch (Exception e) {
+                        ans = "ERROR|UPDATE_EXCEPTION";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
 
+                case "#GET_SUBSCRIBER_DATA": {
+                    try {
+                        int subId = Integer.parseInt(parts[1]);
+
+                        Subscriber subInfo = subscriberDAO.getSubscriberById(subId);
+                        String phone = (subInfo != null) ? subInfo.getPhoneNumber() : "";
+                        String email = (subInfo != null) ? subInfo.getEmail() : "";
+
+                        List<entities.VisitHistory> history = subscriberDAO.getSubscriberVisitHistory(subId);
+                        List<entities.ActiveReservation> active = subscriberDAO.getSubscriberActiveReservations(subId);
+
+                        // Format: SUBSCRIBER_DATA_RESPONSE|DETAILS:phone,email|ACTIVE:...|HISTORY:...
+                        StringBuilder sb = new StringBuilder("SUBSCRIBER_DATA_RESPONSE|");
+                        
+                        sb.append("DETAILS:").append(phone).append(",").append(email).append("|");
+
+                        sb.append("ACTIVE:");
+                        if (active.isEmpty()) {
+                            sb.append("EMPTY");
+                        } else {
+                            for (entities.ActiveReservation r : active) {
+                                sb.append(r.getReservationDate()).append(",")
+                                  .append(r.getReservationTime()).append(",")
+                                  .append(r.getNumOfDiners()).append(",")
+                                  .append(r.getConfirmationCode()).append(",")
+                                  .append(r.getStatus()).append(";");
+                            }
+                        }
+
+                        sb.append("|HISTORY:");
+                        if (history.isEmpty()) {
+                            sb.append("EMPTY");
+                        } else {
+                            for (entities.VisitHistory h : history) {
+                                sb.append(h.getOriginalReservationDate()).append(",")
+                                  .append(h.getActualArrivalTime()).append(",")
+                                  .append(h.getActualDepartureTime()).append(",")
+                                  .append(h.getTotalBill()).append(",")
+                                  .append(h.getDiscountApplied()).append(",")
+                                  .append(h.getStatus()).append(";");
+                            }
+                        }
+
+                        ans = sb.toString();
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        ans = "ERROR|FETCH_DATA_FAILED";
+                    }
+                    break;
+                }
+                   
                 default:
                     ans = "ERROR|UNKNOWN_COMMAND";
                     break;
@@ -612,7 +696,7 @@ public class EchoServer extends AbstractServer {
     private String reservationToProtocolString(Reservation r) {
         return "RESERVATION|" + r.getReservationId() + "|" + r.getNumberOfGuests() + "|"
                 + r.getReservationDate() + "|" + r.getReservationTime() + "|"
-                + r.getConfirmationCode() + "|" + r.getSubscriberId() + "|" + r.getStatus() + "|" + r.getCustomerType();
+                + r.getConfirmationCode() + "|" + r.getSubscriberId() + "|" + r.getStatus() + "|" + r.getRole();
     }
 
     private void callUIMethod(String methodName, Class<?>[] parameterTypes, Object[] parameters) {
