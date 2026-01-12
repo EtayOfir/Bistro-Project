@@ -167,8 +167,8 @@ public class UserLoginUIController {
             	loader = ViewLoader.fxml("ManagerUI.fxml");
                 root = loader.load();
 
-                // ManagerUIController controller = loader.getController();
-                // controller.setManagerName(username);
+                ManagerUIController controller = loader.getController();
+                controller.setManagerName(username);
 
                 stage.setTitle("Manager Dashboard - " + username);
                 stage.setScene(new Scene(root));
@@ -179,6 +179,9 @@ public class UserLoginUIController {
             	loader = ViewLoader.fxml("RepresentativeMenuUI.fxml");
                 root = loader.load();
 
+                RepresentativeMenuUIController controller = loader.getController();
+                controller.setRepresentativeName(username);
+                
                 stage.setTitle("Representative Dashboard - " + username);
                 stage.setScene(new Scene(root));
                 stage.show();

@@ -25,7 +25,7 @@
 		</VBox.margin>
 	</Label>
 
-	<Label fx:id="welcomeLabel" text="Welcome Manager">
+	<Label fx:id="welcomeLabel" >
 		<font>
 			<Font size="14.0" />
 		</font>

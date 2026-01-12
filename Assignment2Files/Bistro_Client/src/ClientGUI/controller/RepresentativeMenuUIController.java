@@ -25,14 +25,23 @@ public class RepresentativeMenuUIController {
      * Sets the name of the representative on the dashboard and stores it for navigation.
      */
     public void setRepresentativeName(String name) {
-        this.currentUserName = name; // שמירת השם
-        if (welcomeLabel != null) {
-            welcomeLabel.setText("Welcome Representative: " + name);
-        }
+        this.currentUserName = name;
+        updateWelcomeLabel();
     }
 
     // --- Basic Actions ---
 
+    @FXML
+    public void initialize() {
+        updateWelcomeLabel();
+    }
+
+    private void updateWelcomeLabel() {
+        if (welcomeLabel != null && currentUserName != null && !currentUserName.isBlank()) {
+            welcomeLabel.setText("Welcome " + currentUserName);
+        }
+    }
+    
     @FXML
     void onMakeReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();

@@ -25,13 +25,22 @@ public class ManagerUIController {
      */
     public void setManagerName(String name) {
         this.currentUserName = name;
-        if (welcomeLabel != null) {
-            welcomeLabel.setText("Welcome Manager: " + name);
-        }
+        updateWelcomeLabel();
     }
 
     // --- Basic Actions ---
 
+    @FXML
+    public void initialize() {
+        updateWelcomeLabel();
+    }
+
+    private void updateWelcomeLabel() {
+        if (welcomeLabel != null && currentUserName != null && !currentUserName.isBlank()) {
+            welcomeLabel.setText("Welcome " + currentUserName);
+        }
+    }
+    
     @FXML
     void onMakeReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
