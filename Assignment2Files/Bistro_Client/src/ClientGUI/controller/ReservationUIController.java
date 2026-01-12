@@ -47,7 +47,7 @@ import javafx.stage.Stage;
  * <p><b>Server protocol messages used here:</b>
  * <ul>
  *   <li>{@code #GET_RESERVATIONS_BY_DATE yyyy-MM-dd}</li>
- *   <li>{@code #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email>}</li>
+ *   <li>{@code #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email> <role>}</li>
  * </ul>
  *
  * <p><b>Expected server responses handled here:</b>
@@ -319,6 +319,7 @@ public class ReservationUIController {
      */
     public void onBookingResponse(String response) {
         System.out.println("DEBUG: onBookingResponse called with: " + response);
+        System.out.println("DEBUG: reservationIdField is null? " + (reservationIdField == null));
         // Note: No Platform.runLater here - caller (ClientMessageRouter.display) already ensures JavaFX thread
         if (response != null && response.startsWith("RESERVATION_CREATED")) {
             System.out.println("DEBUG: Processing RESERVATION_CREATED response");
@@ -333,6 +334,8 @@ public class ReservationUIController {
                 } catch (NumberFormatException e) {
                     System.err.println("Failed to parse reservation ID: " + e.getMessage());
                 }
+            } else {
+                System.out.println("DEBUG: Response parts length is less than 2: " + parts.length);
             }
 
             // Add newly booked time to local set immediately
@@ -347,12 +350,23 @@ public class ReservationUIController {
             }
 
             if (resId > 0) {
+                System.out.println("DEBUG: Setting reservation ID field to: " + resId);
                 reservationIdField.setText(String.valueOf(resId));
+                System.out.println("DEBUG: Reservation ID field text is now: " + reservationIdField.getText());
+            } else {
+                System.out.println("DEBUG: resId is not > 0: " + resId);
             }
             confirmationField.setText(currentConfirmationCode);
+            System.out.println("DEBUG: Set confirmation field to: " + currentConfirmationCode);
 
+            // Clear and re-fill phone/email fields if user is subscriber/manager/representative
             phoneField.setText("");
             emailField.setText("");
+            
+            // Re-fill the fields if we have a subscriber
+            if (currentSubscriber != null) {
+                preFillSubscriberFields(currentSubscriber);
+            }
 
             // Show confirmation after clearing fields
             showAlert(AlertType.INFORMATION, "Reservation Confirmed",
@@ -703,12 +717,18 @@ public class ReservationUIController {
             showAlert(AlertType.ERROR, "Missing Phone", "Phone number is required.");
             return;
         }
+        // Validate phone number - must be exactly 9 digits
+        if (!phone.matches("\\d{9}")) {
+            showAlert(AlertType.ERROR, "Invalid Phone", "Phone number must contain exactly 9 digits (no spaces or special characters).");
+            return;
+        }
         if (email.isEmpty()) {
             showAlert(AlertType.ERROR, "Missing Email", "Email address is required.");
             return;
         }
-        if (!email.contains("@")) {
-            showAlert(AlertType.ERROR, "Invalid Email", "Please enter a valid email address.");
+        // Validate email format - must end with @provider.com or @provider.co.il
+        if (!isValidEmail(email)) {
+            showAlert(AlertType.ERROR, "Invalid Email", "Email must be in format: name@provider.com or name@provider.co.il");
             return;
         }
 
@@ -747,12 +767,39 @@ public class ReservationUIController {
         // Generate SHORT confirmation code (max 10 chars)
         currentConfirmationCode = generateConfirmation(start, guests);
 
+        // Prepare subscriber ID and role
+        int subscriberId = 0;
+        String role = "Casual";
+        
+        if (currentSubscriber != null) {
+            role = currentSubscriber.getRole() != null ? currentSubscriber.getRole() : "Subscriber";
+            
+            // Only use subscriber ID for actual Subscribers, not for Manager or Representative
+            if ("Subscriber".equalsIgnoreCase(role)) {
+                subscriberId = currentSubscriber.getSubscriberId();
+                System.out.println("DEBUG onBook: Subscriber reservation - ID=" + subscriberId + ", role=" + role);
+            } else {
+                // Manager or Representative - save as casual with their role
+                subscriberId = 0;
+                System.out.println("DEBUG onBook: " + role + " reservation - subscriberId=0, role=" + role);
+            }
+        } else if (!currentUserRole.isBlank() && !"Casual".equalsIgnoreCase(currentUserRole)) {
+            // For non-casual roles (Manager, Representative, etc.), use currentUserRole
+            role = currentUserRole;
+            subscriberId = 0; // These roles don't have a subscriber ID
+            System.out.println("DEBUG onBook: Using currentUserRole=" + role + ", subscriberId=0");
+        } else {
+            System.out.println("DEBUG onBook: currentSubscriber is NULL and no special role, using defaults: subscriberId=0, role=Casual");
+        }
+
         // Protocol:
-        // #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email>
+        // #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email> <role>
         String command = "#CREATE_RESERVATION " + guests + " "
                 + start.format(DATE_FMT) + " "
                 + start.format(TIME_WITH_SECONDS_FMT) + " "
-                + currentConfirmationCode + " 0 " + phone + " " + email;
+                + currentConfirmationCode + " " + subscriberId + " " + phone + " " + email + " " + role;
+
+        System.out.println("DEBUG onBook: Sending command to server: " + command);
 
         if (ClientUI.chat == null) {
             showAlert(AlertType.ERROR, "Connection Error", "Not connected to server.");
@@ -760,6 +807,7 @@ public class ReservationUIController {
         }
 
         ClientUI.chat.handleMessageFromClientUI(command);
+        System.out.println("DEBUG onBook: Command sent, waiting for response...");
 
         // Show generated code immediately (server will confirm with reservation id)
         Platform.runLater(() -> confirmationField.setText(currentConfirmationCode));
@@ -777,6 +825,17 @@ public class ReservationUIController {
     private String generateConfirmation(LocalDateTime start, int guests) {
         String randomPart = String.format("%06d", (int) (Math.random() * 1_000_000));
         return "RES" + randomPart;
+    }
+
+    /**
+     * Validates email format - must end with @provider.com or @provider.co.il
+     */
+    private boolean isValidEmail(String email) {
+        if (email == null || email.isEmpty()) {
+            return false;
+        }
+        // Must contain @ and end with .com or .co.il
+        return email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.(com|co\\.il)$");
     }
 
     // Window close
@@ -822,14 +881,47 @@ public class ReservationUIController {
     /**
      * Sets the logged-in subscriber object for this controller.
      * If a subscriber is provided, the controller will treat the session as a subscriber.
+     * Also pre-fills the phone and email fields with the subscriber's information.
+     * This method works for both subscribers and managers (who are also stored as Subscriber objects).
      * @param subscriber subscriber object or null for guests
      */
     public void setSubscriber(Subscriber subscriber) {
+        System.out.println("DEBUG setSubscriber called: subscriber=" + (subscriber != null ? "not null" : "null"));
         this.currentSubscriber = subscriber;
         if (subscriber != null) {
             this.currentUserName = subscriber.getUserName();
-            this.currentUserRole = "Subscriber";
+            // Preserve the role if it was already set, otherwise use subscriber's role
+            if (currentUserRole.isBlank()) {
+                this.currentUserRole = subscriber.getRole() != null ? subscriber.getRole() : "Subscriber";
+            }
+            System.out.println("DEBUG setSubscriber: ID=" + subscriber.getSubscriberId() + 
+                             ", Phone=" + subscriber.getPhoneNumber() + ", Email=" + subscriber.getEmail() +
+                             ", Role=" + subscriber.getRole() + ", currentUserRole=" + currentUserRole);
+            
+            // Pre-fill phone and email fields immediately if they are available
+            preFillSubscriberFields(subscriber);
+        } else {
+            System.out.println("DEBUG setSubscriber: subscriber is null");
         }
+    }
+
+    /**
+     * Helper method to pre-fill phone and email fields with subscriber's information.
+     * Works for both subscribers and managers.
+     */
+    private void preFillSubscriberFields(Subscriber subscriber) {
+        if (subscriber == null) return;
+        
+        Platform.runLater(() -> {
+            if (phoneField != null && subscriber.getPhoneNumber() != null && !subscriber.getPhoneNumber().isEmpty()) {
+                phoneField.setText(subscriber.getPhoneNumber());
+                System.out.println("DEBUG: Phone field filled with: " + subscriber.getPhoneNumber());
+            }
+            if (emailField != null && subscriber.getEmail() != null && !subscriber.getEmail().isEmpty()) {
+                emailField.setText(subscriber.getEmail());
+                System.out.println("DEBUG: Email field filled with: " + subscriber.getEmail());
+            }
+        });
     }
 
     /**
@@ -886,8 +978,13 @@ public class ReservationUIController {
                     c.setRepresentativeName(currentUserName);
 
                 // 3. Subscriber Area
-                case LoginSubscriberUIController c -> 
+                case LoginSubscriberUIController c -> {
                     c.setSubscriberName(currentUserName);
+                    if (currentSubscriber != null) {
+                        c.setSubscriber(currentSubscriber);
+                        System.out.println("DEBUG onBack: Restoring subscriber to LoginSubscriberUIController");
+                    }
+                }
 
                 // 4. Guest Menu
                 case LoginGuestUIController c -> {

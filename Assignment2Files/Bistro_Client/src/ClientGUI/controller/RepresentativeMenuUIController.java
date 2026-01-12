@@ -11,6 +11,7 @@ import javafx.stage.Stage;
 import java.io.IOException;
 
 import ClientGUI.util.ViewLoader;
+import entities.Subscriber;
 
 /**
  * Controller class for the Representative Dashboard.
@@ -20,12 +21,27 @@ public class RepresentativeMenuUIController {
     @FXML private Label welcomeLabel;
     
     private String currentUserName;
+    private Subscriber currentSubscriber;
 
     /**
      * Sets the name of the representative on the dashboard and stores it for navigation.
      */
     public void setRepresentativeName(String name) {
         this.currentUserName = name;
+        updateWelcomeLabel();
+    }
+    
+    /**
+     * Sets the subscriber object for the representative.
+     * This allows access to the representative's contact information and other details.
+     */
+    public void setSubscriber(Subscriber subscriber) {
+        this.currentSubscriber = subscriber;
+        if (subscriber != null) {
+            this.currentUserName = subscriber.getUserName();
+            System.out.println("DEBUG setSubscriber (Representative): Subscriber ID=" + subscriber.getSubscriberId() + 
+                             ", Phone=" + subscriber.getPhoneNumber() + ", Email=" + subscriber.getEmail());
+        }
         updateWelcomeLabel();
     }
 
@@ -46,6 +62,12 @@ public class RepresentativeMenuUIController {
     void onMakeReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
+    }
+
+    @FXML
+    void onMakeCustomerReservation(ActionEvent event) {
+        // Don't delete expired - just mark as expired (ReservationUI logic)
+        navigate(event, "StaffReservationUI.fxml");
     }
 
     @FXML
@@ -189,7 +211,14 @@ public class RepresentativeMenuUIController {
                 case BillPaymentController c -> 
                     c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
 
-                case ReservationUIController c -> 
+                case ReservationUIController c -> {
+                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                    if (currentSubscriber != null) {
+                        c.setSubscriber(currentSubscriber);
+                    }
+                }
+
+                case StaffReservationUIController c -> 
                     c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
 
                 case ReceiveTableUIController c -> 

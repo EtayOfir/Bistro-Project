@@ -135,17 +135,17 @@ public final class SQLQueries {
             "ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status " +
             "FROM ActiveReservations WHERE ReservationID = ?";
 
-    /** Insert subscriber reservation. */
+    /** Insert subscriber reservation (with dynamic CustomerType). */
     public static final String INSERT_ACTIVE_RESERVATION_SUBSCRIBER =
             "INSERT INTO ActiveReservations " +
             "(CustomerType, SubscriberID, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
-            "VALUES ('Subscriber', ?, ?, ?, ?, ?, 'Confirmed')";
+            "VALUES (?, ?, ?, ?, ?, ?, 'Confirmed')";
 
-    /** Insert casual reservation. */
+    /** Insert casual reservation (with dynamic CustomerType). */
     public static final String INSERT_ACTIVE_RESERVATION_CASUAL =
             "INSERT INTO ActiveReservations " +
             "(CustomerType, CasualPhone, CasualEmail, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
-            "VALUES ('Casual', ?, ?, ?, ?, ?, ?, 'Confirmed')";
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmed')";
 
     /** Update reservation details by confirmation code. */
     public static final String UPDATE_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE =

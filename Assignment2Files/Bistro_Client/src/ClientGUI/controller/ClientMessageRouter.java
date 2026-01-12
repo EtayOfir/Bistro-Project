@@ -20,7 +20,17 @@ public class ClientMessageRouter implements ChatIF {
     private void route(String message) {
         if (message == null) return;
 
-        // 1) Route to active reservation window (if exists)
+        // 1) Route to active staff reservation window (for creating customer reservations)
+        StaffReservationUIController sr = ClientUIController.getActiveStaffReservationController();
+        if (sr != null) {
+            if (message.startsWith("RESERVATIONS_FOR_DATE|")) { sr.onReservationsReceived(message); return; }
+            if (message.startsWith("RESERVATION_CREATED")) { sr.onBookingResponse(message); return; }
+            if (message.startsWith("RESERVATION_CANCELED")
+                    || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
+                    || message.startsWith("ERROR|CANCEL")) { return; }
+        }
+
+        // 2) Route to active reservation window (if exists)
         ReservationUIController r = ClientUIController.getActiveReservationController();
         if (r != null) {
             if (message.startsWith("RESERVATIONS_FOR_DATE|")) { r.onReservationsReceived(message); return; }
@@ -30,7 +40,7 @@ public class ClientMessageRouter implements ChatIF {
                     || message.startsWith("ERROR|CANCEL")) { r.onCancelResponse(message); return; }
         }
 
-        // 2) Route to active receive-table window (if exists)
+        // 3) Route to active receive-table window (if exists)
         ReceiveTableUIController t = ClientUIController.getActiveReceiveTableController();
         if (t != null) {
             if (message.startsWith("TABLE_ASSIGNED|")
@@ -41,14 +51,14 @@ public class ClientMessageRouter implements ChatIF {
             }
         }
 
-        // 3) Route to main UI controller if loaded
+        // 4) Route to main UI controller if loaded
         ClientUIController main = ClientUIController.getMainController();
         if (main != null) {
             main.handleMainScreenServerMessageFromRouter(message);
             return;
         }
 
-        // 4) Fallback: no UI loaded yet
+        // 5) Fallback: no UI loaded yet
         System.out.println("SERVER (no UI yet): " + message);
     }
 }
