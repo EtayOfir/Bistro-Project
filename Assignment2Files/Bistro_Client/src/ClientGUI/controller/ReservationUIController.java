@@ -781,18 +781,26 @@ public class ReservationUIController {
 
     // Window close
 
-    /**
-     * Closes the reservation window and unregisters this controller from routing.
-     *
-     * @param event action event
-     */
     @FXML
-    private void onClose(ActionEvent event) {
-        ClientUIController.clearActiveReservationController();
+    private void onExit(ActionEvent event) {
+        try {
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("LOGOUT");
+                ClientUI.chat.closeConnection();
+                ClientUI.chat = null;
+            }
 
-        Node node = (Node) event.getSource();
-        Stage stage = (Stage) node.getScene().getWindow();
-        stage.close();
+            FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
+            Parent root = loader.load();
+
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setTitle("Login");
+            stage.setScene(new Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
     
  // ==========================================

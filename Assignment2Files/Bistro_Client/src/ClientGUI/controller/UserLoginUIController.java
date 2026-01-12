@@ -246,7 +246,30 @@ public class UserLoginUIController {
     @FXML
     private void onLoginGuest(ActionEvent event) {
         try {
-        	FXMLLoader loader = ViewLoader.fxml("LoginGuestUI.fxml");
+            // Connect if not connected yet
+            if (ClientUI.chat == null) {
+                String host = (hostField != null && !hostField.getText().isEmpty())
+                        ? hostField.getText()
+                        : "localhost";
+
+                int port = 5555;
+                try {
+                    if (portField != null && !portField.getText().isEmpty()) {
+                        port = Integer.parseInt(portField.getText());
+                    }
+                } catch (NumberFormatException e) {
+                    showError("Invalid Port Number. Using 5555.");
+                }
+
+                ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                System.out.println("✅ Connected to server (" + host + ":" + port + ") as Guest");
+            }
+
+            // 2Identify as Guest (so server UI shows the connection)
+            ClientUI.chat.handleMessageFromClientUI("IDENTIFY|Guest|Guest");
+
+            // Navigate to Guest menu
+            FXMLLoader loader = ViewLoader.fxml("LoginGuestUI.fxml");
             Parent root = loader.load();
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
@@ -256,7 +279,7 @@ public class UserLoginUIController {
 
         } catch (Exception e) {
             e.printStackTrace();
-            showError("Could not open Guest Screen. (Missing FXML?)\n" + e.getMessage());
+            showError("Could not open Guest Screen.\n" + e.getMessage());
         }
     }
     
