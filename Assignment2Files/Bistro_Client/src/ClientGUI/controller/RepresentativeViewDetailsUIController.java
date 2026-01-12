@@ -81,7 +81,9 @@ public class RepresentativeViewDetailsUIController {
             if (ClientUI.chat != null) {
                 ClientUI.chat.sendToServer("#GET_ALL_SUBSCRIBERS"); 
                 ClientUI.chat.sendToServer("#GET_WAITING_LIST");
-                ClientUI.chat.sendToServer("#GET_ACTIVE_RESERVATIONS");            } else {
+                ClientUI.chat.sendToServer("#GET_ACTIVE_RESERVATIONS"); 
+            } 
+            	else {
                 System.err.println("ERROR: ClientUI.chat is NULL!");
             }
         } catch (Exception e) {
@@ -97,7 +99,9 @@ public class RepresentativeViewDetailsUIController {
         javafx.application.Platform.runLater(() -> {
             try {
                 // הפורמט מהשרת: WAITING_LIST|id,contact(base64),diners,code,status,time~...
-                String[] parts = message.split("\\|");
+                //String[] parts = message.split("\\|");
+            	String[] parts = message.split("\\|", 2);
+
                 java.util.ArrayList<entities.WaitingEntry> list = new java.util.ArrayList<>();
 
                 if (parts.length > 1 && !parts[1].equals("EMPTY")) {
@@ -105,35 +109,47 @@ public class RepresentativeViewDetailsUIController {
                     String[] rows = data.split("~");
 
                     for (String row : rows) {
-                        String[] cols = row.split(",");
-                        // אנו מצפים ל-6 עמודות לפחות
-                        if (cols.length >= 6) {
-                            int id = Integer.parseInt(cols[0]);
-                            String contactEncoded = cols[1];
-                            int diners = Integer.parseInt(cols[2]);
-                            String code = cols[3];
-                            String status = cols[4];
-                            String timeStr = cols[5];
+                    	String[] cols = row.split(",",-1);
+           
+                    	if (cols.length < 6){
+                    		System.out.println("Skipping bad row: " + row);
+                    	    continue;
+                    	}
+                         
+                    	int id = Integer.parseInt(cols[0]);
+                    	String contactEncoded = cols[1];
+                    	int diners = Integer.parseInt(cols[2]);
+                    	String code = cols[3];
 
-                            // פענוח פרטי הקשר (בגלל שהשרת מצפין ב-Base64)
+                    	String status;
+                    	String timeStr;
+                    	
+                    	if (cols.length >= 7) {
+                    	    status = cols[5];
+                    	    timeStr = cols[6];
+                    	} else {
+                    	    
+                    	    status = cols[4];
+                    	    timeStr = cols[5];
+                    	}
+                            
+
+                            
                             String contactDecoded = decodeB64Url(contactEncoded);
                             
-                            // המרת הזמן
                             java.sql.Timestamp entryTime = null;
-                            try {
-                                entryTime = java.sql.Timestamp.valueOf(timeStr);
-                            } catch (Exception e) { 
-                                // אם יש בעיה בפורמט הזמן, נשים זמן נוכחי או null
+                            if (timeStr != null && !timeStr.isBlank() && !"null".equalsIgnoreCase(timeStr)) {
+                                try { entryTime = Timestamp.valueOf(timeStr); } catch (Exception ignored) {}
                             }
 
-                            // יצירת האובייקט
+                           
                             entities.WaitingEntry entry = new entities.WaitingEntry(
                                     id, contactDecoded, diners, code, status, entryTime
                             );
                             list.add(entry);
                         }
                     }
-                }
+                
 
                 waitingListTable.setItems(javafx.collections.FXCollections.observableArrayList(list));
                 waitingListTable.refresh();

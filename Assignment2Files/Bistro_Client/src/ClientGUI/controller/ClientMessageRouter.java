@@ -3,6 +3,7 @@ package ClientGUI.controller;
 import common.ChatIF;
 import javafx.application.Platform;
 
+
 /**
  * Central router for all server messages.
  *
@@ -37,6 +38,23 @@ public class ClientMessageRouter implements ChatIF {
                     || message.equals("NO_TABLE_AVAILABLE")
                     || message.equals("INVALID_CONFIRMATION_CODE")) {
                 t.onReceiveTableResponse(message);
+                return;
+            }
+        }
+        //Route to Representative View Details
+        ClientGUI.controller.RepresentativeViewDetailsUIController rep =
+                ClientGUI.controller.RepresentativeViewDetailsUIController.instance;
+        if (rep != null) {
+            if (message.startsWith("WAITING_LIST|")) {
+                rep.updateWaitingListFromMessage(message);
+                return;
+            }
+            if (message.startsWith("SUBSCRIBERS_LIST|")) {
+                rep.updateSubscribersFromMessage(message);
+                return;
+            }
+            if (message.startsWith("ACTIVE_RESERVATIONS|")) {
+                rep.updateReservationsFromMessage(message);
                 return;
             }
         }

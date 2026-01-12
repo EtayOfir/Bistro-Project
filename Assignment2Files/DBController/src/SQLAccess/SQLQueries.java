@@ -213,13 +213,13 @@ public final class SQLQueries {
     // WaitingList
     
     /** Add customer to waiting list. */
-    public static final String INSERT_WAITING_LIST_ENTRY =
-            "INSERT INTO WaitingList (ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status) " +
-            "VALUES (?, ?, ?, ?, 'Waiting')";
+   // public static final String INSERT_WAITING_LIST_ENTRY =
+            //"INSERT INTO WaitingList (ContactInfo,NumOfDiners, ConfirmationCode, Status) " +
+            //"VALUES (?, ?, ?, ?)";
 
     /** Get waiting entry by confirmation code. */
     public static final String GET_WAITING_ENTRY_BY_CONFIRMATION_CODE =
-            "SELECT WaitingID, ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "SELECT WaitingID, ContactInfo,NumOfDiners, ConfirmationCode, Status, EntryTime " +
             "FROM WaitingList WHERE ConfirmationCode = ?";
 
     /** Update waiting status. */
@@ -228,7 +228,7 @@ public final class SQLQueries {
 
     /** List all current waiting customers. */
     public static final String GET_ACTIVE_WAITING_LIST =
-            "SELECT WaitingID, ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
             "FROM WaitingList WHERE Status IN ('Waiting','TableFound') ORDER BY EntryTime";
     
     
@@ -405,27 +405,27 @@ public final class SQLQueries {
 
     /** Insert a new waiting list entry. */
     public static final String INSERT_WAITING =
-            "INSERT INTO WaitingList (ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status) VALUES (?, ?, ?, ?, ?)";
+            "INSERT INTO WaitingList (ContactInfo, NumOfDiners, ConfirmationCode, Status) VALUES (?, ?, ?, ?)";
 
     /** Get one waiting list entry by WaitingID. */
     public static final String GET_WAITING_BY_ID =
-            "SELECT WaitingID, ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
             "FROM WaitingList WHERE WaitingID = ?";
 
     /** Get one waiting list entry by ConfirmationCode. */
     public static final String GET_WAITING_BY_CODE =
-            "SELECT WaitingID, ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
             "FROM WaitingList WHERE ConfirmationCode = ?";
 
     /** Get all waiting list entries ordered by EntryTime (oldest first). */
     public static final String GET_ALL_WAITING =
-            "SELECT WaitingID, ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "SELECT WaitingID, ContactInfo,NumOfDiners, ConfirmationCode, Status, EntryTime " +
             "FROM WaitingList ORDER BY EntryTime ASC";
 
     /** Get only active waiting list entries (Status = 'Waiting'). */
     public static final String GET_ACTIVE_WAITING =
-            "SELECT WaitingID, ContactInfo, SubscriberID, NumOfDiners, ConfirmationCode, Status, EntryTime " +
-            "FROM WaitingList WHERE Status = 'Waiting' ORDER BY EntryTime ASC";
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList WHERE Status  = 'Waiting' ORDER BY EntryTime ASC";
 
     /** Update a waiting list entry (contact, diners, status) by WaitingID. */
     public static final String UPDATE_WAITING_BY_ID =

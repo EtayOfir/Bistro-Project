@@ -416,12 +416,17 @@ public class EchoServer extends AbstractServer {
                         int diners = Integer.parseInt(parts[1]);
                         String contact = decodeB64Url(parts[2]);
                         String code = parts[3];
-                        Integer subId = (parts.length >= 5) ? Integer.parseInt(parts[4]) : null;
-                        boolean added = waitingListDAO.insert(contact, subId, diners, code, "Waiting");
+                        //Integer subId = (parts.length >= 5) ? Integer.parseInt(parts[4]) : null;
+                        //boolean added = waitingListDAO.insert(contact, subId, diners, code, "Waiting");
+                        boolean added = waitingListDAO.insert(contact, diners, code, "Waiting");
+                        
                         ans = added ? "WAITING_ADDED|" + code : "ERROR|INSERT_FAILED";
                         if (added) broadcastWaitingListSnapshot();
                     } catch (Exception e) {
-                        ans = "ERROR|PARSE_FAILURE";
+                    	 e.printStackTrace();
+                    	    ans = "ERROR|ADD_WAITING_LIST_FAILED|"
+                    	            + e.getClass().getSimpleName() + "|"
+                    	            + (e.getMessage() == null ? "" : e.getMessage());
                     }
                     break;
                 }
@@ -430,7 +435,8 @@ public class EchoServer extends AbstractServer {
                     try {
                         ans = buildWaitingListProtocol();
                     } catch (Exception e) {
-                        ans = "ERROR|DB_READ_FAILED";
+                        ans = "ERROR|DB_READ_FAILED"+ e.getClass().getSimpleName() + "|" +
+                                (e.getMessage() == null ? "" : e.getMessage());;
                     }
                     break;
                 }
@@ -440,7 +446,8 @@ public class EchoServer extends AbstractServer {
                     try {
                         ans = buildWaitingListProtocol();
                     } catch (Exception e) {
-                        ans = "ERROR|DB_READ_FAILED";
+                        ans = "ERROR|DB_READ_FAILED" + e.getClass().getSimpleName() + "|" +
+                                (e.getMessage() == null ? "" : e.getMessage());;
                     }
                     break;
                 }
@@ -463,6 +470,25 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                
+                case "#LEAVE_WAITING_LIST": {
+                    try {
+                        String code = parts[1]; // Format: #LEAVE_WAITING_LIST <code>
+
+                        boolean deleted = waitingListDAO.deleteByConfirmationCode(code);
+                        ans = deleted ? ("WAITING_LEFT|" + code) : "ERROR|WAITING_NOT_FOUND";
+
+                        if (deleted) broadcastWaitingListSnapshot();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        ans = "ERROR|LEAVE_WAITING_LIST_FAILED|" + e.getClass().getSimpleName() + "|" +
+                              (e.getMessage() == null ? "" : e.getMessage());
+                    }
+                    break;
+                }
+
+                
+                
 
                 case "#UPDATE_WAITING_ENTRY": {
                     try {
@@ -772,4 +798,5 @@ public class EchoServer extends AbstractServer {
             System.out.println("ERROR - Could not listen for clients!");
         }
     }
+
 }
