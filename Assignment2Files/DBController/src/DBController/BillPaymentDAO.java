@@ -26,11 +26,11 @@ public class BillPaymentDAO {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         int diners = rs.getInt("NumOfDiners");
-                        String customerType = rs.getString("CustomerType");
+                        String Role = rs.getString("Role");
                         int subscriberId = rs.getInt("SubscriberID");
                         Date resDate = rs.getDate("ReservationDate");
 
-                        return computeBill(confirmationCode, diners, customerType, subscriberId, resDate, Source.ACTIVE_RESERVATION);
+                        return computeBill(confirmationCode, diners, Role, subscriberId, resDate, Source.ACTIVE_RESERVATION);
                     }
                 }
             }
@@ -99,15 +99,15 @@ public class BillPaymentDAO {
         }
     }
 
-    private BillDetails computeBill(String code, int diners, String customerType, int subscriberId, Date date, Source source) {
+    private BillDetails computeBill(String code, int diners, String Role, int subscriberId, Date date, Source source) {
         // Mock pricing until you have orders/menu
         BigDecimal subtotal = BigDecimal.valueOf(diners).multiply(BigDecimal.valueOf(100));
 
-        int discountPercent = "Subscriber".equalsIgnoreCase(customerType) ? 10 : 0;
+        int discountPercent = "Subscriber".equalsIgnoreCase(Role) ? 10 : 0;
         BigDecimal discount = subtotal.multiply(BigDecimal.valueOf(discountPercent)).divide(BigDecimal.valueOf(100));
         BigDecimal total = subtotal.subtract(discount);
 
-        return new BillDetails(code, diners, subtotal, discountPercent, total, customerType, subscriberId, date, source);
+        return new BillDetails(code, diners, subtotal, discountPercent, total, Role, subscriberId, date, source);
     }
 
     public enum Source { ACTIVE_RESERVATION, WAITING_LIST }
@@ -118,19 +118,19 @@ public class BillPaymentDAO {
         private final BigDecimal subtotal;
         private final int discountPercent;
         private final BigDecimal total;
-        private final String customerType;
+        private final String Role;
         private final int subscriberId;
         private final Date originalReservationDate;
         private final Source source;
 
         public BillDetails(String confirmationCode, int diners, BigDecimal subtotal, int discountPercent,
-                           BigDecimal total, String customerType, int subscriberId, Date originalReservationDate, Source source) {
+                           BigDecimal total, String Role, int subscriberId, Date originalReservationDate, Source source) {
             this.confirmationCode = confirmationCode;
             this.diners = diners;
             this.subtotal = subtotal;
             this.discountPercent = discountPercent;
             this.total = total;
-            this.customerType = customerType;
+            this.Role = Role;
             this.subscriberId = subscriberId;
             this.originalReservationDate = originalReservationDate;
             this.source = source;
@@ -141,7 +141,7 @@ public class BillPaymentDAO {
         public BigDecimal getSubtotal() { return subtotal; }
         public int getDiscountPercent() { return discountPercent; }
         public BigDecimal getTotal() { return total; }
-        public String getCustomerType() { return customerType; }
+        public String getRole() { return Role; }
         public int getSubscriberId() { return subscriberId; }
         public Date getOriginalReservationDate() { return originalReservationDate; }
         public Source getSource() { return source; }
