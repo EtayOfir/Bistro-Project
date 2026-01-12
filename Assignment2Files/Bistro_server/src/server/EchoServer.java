@@ -217,6 +217,15 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#GET_SEATED_CUSTOMERS": {
+                    try {
+                        ans = buildSeatedCustomersSnapshot();
+                    } catch (Exception e) {
+                        ans = "SEATED_CUSTOMERS|EMPTY";
+                    }
+                    break;
+                }
+
 
                 case "#REGISTER": {
                     if (parts.length < 2) {
@@ -740,4 +749,59 @@ public class EchoServer extends AbstractServer {
             System.out.println("ERROR - Could not listen for clients!");
         }
     }
+    private String buildSeatedCustomersSnapshot() {
+        String sql =
+            "SELECT ar.CustomerType, ar.SubscriberID, ar.CasualPhone, ar.CasualEmail, " +
+            "       ar.ReservationTime, ar.NumOfDiners, ar.Status, s.FullName " +
+            "FROM ActiveReservations ar " +
+            "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
+            "WHERE ar.ReservationDate = CURDATE() AND ar.Status = 'Arrived' " +
+            "ORDER BY ar.ReservationTime ASC";
+
+        try (var conn = DBController.mysqlConnection1.getDataSource().getConnection();
+             var ps = conn.prepareStatement(sql);
+             var rs = ps.executeQuery()) {
+
+            StringBuilder sb = new StringBuilder();
+
+            while (rs.next()) {
+                String type = rs.getString("CustomerType");
+
+                String customer;
+                if ("Subscriber".equalsIgnoreCase(type)) {
+                    customer = rs.getString("FullName");
+                    if (customer == null || customer.isBlank()) {
+                        customer = "Subscriber#" + rs.getInt("SubscriberID");
+                    }
+                } else {
+                    String phone = rs.getString("CasualPhone");
+                    String email = rs.getString("CasualEmail");
+                    customer = (phone != null && !phone.isBlank()) ? phone : email;
+                    if (customer == null || customer.isBlank()) customer = "Casual";
+                }
+
+                int guests = rs.getInt("NumOfDiners");
+                String time = rs.getTime("ReservationTime").toString(); // HH:MM:SS
+                String status = rs.getString("Status");                 // Arrived
+
+                // מקודדים customer כדי שלא ישבור פורמט עם פסיקים
+                String customerB64 = java.util.Base64.getUrlEncoder()
+                        .encodeToString(customer.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+                if (sb.length() > 0) sb.append("~");
+                sb.append(customerB64).append(",")
+                  .append(guests).append(",")
+                  .append(time).append(",")
+                  .append(status);
+            }
+
+            if (sb.length() == 0) return "SEATED_CUSTOMERS|EMPTY";
+            return "SEATED_CUSTOMERS|" + sb;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "SEATED_CUSTOMERS|EMPTY";
+        }
+    }
+
 }

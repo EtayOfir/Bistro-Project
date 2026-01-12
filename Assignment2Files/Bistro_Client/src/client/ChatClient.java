@@ -96,7 +96,11 @@ public class ChatClient extends AbstractClient {
 			lastResponse = s;
 			responseLock.notifyAll();
 		}
-
+		if (s.startsWith("SEATED_CUSTOMERS|")) {
+		    if (ClientGUI.controller.HostDashboardController.instance != null) {
+		        ClientGUI.controller.HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
+		    }
+		}
 		if (s.startsWith("SUBSCRIBERS_LIST|")) {
             // בדיקה שהמסך אכן פתוח והמשתנה אותחל
             if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
@@ -109,9 +113,12 @@ public class ChatClient extends AbstractClient {
 		    System.out.println("DEBUG: ChatClient received WAITING_LIST");
 
 		    // NEW: update Host Dashboard if open
-		    if (ClientGUI.controller.HostDashboardController.instance != null) {
-		        ClientGUI.controller.HostDashboardController.instance.updateWaitingListFromMessage(s);
+		    if (s.startsWith("SEATED_CUSTOMERS|")) {
+		        if (ClientGUI.controller.HostDashboardController.instance != null) {
+		            ClientGUI.controller.HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
+		        }
 		    }
+
 
 		    // existing representative screen (if open)
 		    if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
