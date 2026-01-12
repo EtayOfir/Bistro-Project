@@ -70,14 +70,33 @@ public class LoginGuestUIController {
     }
 
     /**
-     * Handles the "Back" button click.
+     * Handles the "Sign Off" button click.
      * Returns the guest to the main Login screen.
      *
      * @param event The event triggered by clicking the button.
      */
     @FXML
-    void onBack(ActionEvent event) {
-        navigate(event, "UserLoginUIView.fxml");
+    private void onSignOff(ActionEvent event) {
+        try {
+            // Disconnect from server cleanly
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("LOGOUT");
+                ClientUI.chat.closeConnection();
+                ClientUI.chat = null;
+            }
+
+            // Return to login screen
+            FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
+            Parent root = loader.load();
+
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setTitle("Login");
+            stage.setScene(new Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -88,7 +107,15 @@ public class LoginGuestUIController {
      */
     @FXML
     void onExit(ActionEvent event) {
-        System.out.println("Exiting the application...");
+        try {
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("LOGOUT");
+                ClientUI.chat.closeConnection();
+                ClientUI.chat = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         System.exit(0);
     }
 

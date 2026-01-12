@@ -10,6 +10,8 @@ import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import java.io.IOException;
 
+import ClientGUI.util.ViewLoader;
+
 /**
  * Controller class for the Manager Dashboard.
  * Includes operational buttons, management buttons, and access to Reports.
@@ -133,8 +135,27 @@ public class ManagerUIController {
     // --- Navigation ---
 
     @FXML
-    void onBack(ActionEvent event) {
-        navigate(event, "UserLoginUIView.fxml");
+    private void onSignOff(ActionEvent event) {
+        try {
+            // Disconnect from server cleanly
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("LOGOUT");
+                ClientUI.chat.closeConnection();
+                ClientUI.chat = null;
+            }
+
+            // Return to login screen
+            FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
+            Parent root = loader.load();
+
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setTitle("Login");
+            stage.setScene(new Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @FXML
