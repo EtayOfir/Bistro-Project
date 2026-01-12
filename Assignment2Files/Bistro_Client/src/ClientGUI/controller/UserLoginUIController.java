@@ -219,16 +219,29 @@ public class UserLoginUIController {
      */
     @FXML
     private void onTerminal(ActionEvent event) {
-        if (ClientUI.chat == null) {
-            statusLabel.setText("Not connected to server.");
-            // Optional: Auto-connect or show error
-            return;
-        }
-
         try {
-        	FXMLLoader loader = ViewLoader.fxml("RestaurantTerminalUI.fxml");
+            // Auto-connect if needed
+            if (ClientUI.chat == null) {
+                String host = (hostField != null && !hostField.getText().isEmpty())
+                        ? hostField.getText()
+                        : "localhost";
+
+                int port = 5555;
+                try {
+                    if (portField != null && !portField.getText().isEmpty()) {
+                        port = Integer.parseInt(portField.getText());
+                    }
+                } catch (NumberFormatException e) {
+                    showError("Invalid Port Number. Using 5555.");
+                }
+
+                ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                System.out.println("✅ Connected to server (" + host + ":" + port + ") for Terminal");
+            }
+
+            FXMLLoader loader = ViewLoader.fxml("RestaurantTerminalUI.fxml");
             Parent root = loader.load();
-            
+
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Restaurant Terminal");
             stage.setScene(new Scene(root));
@@ -236,7 +249,7 @@ public class UserLoginUIController {
 
         } catch (Exception e) {
             e.printStackTrace();
-            showError("Could not open Terminal. (Missing FXML?)\n" + e.getMessage());
+            showError("Could not open Terminal.\n" + e.getMessage());
         }
     }
     
