@@ -222,6 +222,36 @@ public class EchoServer extends AbstractServer {
 					break;
 				}
 
+			case "#GET_SUBSCRIBER_DETAILS": {
+				// Format: #GET_SUBSCRIBER_DETAILS <username>
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT_GET_SUBSCRIBER";
+					break;
+				}
+
+				String username = parts[1];
+
+				if (subscriberDAO == null) {
+					ans = "ERROR|DB_NOT_READY";
+					break;
+				}
+
+				try {
+					Subscriber sub = subscriberDAO.getByUsername(username);
+					if (sub != null) {
+						// Format: SUBSCRIBER_DETAILS|<id>|<username>|<fullName>|<phone>|<email>|<role>
+						ans = "SUBSCRIBER_DETAILS|" + sub.getSubscriberId() + "|" + sub.getUserName() + "|" + 
+							  sub.getFullName() + "|" + (sub.getPhoneNumber() != null ? sub.getPhoneNumber() : "") + "|" +
+							  (sub.getEmail() != null ? sub.getEmail() : "") + "|" + (sub.getRole() != null ? sub.getRole() : "");
+					} else {
+						ans = "ERROR|SUBSCRIBER_NOT_FOUND";
+					}
+				} catch (Exception e) {
+					ans = "ERROR|DB_ERROR " + e.getMessage();
+				}
+				break;
+			}
+
                 case "#REGISTER": {
                     if (parts.length < 2) {
                         ans = "REGISTER_ERROR|BAD_FORMAT";
@@ -320,6 +350,7 @@ public class EchoServer extends AbstractServer {
 
                 case "#CREATE_RESERVATION": {
                     try {
+                        System.out.println("DEBUG: CREATE_RESERVATION command received");
                         int numGuests = Integer.parseInt(parts[1]);
                         Date date = Date.valueOf(parts[2]);
                         Time time = Time.valueOf(parts[3]);
@@ -327,12 +358,28 @@ public class EchoServer extends AbstractServer {
                         int subscriberId = Integer.parseInt(parts[5]);
                         String phone = parts.length > 6 ? parts[6] : "";
                         String email = parts.length > 7 ? parts[7] : "";
-                        String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
+                        String role = parts.length > 8 ? parts[8] : (subscriberId > 0 ? "Subscriber" : "Casual");
+                        // Use the role sent from the client, not a recalculated one
+                        String cType = role;
+                        
+                        System.out.println("DEBUG: subscriberId=" + subscriberId + ", role=" + role + ", cType=" + cType);
+                        System.out.println("DEBUG: phone=" + phone + ", email=" + email);
 
                         Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
-                        int generatedId = reservationDAO.insertReservation(newRes, phone, email);
-                        ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
+                        System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getCustomerType());
+                        
+                        try {
+                            int generatedId = reservationDAO.insertReservation(newRes, phone, email, subscriberId);
+                            System.out.println("DEBUG: Generated reservation ID=" + generatedId);
+                            ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
+                            System.out.println("DEBUG: Sending response: " + ans);
+                        } catch (java.sql.SQLException sqlEx) {
+                            System.err.println("ERROR: SQL Exception during reservation insert: " + sqlEx.getMessage());
+                            sqlEx.printStackTrace();
+                            ans = "ERROR|DB_ERROR " + sqlEx.getMessage();
+                        }
                     } catch (Exception e) {
+                        e.printStackTrace();
                         ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
                     }
                     break;

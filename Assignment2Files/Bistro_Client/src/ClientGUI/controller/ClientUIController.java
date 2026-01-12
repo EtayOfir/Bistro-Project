@@ -97,6 +97,7 @@ public class ClientUIController implements ChatIF {
     
     /** Active "New Reservation" window controller, if open. */
     private static volatile ReservationUIController activeReservationController;
+    private static volatile StaffReservationUIController activeStaffReservationController;
 
     /** Active "Receive Table" window controller, if open. */
     private static volatile ReceiveTableUIController activeReceiveTableController;
@@ -130,6 +131,27 @@ public class ClientUIController implements ChatIF {
      */
     public static void clearActiveReservationController() {
         activeReservationController = null;
+    }
+
+    /**
+     * Gets the currently active staff reservation controller (for creating customer reservations).
+     */
+    public static StaffReservationUIController getActiveStaffReservationController() {
+        return activeStaffReservationController;
+    }
+
+    /**
+     * Registers the currently active staff reservation controller.
+     */
+    public static void setActiveStaffReservationController(StaffReservationUIController controller) {
+        activeStaffReservationController = controller;
+    }
+
+    /**
+     * Clears the active staff reservation controller reference.
+     */
+    public static void clearActiveStaffReservationController() {
+        activeStaffReservationController = null;
     }
 
     /**

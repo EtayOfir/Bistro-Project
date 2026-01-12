@@ -204,12 +204,24 @@ public class HostDashboardController {
     @FXML
     private void onBack(ActionEvent event) {
         try {
+        	Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            boolean wasMaximized = stage.isMaximized();
+            
         	FXMLLoader loader = ViewLoader.fxml(returnScreenFXML);
             Parent root = loader.load();
 
-            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            Object controller = loader.getController();
+            switch (controller) {
+            case ManagerUIController c -> c.setManagerName(currentUserName);
+            case RepresentativeMenuUIController c -> c.setRepresentativeName(currentUserName);
+            case ClientUIController c -> c.setUserContext(currentUserName, currentUserRole);
+
+            default -> { }
+        }
+            
             stage.setTitle(returnTitle);
             stage.setScene(new Scene(root));
+            stage.setMaximized(wasMaximized);
             stage.show();
 
         } catch (Exception e) {

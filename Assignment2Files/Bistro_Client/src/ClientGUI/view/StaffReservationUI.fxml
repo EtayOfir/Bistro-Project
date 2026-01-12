@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane prefHeight="700" prefWidth="750" style="-fx-background-color: #f7f8fb;" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientGUI.controller.StaffReservationUIController">
+
+    <top>
+        <VBox spacing="4">
+            <padding>
+                <Insets bottom="10" left="10" right="10" top="10" />
+            </padding>
+            <Label style="-fx-font-size: 18; -fx-font-weight: bold;" text="Create Customer Reservation" />
+            <Label style="-fx-text-fill: #4b5563;" text="Create a new reservation for a customer (Guest or Subscriber)" />
+        </VBox>
+    </top>
+
+    <center>
+        <GridPane hgap="12" vgap="12">
+            <padding>
+                <Insets bottom="16" left="16" right="16" top="16" />
+            </padding>
+            <columnConstraints>
+                <ColumnConstraints percentWidth="30" />
+                <ColumnConstraints percentWidth="70" />
+            </columnConstraints>
+
+            <!-- Customer Type Section -->
+            <Label style="-fx-font-weight: bold; -fx-font-size: 12;" text="Customer Information" GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="0" />
+
+            <Label text="Customer Type:" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+            <ComboBox fx:id="customerTypeCombo" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+
+            <Label text="Subscriber ID:" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+            <TextField fx:id="subscriberIdField" promptText="Only for Subscriber type" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+
+            <Label text="Phone Number:" GridPane.columnIndex="0" GridPane.rowIndex="3" />
+            <TextField fx:id="phoneField" promptText="Customer phone number" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+
+            <Label text="Email:" GridPane.columnIndex="0" GridPane.rowIndex="4" />
+            <TextField fx:id="emailField" promptText="Customer email" GridPane.columnIndex="1" GridPane.rowIndex="4" />
+
+            <!-- Separator -->
+            <Separator GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="5" />
+
+            <!-- Reservation Details Section -->
+            <Label style="-fx-font-weight: bold; -fx-font-size: 12;" text="Reservation Details" GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="6" />
+
+            <Label text="Date:" GridPane.columnIndex="0" GridPane.rowIndex="7" />
+            <DatePicker fx:id="datePicker" GridPane.columnIndex="1" GridPane.rowIndex="7" />
+
+            <Label text="Time (Hour:Minute):" GridPane.columnIndex="0" GridPane.rowIndex="8" />
+            <HBox spacing="8" GridPane.columnIndex="1" GridPane.rowIndex="8">
+                <Spinner fx:id="hourSpinner" editable="true" prefWidth="70" />
+                <Label text=":" />
+                <Spinner fx:id="minuteSpinner" editable="true" prefWidth="70" />
+            </HBox>
+
+            <Label text="Number of Guests:" GridPane.columnIndex="0" GridPane.rowIndex="9" />
+            <Spinner fx:id="guestSpinner" editable="true" GridPane.columnIndex="1" GridPane.rowIndex="9" />
+
+            <!-- Separator -->
+            <Separator GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="10" />
+
+            <!-- Confirmation Section -->
+            <Label style="-fx-font-weight: bold; -fx-font-size: 12;" text="Confirmation" GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="11" />
+
+            <Label text="Reservation ID:" GridPane.columnIndex="0" GridPane.rowIndex="12" />
+            <TextField fx:id="reservationIdField" editable="false" GridPane.columnIndex="1" GridPane.rowIndex="12" />
+
+            <Label text="Confirmation Code:" GridPane.columnIndex="0" GridPane.rowIndex="13" />
+            <TextField fx:id="confirmationField" editable="false" GridPane.columnIndex="1" GridPane.rowIndex="13" />
+
+            <!-- Table Section -->
+            <Label style="-fx-font-weight: bold; -fx-font-size: 12;" text="Availability" GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="14" />
+
+            <Label text="Available Tables:" GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="15" />
+            <ListView fx:id="availableTables" prefHeight="80" GridPane.columnIndex="0" GridPane.columnSpan="2" GridPane.rowIndex="16" />
+
+            <rowConstraints>
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+                <RowConstraints />
+            </rowConstraints>
+        </GridPane>
+    </center>
+
+    <bottom>
+        <VBox spacing="8">
+            <padding>
+                <Insets bottom="16" left="16" right="16" top="16" />
+            </padding>
+            <HBox alignment="CENTER_RIGHT" spacing="10">
+                <Button onAction="#onCheckAvailability" text="Check Availability" />
+                <Button onAction="#onBook" text="Create Reservation" />
+                <Button onAction="#onBack" style="-fx-background-color: #e5e7eb; -fx-text-fill: black;" text="Back" />
+                <Button onAction="#onClose" text="Close" />
+            </HBox>
+        </VBox>
+    </bottom>
+
+</BorderPane>

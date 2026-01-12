@@ -8,7 +8,10 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
+import entities.Subscriber;
 import java.io.IOException;
+
+import ClientGUI.util.ViewLoader;
 
 /**
  * Controller class for the Manager Dashboard.
@@ -19,23 +22,53 @@ public class ManagerUIController {
     @FXML private Label welcomeLabel;
     
     private String currentUserName;
+    private Subscriber currentSubscriber = null;
 
     /**
      * Sets the name of the manager on the dashboard.
      */
     public void setManagerName(String name) {
         this.currentUserName = name;
-        if (welcomeLabel != null) {
-            welcomeLabel.setText("Welcome Manager: " + name);
+        updateWelcomeLabel();
+    }
+
+    /**
+     * Sets the subscriber object for the manager.
+     * This allows access to the manager's contact information and other details.
+     */
+    public void setSubscriber(Subscriber subscriber) {
+        this.currentSubscriber = subscriber;
+        if (subscriber != null) {
+            this.currentUserName = subscriber.getUserName();
+            System.out.println("DEBUG setSubscriber (Manager): Subscriber ID=" + subscriber.getSubscriberId() + 
+                             ", Phone=" + subscriber.getPhoneNumber() + ", Email=" + subscriber.getEmail());
         }
+        updateWelcomeLabel();
     }
 
     // --- Basic Actions ---
 
     @FXML
+    public void initialize() {
+        updateWelcomeLabel();
+    }
+
+    private void updateWelcomeLabel() {
+        if (welcomeLabel != null && currentUserName != null && !currentUserName.isBlank()) {
+            welcomeLabel.setText("Welcome " + currentUserName);
+        }
+    }
+    
+    @FXML
     void onMakeReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
+    }
+
+    @FXML
+    void onMakeCustomerReservation(ActionEvent event) {
+        // Don't delete expired - just mark as expired (ReservationUI logic)
+        navigate(event, "StaffReservationUI.fxml");
     }
 
     @FXML
@@ -124,8 +157,27 @@ public class ManagerUIController {
     // --- Navigation ---
 
     @FXML
-    void onBack(ActionEvent event) {
-        navigate(event, "UserLoginUIView.fxml");
+    private void onSignOff(ActionEvent event) {
+        try {
+            // Disconnect from server cleanly
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("LOGOUT");
+                ClientUI.chat.closeConnection();
+                ClientUI.chat = null;
+            }
+
+            // Return to login screen
+            FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
+            Parent root = loader.load();
+
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setTitle("Login");
+            stage.setScene(new Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @FXML
@@ -189,7 +241,22 @@ public class ManagerUIController {
                 case BillPaymentController c -> 
                     c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
 
-                case ReservationUIController c -> 
+                case ReservationUIController c -> {
+                    System.out.println("DEBUG Manager navigate: currentSubscriber is " + (currentSubscriber != null ? "not null" : "null"));
+                    if (currentSubscriber != null) {
+                        System.out.println("DEBUG Manager navigate: subscriber role=" + currentSubscriber.getRole() + 
+                                         ", phone=" + currentSubscriber.getPhoneNumber() + 
+                                         ", email=" + currentSubscriber.getEmail());
+                    }
+                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                    if (currentSubscriber != null) {
+                        c.setSubscriber(currentSubscriber);
+                    } else {
+                        System.out.println("DEBUG Manager navigate: currentSubscriber is null, not calling setSubscriber");
+                    }
+                }
+
+                case StaffReservationUIController c -> 
                     c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
 
                 case ReceiveTableUIController c -> 
