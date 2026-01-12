@@ -83,7 +83,7 @@ public class ReservationDAO {
                      SQLQueries.INSERT_ACTIVE_RESERVATION_CASUAL,
                      Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.setString(1, reservation.getCustomerType());
+            ps.setString(1, reservation.getRole());
             ps.setString(2, phone == null ? "" : phone);
             ps.setString(3, email == null ? "" : email);
             ps.setDate(4, reservation.getReservationDate());
@@ -141,7 +141,7 @@ public class ReservationDAO {
                          SQLQueries.INSERT_ACTIVE_RESERVATION_SUBSCRIBER,
                          Statement.RETURN_GENERATED_KEYS)) {
 
-                ps.setString(1, reservation.getCustomerType());
+                ps.setString(1, reservation.getRole());
                 ps.setInt(2, subscriberId);
                 ps.setDate(3, reservation.getReservationDate());
                 ps.setTime(4, reservation.getReservationTime());
