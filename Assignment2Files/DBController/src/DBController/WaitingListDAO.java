@@ -19,22 +19,26 @@ public class WaitingListDAO {
     // -------------------------
     // CREATE
     // -------------------------
-    public boolean insert(String contactInfo, Integer subscriberId, int numOfDiners, String confirmationCode, String status) throws SQLException {
+    public boolean insert(String contactInfo,int numOfDiners, String confirmationCode, String status) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_WAITING)) {
 
             ps.setString(1, contactInfo);
-            if (subscriberId == null) {
-                ps.setNull(2, Types.INTEGER);
-            } else {
-                ps.setInt(2, subscriberId);
-            }
-            ps.setInt(3, numOfDiners);
-            ps.setString(4, confirmationCode);
-            ps.setString(5, status);
+            ps.setInt(2, numOfDiners);
+            ps.setString(3, confirmationCode);
+            ps.setString(4, status);
+
+               // ps.setNull(2, Types.INTEGER);
+            //} else {
+             //   ps.setInt(2, subscriberId);
+           // }
+            //ps.setInt(3, numOfDiners);
+            //ps.setString(4, confirmationCode);
+            //ps.setString(5, status);
 
             return ps.executeUpdate() == 1;
         }
+        
     }
 
     // -------------------------

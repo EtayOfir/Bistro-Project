@@ -96,6 +96,7 @@ public class ChatClient extends AbstractClient {
 			lastResponse = s;
 			responseLock.notifyAll();
 		}
+		
 
 		if (s.startsWith("SUBSCRIBERS_LIST|")) {
             // בדיקה שהמסך אכן פתוח והמשתנה אותחל
