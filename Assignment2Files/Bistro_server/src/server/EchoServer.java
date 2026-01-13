@@ -366,7 +366,7 @@ public class EchoServer extends AbstractServer {
                         System.out.println("DEBUG: phone=" + phone + ", email=" + email);
 
                         Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
-                        System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getCustomerType());
+                        System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
                         
                         try {
                             int generatedId = reservationDAO.insertReservation(newRes, phone, email, subscriberId);
