@@ -1,5 +1,4 @@
 package server;
-
 import java.util.Map;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +21,10 @@ import ServerGUI.ServerUIController;
 import entities.Reservation;
 import entities.Subscriber;
 import entities.WaitingEntry;
+import DBController.mysqlConnection1;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
 /**
  * Main TCP server of the Bistro system (Phase 1).
@@ -225,7 +228,16 @@ public class EchoServer extends AbstractServer {
 
 				break;
 			}
-
+      
+      case "#GET_SEATED_CUSTOMERS": {
+          try {
+              ans = buildSeatedCustomersSnapshot();
+          } catch (Exception e) {
+              ans = "SEATED_CUSTOMERS|EMPTY";
+          }
+          break;
+      }
+          
 			case "#GET_SUBSCRIBER_DETAILS": {
 				// Format: #GET_SUBSCRIBER_DETAILS <username>
 				if (parts.length < 2) {
@@ -440,7 +452,12 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
-
+      
+      case "#GET_RESTAURANT_TABLES": {
+          ans = getRestaurantTables();
+          break;
+      }    
+      
 			case "#DELETE_EXPIRED_RESERVATIONS": {
 				try {
 					int count = reservationDAO.deleteExpiredReservations();
@@ -802,7 +819,6 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
-			// =================== BRANCH SETTINGS ===================
 
 			// =================== BRANCH SETTINGS ===================
 
@@ -861,9 +877,6 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
-
-
-
 
 			default:
 				ans = "ERROR|UNKNOWN_COMMAND";
@@ -1048,5 +1061,142 @@ public class EchoServer extends AbstractServer {
 			System.out.println("ERROR - Could not listen for clients!");
 		}
 	}
+  
+  private String buildSeatedCustomersSnapshot() {
 
+        String sql =
+            "SELECT ar.CustomerType, " +
+            "       ar.SubscriberID, " +
+            "       ar.CasualPhone, " +
+            "       ar.CasualEmail, " +
+            "       ar.ReservationTime, " +
+            "       ar.NumOfDiners, " +
+            "       ar.Status, " +
+            "       ar.TableNumber, " +
+            "       s.FullName " +
+            "FROM ActiveReservations ar " +
+            "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
+            "WHERE ar.TableNumber IS NOT NULL " +     // 🔥 זה כל הקסם
+            "ORDER BY ar.TableNumber ASC";
+
+        try (
+            Connection conn = mysqlConnection1.getDataSource().getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery()
+        ) {
+
+            StringBuilder sb = new StringBuilder();
+
+            while (rs.next()) {
+
+                String customer;
+                if ("Subscriber".equalsIgnoreCase(rs.getString("CustomerType"))) {
+                    customer = rs.getString("FullName");
+                    if (customer == null || customer.isBlank()) {
+                        customer = "Subscriber#" + rs.getInt("SubscriberID");
+                    }
+                } else {
+                    customer = rs.getString("CasualPhone");
+                    if (customer == null || customer.isBlank()) {
+                        customer = rs.getString("CasualEmail");
+                    }
+                    if (customer == null || customer.isBlank()) {
+                        customer = "Casual";
+                    }
+                }
+
+                int guests = rs.getInt("NumOfDiners");
+                String time = rs.getTime("ReservationTime").toString();
+                String status = rs.getString("Status");
+                int tableNumber = rs.getInt("TableNumber");
+
+                String customerB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(customer.getBytes(StandardCharsets.UTF_8));
+
+                if (sb.length() > 0) sb.append("~");
+
+                sb.append(customerB64).append(",")
+                  .append(guests).append(",")
+                  .append(time).append(",")
+                  .append(status).append(",")
+                  .append(tableNumber);
+            }
+
+            if (sb.length() == 0) {
+                return "SEATED_CUSTOMERS|EMPTY";
+            }
+
+            return "SEATED_CUSTOMERS|" + sb;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "SEATED_CUSTOMERS|EMPTY";
+        }
+    }
+    
+  private String getRestaurantTables() {
+        StringBuilder sb = new StringBuilder();
+
+        String query = """
+        	    SELECT
+        	        rt.TableNumber,
+        	        rt.Capacity,
+        	        CASE
+        	            WHEN EXISTS (
+        	                SELECT 1
+        	                FROM activereservations ar
+        	                WHERE ar.TableNumber = rt.TableNumber
+        	                  AND ar.Status IN ('Arrived', 'CheckedIn')
+        	            )
+        	            THEN 'Taken'
+        	            ELSE 'Available'
+        	        END AS Status,
+
+        	        COALESCE((
+        	            SELECT GROUP_CONCAT(
+        	                CASE
+        	                    WHEN ar.CustomerType = 'Subscriber'
+        	                        THEN s.FullName
+        	                    ELSE ar.CasualPhone
+        	                END
+        	                SEPARATOR ' | '
+        	            )
+        	            FROM activereservations ar
+        	            LEFT JOIN subscribers s ON s.SubscriberID = ar.SubscriberID
+        	            WHERE ar.TableNumber = rt.TableNumber
+        	              AND ar.Status IN ('Arrived', 'CheckedIn')
+        	        ), '') AS AssignedTo
+
+        	    FROM restauranttables rt
+        	    ORDER BY rt.TableNumber
+        	""";
+
+
+
+
+        try (
+        	Connection conn = mysqlConnection1.getDataSource().getConnection();
+            PreparedStatement ps = conn.prepareStatement(query);
+            ResultSet rs = ps.executeQuery()
+        ) {
+        	while (rs.next()) {
+        	    sb.append(rs.getInt("TableNumber")).append(",")
+        	      .append(rs.getInt("Capacity")).append(",")
+        	      .append(rs.getString("Status")).append(",")
+        	      .append(rs.getString("AssignedTo").replace(",", " "))
+        	      .append("~");
+        	}
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "RESTAURANT_TABLES|EMPTY";
+        }
+
+        if (sb.length() == 0) {
+            return "RESTAURANT_TABLES|EMPTY";
+        }
+
+        sb.deleteCharAt(sb.length() - 1);
+        return "RESTAURANT_TABLES|" + sb;
+    }
+  
 }
