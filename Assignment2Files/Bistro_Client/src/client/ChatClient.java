@@ -8,6 +8,8 @@ import ocsf.client.*;
 import common.*;
 import java.io.*;
 
+import ClientGUI.controller.HostDashboardController;
+
 /**
  * This class overrides some of the methods defined in the abstract superclass
  * in order to give more functionality to the client.
@@ -97,7 +99,16 @@ public class ChatClient extends AbstractClient {
 			responseLock.notifyAll();
 		}
 		
+		if (msg.toString().startsWith("RESTAURANT_TABLES|")) {
+		    HostDashboardController.instance
+		            .updateTablesFromMessage(msg.toString());
+		}
 
+		if (s.startsWith("SEATED_CUSTOMERS|")) {
+		    if (ClientGUI.controller.HostDashboardController.instance != null) {
+		        ClientGUI.controller.HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
+		    }
+		}
 		if (s.startsWith("SUBSCRIBERS_LIST|")) {
             // בדיקה שהמסך אכן פתוח והמשתנה אותחל
             if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
@@ -107,14 +118,22 @@ public class ChatClient extends AbstractClient {
             System.err.println("ERROR: RepresentativeViewUIController is NULL, cannot update table!");
             }}
 		if (s.startsWith("WAITING_LIST|")) {
-            System.out.println("DEBUG: ChatClient received WAITING_LIST"); 
-            
-            if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
-            	ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateWaitingListFromMessage(s);
-            } else {
-                System.err.println("ERROR: Controller Instance is NULL - Check initialize()");
-            }
-       }
+		    System.out.println("DEBUG: ChatClient received WAITING_LIST");
+
+		    // NEW: update Host Dashboard if open
+		    if (s.startsWith("SEATED_CUSTOMERS|")) {
+		        if (ClientGUI.controller.HostDashboardController.instance != null) {
+		            ClientGUI.controller.HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
+		        }
+		    }
+
+
+		    // existing representative screen (if open)
+		    if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
+		        ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateWaitingListFromMessage(s);
+		    }
+		}
+
 		if (s.startsWith("ACTIVE_RESERVATIONS|")) {
             if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
                 ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateReservationsFromMessage(s);
