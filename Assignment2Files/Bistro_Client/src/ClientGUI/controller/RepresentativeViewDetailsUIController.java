@@ -4,15 +4,22 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.stage.Stage;
+
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.List;
 
+import ClientGUI.util.ViewLoader;
 import entities.Subscriber;
 import entities.Reservation;
 import entities.WaitingEntry;
@@ -30,7 +37,7 @@ public class RepresentativeViewDetailsUIController {
     // --- Reservations Table ---
     @FXML private TableView<Reservation> reservationsTable;
     @FXML private TableColumn<Reservation, Integer> colResID;
-    @FXML private TableColumn<Reservation, String> colResType; // דורש הוספת שדה customerType ל-Reservation
+    @FXML private TableColumn<Reservation, String> colResType; // דורש הוספת שדה Role ל-Reservation
     @FXML private TableColumn<Reservation, Date> colResDate;
     @FXML private TableColumn<Reservation, Time> colResTime;
     @FXML private TableColumn<Reservation, Integer> colResDiners; 
@@ -74,7 +81,9 @@ public class RepresentativeViewDetailsUIController {
             if (ClientUI.chat != null) {
                 ClientUI.chat.sendToServer("#GET_ALL_SUBSCRIBERS"); 
                 ClientUI.chat.sendToServer("#GET_WAITING_LIST");
-                ClientUI.chat.sendToServer("#GET_ACTIVE_RESERVATIONS");            } else {
+                ClientUI.chat.sendToServer("#GET_ACTIVE_RESERVATIONS"); 
+            } 
+            	else {
                 System.err.println("ERROR: ClientUI.chat is NULL!");
             }
         } catch (Exception e) {
@@ -90,7 +99,9 @@ public class RepresentativeViewDetailsUIController {
         javafx.application.Platform.runLater(() -> {
             try {
                 // הפורמט מהשרת: WAITING_LIST|id,contact(base64),diners,code,status,time~...
-                String[] parts = message.split("\\|");
+                //String[] parts = message.split("\\|");
+            	String[] parts = message.split("\\|", 2);
+
                 java.util.ArrayList<entities.WaitingEntry> list = new java.util.ArrayList<>();
 
                 if (parts.length > 1 && !parts[1].equals("EMPTY")) {
@@ -98,35 +109,47 @@ public class RepresentativeViewDetailsUIController {
                     String[] rows = data.split("~");
 
                     for (String row : rows) {
-                        String[] cols = row.split(",");
-                        // אנו מצפים ל-6 עמודות לפחות
-                        if (cols.length >= 6) {
-                            int id = Integer.parseInt(cols[0]);
-                            String contactEncoded = cols[1];
-                            int diners = Integer.parseInt(cols[2]);
-                            String code = cols[3];
-                            String status = cols[4];
-                            String timeStr = cols[5];
+                    	String[] cols = row.split(",",-1);
+           
+                    	if (cols.length < 6){
+                    		System.out.println("Skipping bad row: " + row);
+                    	    continue;
+                    	}
+                         
+                    	int id = Integer.parseInt(cols[0]);
+                    	String contactEncoded = cols[1];
+                    	int diners = Integer.parseInt(cols[2]);
+                    	String code = cols[3];
 
-                            // פענוח פרטי הקשר (בגלל שהשרת מצפין ב-Base64)
+                    	String status;
+                    	String timeStr;
+                    	
+                    	if (cols.length >= 7) {
+                    	    status = cols[5];
+                    	    timeStr = cols[6];
+                    	} else {
+                    	    
+                    	    status = cols[4];
+                    	    timeStr = cols[5];
+                    	}
+                            
+
+                            
                             String contactDecoded = decodeB64Url(contactEncoded);
                             
-                            // המרת הזמן
                             java.sql.Timestamp entryTime = null;
-                            try {
-                                entryTime = java.sql.Timestamp.valueOf(timeStr);
-                            } catch (Exception e) { 
-                                // אם יש בעיה בפורמט הזמן, נשים זמן נוכחי או null
+                            if (timeStr != null && !timeStr.isBlank() && !"null".equalsIgnoreCase(timeStr)) {
+                                try { entryTime = Timestamp.valueOf(timeStr); } catch (Exception ignored) {}
                             }
 
-                            // יצירת האובייקט
+                           
                             entities.WaitingEntry entry = new entities.WaitingEntry(
                                     id, contactDecoded, diners, code, status, entryTime
                             );
                             list.add(entry);
                         }
                     }
-                }
+                
 
                 waitingListTable.setItems(javafx.collections.FXCollections.observableArrayList(list));
                 waitingListTable.refresh();
@@ -160,7 +183,7 @@ public class RepresentativeViewDetailsUIController {
 
     private void setupReservationsColumns() {
         colResID.setCellValueFactory(new PropertyValueFactory<>("reservationId")); // getReservationId
-        colResType.setCellValueFactory(new PropertyValueFactory<>("customerType")); 
+        colResType.setCellValueFactory(new PropertyValueFactory<>("Role")); 
         colResDate.setCellValueFactory(new PropertyValueFactory<>("reservationDate"));
         colResTime.setCellValueFactory(new PropertyValueFactory<>("reservationTime"));
         colResDiners.setCellValueFactory(new PropertyValueFactory<>("numberOfGuests")); 
@@ -188,28 +211,33 @@ public class RepresentativeViewDetailsUIController {
     @FXML
     void getBackBtn(ActionEvent event) {
         try {
-            if (returnFxml == null) {
+        	if (returnFxml == null) {
                 System.err.println("Error: Return path not set!");
                 return;
             }
 
-            // טעינת המסך הקודם
-            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource(returnFxml));
-            javafx.scene.Parent root = loader.load();
+        	// 1. Clean up the current instance so it stops listening to Server messages
+            instance = null; 
+
+            // 2. Use the central ViewLoader
+            // Ensure returnFxml includes the extension, e.g., "ManagerUI.fxml"
+            FXMLLoader loader = ClientGUI.util.ViewLoader.fxml(returnFxml);
+            Parent root = loader.load();
             Object controller = loader.getController();
 
-            // שחזור הקשר (שם המשתמש) בהתאם לסוג המסך שאליו חוזרים
+            // 3. Restore Context (Pass the username back to the previous screen)
             if (controller instanceof ManagerUIController) {
                 ((ManagerUIController) controller).setManagerName(currentUserName);
             } 
             else if (controller instanceof RepresentativeMenuUIController) {
                 ((RepresentativeMenuUIController) controller).setRepresentativeName(currentUserName);
             }
+            // Add other controllers here if needed (e.g., Subscriber)
 
-            // מעבר למסך
-            javafx.stage.Stage stage = (javafx.stage.Stage)((javafx.scene.Node)event.getSource()).getScene().getWindow();
+            // 4. Switch Scene
+            Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new javafx.scene.Scene(root));
+            stage.setScene(new Scene(root));
             stage.show();
 
         } catch (java.io.IOException e) {

@@ -135,7 +135,7 @@ public class BillPaymentController implements ChatIF {
 			return;
 		}
 
-		// BILL|code|diners|subtotal|discountPercent|total|customerType
+		// BILL|code|diners|subtotal|discountPercent|total|Role
 		if (msg.startsWith("BILL|")) {
 			String[] p = msg.split("\\|");
 			if (p.length < 7) {
@@ -149,7 +149,7 @@ public class BillPaymentController implements ChatIF {
 			discountLabel.setText(p[4] + "%");
 			totalLabel.setText(p[5]);
 
-			resultArea.setText("OK: Bill loaded. Customer type: " + p[6]);
+			resultArea.setText("OK: Bill loaded. Role: " + p[6]);
 			return;
 		}
 

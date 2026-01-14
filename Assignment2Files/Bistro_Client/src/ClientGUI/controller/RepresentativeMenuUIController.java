@@ -11,6 +11,7 @@ import javafx.stage.Stage;
 import java.io.IOException;
 
 import ClientGUI.util.ViewLoader;
+import entities.Subscriber;
 
 /**
  * Controller class for the Representative Dashboard.
@@ -20,23 +21,53 @@ public class RepresentativeMenuUIController {
     @FXML private Label welcomeLabel;
     
     private String currentUserName;
+    private Subscriber currentSubscriber;
 
     /**
      * Sets the name of the representative on the dashboard and stores it for navigation.
      */
     public void setRepresentativeName(String name) {
-        this.currentUserName = name; // שמירת השם
-        if (welcomeLabel != null) {
-            welcomeLabel.setText("Welcome Representative: " + name);
+        this.currentUserName = name;
+        updateWelcomeLabel();
+    }
+    
+    /**
+     * Sets the subscriber object for the representative.
+     * This allows access to the representative's contact information and other details.
+     */
+    public void setSubscriber(Subscriber subscriber) {
+        this.currentSubscriber = subscriber;
+        if (subscriber != null) {
+            this.currentUserName = subscriber.getUserName();
+            System.out.println("DEBUG setSubscriber (Representative): Subscriber ID=" + subscriber.getSubscriberId() + 
+                             ", Phone=" + subscriber.getPhoneNumber() + ", Email=" + subscriber.getEmail());
         }
+        updateWelcomeLabel();
     }
 
     // --- Basic Actions ---
 
     @FXML
+    public void initialize() {
+        updateWelcomeLabel();
+    }
+
+    private void updateWelcomeLabel() {
+        if (welcomeLabel != null && currentUserName != null && !currentUserName.isBlank()) {
+            welcomeLabel.setText("Welcome " + currentUserName);
+        }
+    }
+    
+    @FXML
     void onMakeReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
+    }
+
+    @FXML
+    void onMakeCustomerReservation(ActionEvent event) {
+        // Don't delete expired - just mark as expired (ReservationUI logic)
+        navigate(event, "StaffReservationUI.fxml");
     }
 
     @FXML
@@ -58,7 +89,6 @@ public class RepresentativeMenuUIController {
     void onRegister(ActionEvent event) {
         navigate(event, "RegisterUI.fxml");
     }
-
 
     @FXML
     void onGetTable(ActionEvent event) {
@@ -129,8 +159,27 @@ public class RepresentativeMenuUIController {
     }
 
     @FXML
-    void onBack(ActionEvent event) {
-        navigate(event, "UserLoginUIView.fxml");
+    private void onSignOff(ActionEvent event) {
+        try {
+            // Disconnect from server cleanly
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("LOGOUT");
+                ClientUI.chat.closeConnection();
+                ClientUI.chat = null;
+            }
+
+            // Return to login screen
+            FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
+            Parent root = loader.load();
+
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setTitle("Login");
+            stage.setScene(new Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @FXML
@@ -162,7 +211,14 @@ public class RepresentativeMenuUIController {
                 case BillPaymentController c -> 
                     c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
 
-                case ReservationUIController c -> 
+                case ReservationUIController c -> {
+                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                    if (currentSubscriber != null) {
+                        c.setSubscriber(currentSubscriber);
+                    }
+                }
+
+                case StaffReservationUIController c -> 
                     c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
 
                 case ReceiveTableUIController c -> 

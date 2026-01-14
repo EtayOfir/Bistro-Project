@@ -72,6 +72,9 @@
             <children>
                 <Button onAction="#onJoin" text="Join Waiting List" />
                 <Button onAction="#onClear" text="Clear" />
+                <Button fx:id="leaveButton" onAction="#onLeave" text="Leave Waiting List" disable="true" />
+                
+                
             </children>
         </HBox>
 

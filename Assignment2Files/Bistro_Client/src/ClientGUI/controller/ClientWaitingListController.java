@@ -35,6 +35,10 @@ public class ClientWaitingListController implements ChatIF {
     @FXML private TextField phoneField;
 
     @FXML private TextArea resultArea;
+    
+    @FXML private Button leaveButton;
+    private String activeConfirmationCode = null;
+
 
     private ChatClient client;
     private Subscriber currentSubscriber = null;
@@ -50,7 +54,12 @@ public class ClientWaitingListController implements ChatIF {
         areaCombo.getSelectionModel().selectFirst();
 
         guestsSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 20, 2));
-
+        
+        if (leaveButton != null) {
+            leaveButton.setDisable(true);
+        }
+        activeConfirmationCode = null;
+        
         // connect client (same as your console client style)
         try {
             client = new ChatClient("localhost", 5555, this);
@@ -64,6 +73,10 @@ public class ClientWaitingListController implements ChatIF {
         if (client == null) {
             resultArea.setText("Not connected to server.");
             return;
+        }
+        activeConfirmationCode = null;
+        if (leaveButton != null) {
+        	leaveButton.setDisable(true);
         }
 
         String fullName = safe(nameField.getText());
@@ -81,7 +94,7 @@ public class ClientWaitingListController implements ChatIF {
                 return;
             }
         }
-
+       
         int guests = guestsSpinner.getValue();
         String date = String.valueOf(datePicker.getValue());
         String time = safe(timeCombo.getValue());
@@ -109,6 +122,30 @@ public class ClientWaitingListController implements ChatIF {
         resultArea.setText("Sending...\n" + cmd);
         client.handleMessageFromClientUI(cmd); // sends to server :contentReference[oaicite:4]{index=4}
     }
+    
+ //Leave Waiting List button action
+    @FXML
+    private void onLeave() {
+        if (client == null) {
+            resultArea.setText("Not connected to server.");
+            return;
+        }
+
+        if (activeConfirmationCode == null || activeConfirmationCode.isBlank()) {
+            resultArea.appendText("\nNo active waiting list code to cancel.\n");
+            if (leaveButton != null) leaveButton.setDisable(true);
+            return;
+        }
+
+        String cmd = "#LEAVE_WAITING_LIST " + activeConfirmationCode;
+        resultArea.appendText("\nSending leave request...\n" + cmd + "\n");
+
+        client.handleMessageFromClientUI(cmd);
+
+        // prevent double click until response
+        if (leaveButton != null) leaveButton.setDisable(true);
+    }
+
 
     @FXML
     private void onClear() {
@@ -117,6 +154,7 @@ public class ClientWaitingListController implements ChatIF {
         phoneField.clear();
         resultArea.clear();
     }
+    
     
     /**
      * Handles the Exit button click.
@@ -135,6 +173,9 @@ public class ClientWaitingListController implements ChatIF {
 
             if (message.startsWith("WAITING_ADDED|")) {
                 String code = message.substring("WAITING_ADDED|".length());
+                
+                activeConfirmationCode = code;
+                if (leaveButton != null) leaveButton.setDisable(false);
 
                 String date = String.valueOf(datePicker.getValue());
                 String time = safe(timeCombo.getValue());
@@ -153,10 +194,19 @@ public class ClientWaitingListController implements ChatIF {
                 sb.append("Guests: ").append(guests).append("\n");
                 sb.append("Confirmation Code: ").append(code).append("\n\n");
 
-                if (!email.isEmpty()) sb.append("MOCK EMAIL sent to ").append(email).append(" (code ").append(code).append(")\n");
-                if (!phone.isEmpty()) sb.append("MOCK SMS sent to ").append(phone).append(" (code ").append(code).append(")\n");
+                if (!email.isEmpty()) sb.append("EMAIL sent to ").append(email).append(" (code ").append(code).append(")\n");
+                if (!phone.isEmpty()) sb.append("SMS sent to ").append(phone).append(" (code ").append(code).append(")\n");
 
                 resultArea.setText(sb.toString());
+                return;
+            }
+            if (message.startsWith("WAITING_LEFT|")) {
+                String code = message.substring("WAITING_LEFT|".length());
+
+                activeConfirmationCode = null;
+                if (leaveButton != null) leaveButton.setDisable(true);
+
+                resultArea.setText("Removed from waiting list.\nConfirmation Code: " + code + "\n");
                 return;
             }
 

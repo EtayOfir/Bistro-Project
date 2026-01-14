@@ -10,7 +10,7 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox prefHeight="600.0" prefWidth="900.0" spacing="10" style="-fx-padding: 20;" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientGUI.controller.RepresentativeViewDetailsUIController">
+<VBox prefHeight="600.0" prefWidth="900.0" spacing="10" style="-fx-padding: 20;" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ClientGUI.controller.RepresentativeViewDetailsUIController">
    <children>
       <Label style="-fx-font-size: 24px; -fx-font-weight: bold;" text="Representative View Details Dashboard" />
       
@@ -41,7 +41,7 @@
                         <TableView fx:id="reservationsTable" prefHeight="400.0" prefWidth="850.0" AnchorPane.bottomAnchor="10.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="10.0" AnchorPane.topAnchor="10.0">
                           <columns>
                             <TableColumn fx:id="colResID" prefWidth="131.0" text="Reservations ID" />
-                            <TableColumn fx:id="colResType" prefWidth="120.0" text="Customer Type" />
+                            <TableColumn fx:id="colResType" prefWidth="120.0" text="Role" />
                             <TableColumn fx:id="colResDate" prefWidth="91.0" text="Date" />
                             <TableColumn fx:id="colResTime" prefWidth="94.0" text="Time" />
                             <TableColumn fx:id="colResDiners" prefWidth="82.0" text="Diners" />

@@ -12,7 +12,7 @@
 
 <VBox alignment="TOP_CENTER" maxWidth="500.0" prefHeight="300.0" prefWidth="450.0" spacing="20" 
       style="-fx-background-color: white; -fx-background-radius: 14; -fx-border-color: #e6e6e6; -fx-border-radius: 14; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.12), 18, 0, 0, 6);" 
-      xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" 
+      xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" 
       fx:controller="ClientGUI.controller.ServerSettingsUIController">
 
     <padding>

@@ -67,7 +67,7 @@ public class ReservationDAO {
      *
      * <p>
      * The reservation is stored in the {@code ActiveReservations} table
-     * with {@code CustomerType = 'Casual'} and {@code Status = 'Confirmed'}.
+     * with {@code Role = 'Casual'} and {@code Status = 'Confirmed'}.
      * </p>
      *
      * @param reservation the reservation entity containing date, time, diners and confirmation code
@@ -83,12 +83,13 @@ public class ReservationDAO {
                      SQLQueries.INSERT_ACTIVE_RESERVATION_CASUAL,
                      Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.setString(1, phone == null ? "" : phone);
-            ps.setString(2, email == null ? "" : email);
-            ps.setDate(3, reservation.getReservationDate());
-            ps.setTime(4, reservation.getReservationTime());
-            ps.setInt(5, reservation.getNumberOfGuests());
-            ps.setString(6, reservation.getConfirmationCode());
+            ps.setString(1, reservation.getRole());
+            ps.setString(2, phone == null ? "" : phone);
+            ps.setString(3, email == null ? "" : email);
+            ps.setDate(4, reservation.getReservationDate());
+            ps.setTime(5, reservation.getReservationTime());
+            ps.setInt(6, reservation.getNumberOfGuests());
+            ps.setString(7, reservation.getConfirmationCode());
 
             if (ps.executeUpdate() != 1) {
                 return -1;
@@ -114,6 +115,51 @@ public class ReservationDAO {
      */
     public int insertReservation(Reservation reservation) throws SQLException {
         return insertReservation(reservation, "", "");
+    }
+
+    /**
+     * Inserts a new reservation into the database, handling both subscriber and casual reservations.
+     *
+     * <p>
+     * If the subscription ID is greater than 0, it inserts as a subscriber reservation.
+     * Otherwise, it inserts as a casual reservation with phone and email details.
+     * </p>
+     *
+     * @param reservation the reservation entity containing date, time, diners and confirmation code
+     * @param phone       the customer's phone number (used only for casual reservations)
+     * @param email       the customer's email address (used only for casual reservations)
+     * @param subscriberId the subscriber ID (if 0 or negative, treated as casual)
+     * @return the generated {@code ReservationID} if insertion succeeded,
+     *         or {@code -1} if insertion failed
+     * @throws SQLException if a database access error occurs
+     */
+    public int insertReservation(Reservation reservation, String phone, String email, int subscriberId) throws SQLException {
+        if (subscriberId > 0) {
+            // Insert as subscriber/manager/representative reservation
+            try (Connection conn = dataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         SQLQueries.INSERT_ACTIVE_RESERVATION_SUBSCRIBER,
+                         Statement.RETURN_GENERATED_KEYS)) {
+
+                ps.setString(1, reservation.getRole());
+                ps.setInt(2, subscriberId);
+                ps.setDate(3, reservation.getReservationDate());
+                ps.setTime(4, reservation.getReservationTime());
+                ps.setInt(5, reservation.getNumberOfGuests());
+                ps.setString(6, reservation.getConfirmationCode());
+
+                if (ps.executeUpdate() != 1) {
+                    return -1;
+                }
+
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    return rs.next() ? rs.getInt(1) : -1;
+                }
+            }
+        } else {
+            // Insert as casual reservation
+            return insertReservation(reservation, phone, email);
+        }
     }
 
     /**
@@ -147,7 +193,7 @@ public class ReservationDAO {
                         rs.getString("confirmation_code"),
                         rs.getInt("subscriber_id"),
                         rs.getString("Status"),
-                        rs.getString("CustomerType")
+                        rs.getString("Role")
                 );
             }
         }
@@ -205,7 +251,7 @@ public class ReservationDAO {
                         rs.getString("ConfirmationCode"),
                         rs.getInt("SubscriberID"),
                         rs.getString("Status"),
-                        rs.getString("CustomerType")
+                        rs.getString("Role")
                 );
             }
         }
@@ -224,7 +270,7 @@ public class ReservationDAO {
 
         final String sql =
                 "SELECT ReservationID, NumOfDiners, ReservationDate, ReservationTime, " +
-                "ConfirmationCode, SubscriberID, Status, CustomerType " +
+                "ConfirmationCode, SubscriberID, Status, Role " +
                 "FROM ActiveReservations " +
                 "WHERE ReservationDate = ? AND Status != 'Canceled' " +
                 "ORDER BY ReservationTime";
@@ -244,7 +290,7 @@ public class ReservationDAO {
                             rs.getString("ConfirmationCode"),
                             rs.getInt("SubscriberID"),
                             rs.getString("Status"),
-                            rs.getString("CustomerType")
+                            rs.getString("Role")
                     ));
                 }
             }
@@ -699,7 +745,7 @@ public class ReservationDAO {
                     res.put("ReservationTime", rs.getTime("ReservationTime"));
                     res.put("NumOfDiners", rs.getInt("NumOfDiners"));
                     res.put("Status", rs.getString("Status"));
-                    res.put("CustomerType", rs.getString("CustomerType"));
+                    res.put("Role", rs.getString("CustomerType"));
                     res.put("SubscriberID", rs.getInt("SubscriberID"));
                     res.put("CasualPhone", rs.getString("CasualPhone"));
                     res.put("CasualEmail", rs.getString("CasualEmail"));
@@ -772,7 +818,7 @@ public class ReservationDAO {
      * <p>
      * This method is designed for the <b>Representative View</b> (Manager/Staff dashboard).
      * It executes the {@code GET_ALL_ACTIVE_RESERVATIONS} query to fetch detailed
-     * reservation data, including {@code CustomerType} and {@code Status}.
+     * reservation data, including {@code Role} and {@code Status}.
      * <p>
      * The returned list allows the representative to view all orders, including those
      * that might be canceled or completed, depending on the SQL query definition.
@@ -800,7 +846,7 @@ public class ReservationDAO {
                         rs.getString("ConfirmationCode"),
                         rs.getInt("SubscriberID"),
                         rs.getString("Status"),
-                        rs.getString("CustomerType") // Essential for the representative view
+                        rs.getString("Role") // Essential for the representative view
                 ));
             }
         }

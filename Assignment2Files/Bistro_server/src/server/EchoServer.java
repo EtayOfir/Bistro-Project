@@ -228,40 +228,96 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#GET_SUBSCRIBER_DETAILS": {
+                  // Format: #GET_SUBSCRIBER_DETAILS <username>
+                  if (parts.length < 2) {
+                    ans = "ERROR|BAD_FORMAT_GET_SUBSCRIBER";
+                    break;
+                  }
 
+                  String username = parts[1];
+
+                  if (subscriberDAO == null) {
+                    ans = "ERROR|DB_NOT_READY";
+                    break;
+                  }
+
+                  try {
+                    Subscriber sub = subscriberDAO.getByUsername(username);
+                    if (sub != null) {
+                      // Format: SUBSCRIBER_DETAILS|<id>|<username>|<fullName>|<phone>|<email>|<role>
+                      ans = "SUBSCRIBER_DETAILS|" + sub.getSubscriberId() + "|" + sub.getUserName() + "|" + 
+                          sub.getFullName() + "|" + (sub.getPhoneNumber() != null ? sub.getPhoneNumber() : "") + "|" +
+                          (sub.getEmail() != null ? sub.getEmail() : "") + "|" + (sub.getRole() != null ? sub.getRole() : "");
+                    } else {
+                      ans = "ERROR|SUBSCRIBER_NOT_FOUND";
+                    }
+                  } catch (Exception e) {
+                    ans = "ERROR|DB_ERROR " + e.getMessage();
+                  }
+                  break;
+                }
 
                 case "#REGISTER": {
                     if (parts.length < 2) {
                         ans = "REGISTER_ERROR|BAD_FORMAT";
                         break;
                     }
-                    String[] p = parts[1].split("\\|", -1);
-                    if (p.length < 7) {
-                        ans = "REGISTER_ERROR|BAD_FORMAT_PAYLOAD";
+
+                    if (subscriberDAO == null) {
+                        ans = "REGISTER_ERROR|DB_POOL_NOT_READY";
                         break;
                     }
-                    try {
-                        String creatorRole = p[0].trim();
-                        String fullName = p[1].trim();
-                        String phone = p[2].trim();
-                        String email = p[3].trim();
-                        String userName = p[4].trim();
-                        String password = p[5].trim();
-                        String targetRole = p[6].trim();
 
-                        if (subscriberDAO.getByUsername(userName) != null) {
+                    String[] p = parts[1].split("\\|", -1);
+                    if (p.length < 7) {
+                        ans = "REGISTER_ERROR|BAD_FORMAT";
+                        break;
+                    }
+
+                    String creatorRole = p[0].trim();
+                    String fullName    = p[1].trim();
+                    String phone       = p[2].trim();
+                    String email       = p[3].trim();
+                    String userName    = p[4].trim();
+                    String password    = p[5].trim();
+                    String targetRole  = p[6].trim();
+
+                    if (fullName.isEmpty() || phone.isEmpty() || email.isEmpty()
+                            || userName.isEmpty() || password.isEmpty() || targetRole.isEmpty()) {
+                        ans = "REGISTER_ERROR|MISSING_FIELDS";
+                        break;
+                    }
+
+                    try {
+                        Subscriber existing = subscriberDAO.getByUsername(userName);
+                        if (existing != null) {
                             ans = "REGISTER_ERROR|USERNAME_TAKEN";
-                        } else {
-                            int newId = subscriberDAO.insert(fullName, phone, email, userName, password, targetRole);
-                            ans = (newId > 0) ? "REGISTER_OK|" + newId : "REGISTER_ERROR|FAILED";
+                            break;
                         }
+
+                        Subscriber newSub = new Subscriber();
+                        newSub.setFullName(fullName);
+                        newSub.setPhoneNumber(phone);
+                        newSub.setEmail(email);
+                        newSub.setUserName(userName);
+                        newSub.setPassword(password);
+                        newSub.setRole(targetRole);
+
+                        Subscriber created = subscriberDAO.register(newSub, creatorRole);
+
+                        if (created != null && created.getSubscriberId() > 0) {
+                            ans = "REGISTER_OK|" + created.getSubscriberId();
+                        } else {
+                            ans = "REGISTER_ERROR|FAILED";
+                        }
+
                     } catch (Exception e) {
                         e.printStackTrace();
                         ans = "REGISTER_ERROR|EXCEPTION";
                     }
                     break;
                 }
-
                 case "#GET_RESERVATION": {
                     try {
                         int resId = Integer.parseInt(parts[1]);
@@ -283,7 +339,7 @@ public class EchoServer extends AbstractServer {
                             for (int i = 0; i < list.size(); i++) {
                                 Reservation r = list.get(i);
                                 sb.append(r.getReservationId()).append(",")
-                                        .append(r.getCustomerType()).append(",")
+                                        .append(r.getRole()).append(",")
                                         .append(r.getReservationDate().toString()).append(",")
                                         .append(r.getReservationTime().toString()).append(",")
                                         .append(r.getNumberOfGuests()).append(",")
@@ -300,6 +356,7 @@ public class EchoServer extends AbstractServer {
 
                 case "#CREATE_RESERVATION": {
                     try {
+                        System.out.println("DEBUG: CREATE_RESERVATION command received");
                         int numGuests = Integer.parseInt(parts[1]);
                         Date date = Date.valueOf(parts[2]);
                         Time time = Time.valueOf(parts[3]);
@@ -307,12 +364,28 @@ public class EchoServer extends AbstractServer {
                         int subscriberId = Integer.parseInt(parts[5]);
                         String phone = parts.length > 6 ? parts[6] : "";
                         String email = parts.length > 7 ? parts[7] : "";
-                        String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
+                        String role = parts.length > 8 ? parts[8] : (subscriberId > 0 ? "Subscriber" : "Casual");
+                        // Use the role sent from the client, not a recalculated one
+                        String cType = role;
+                        
+                        System.out.println("DEBUG: subscriberId=" + subscriberId + ", role=" + role + ", cType=" + cType);
+                        System.out.println("DEBUG: phone=" + phone + ", email=" + email);
 
                         Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
-                        int generatedId = reservationDAO.insertReservation(newRes, phone, email);
-                        ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
+                        System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
+                        
+                        try {
+                            int generatedId = reservationDAO.insertReservation(newRes, phone, email, subscriberId);
+                            System.out.println("DEBUG: Generated reservation ID=" + generatedId);
+                            ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
+                            System.out.println("DEBUG: Sending response: " + ans);
+                        } catch (java.sql.SQLException sqlEx) {
+                            System.err.println("ERROR: SQL Exception during reservation insert: " + sqlEx.getMessage());
+                            sqlEx.printStackTrace();
+                            ans = "ERROR|DB_ERROR " + sqlEx.getMessage();
+                        }
                     } catch (Exception e) {
+                        e.printStackTrace();
                         ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
                     }
                     break;
@@ -391,9 +464,26 @@ public class EchoServer extends AbstractServer {
 
                 case "#RECEIVE_TABLE": {
                     try {
-                        int tableNum = reservationDAO.allocateTableForCustomer(parts[1]);
-                        ans = "TABLE_ASSIGNED|" + tableNum;
+                        String code = parts[1];
+                        Reservation res = reservationDAO.getReservationByConfirmationCode(code);
+                        
+                        if (res == null) {
+                            ans = "INVALID_CONFIRMATION_CODE";
+                        } 
+                        else if ("Arrived".equalsIgnoreCase(res.getStatus())) {
+                            ans = "RESERVATION_ALREADY_USED";
+                        } 
+                        else {
+                            int tableNum = reservationDAO.allocateTableForCustomer(code);
+                            
+                            if (tableNum != -1) {                                
+                                ans = "TABLE_ASSIGNED|" + tableNum;
+                            } else {
+                                ans = "NO_TABLE_AVAILABLE";
+                            }
+                        }
                     } catch (Exception e) {
+                        e.printStackTrace();
                         ans = "ERROR|" + e.getMessage();
                     }
                     break;
@@ -406,12 +496,17 @@ public class EchoServer extends AbstractServer {
                         int diners = Integer.parseInt(parts[1]);
                         String contact = decodeB64Url(parts[2]);
                         String code = parts[3];
-                        Integer subId = (parts.length >= 5) ? Integer.parseInt(parts[4]) : null;
-                        boolean added = waitingListDAO.insert(contact, subId, diners, code, "Waiting");
+                        //Integer subId = (parts.length >= 5) ? Integer.parseInt(parts[4]) : null;
+                        //boolean added = waitingListDAO.insert(contact, subId, diners, code, "Waiting");
+                        boolean added = waitingListDAO.insert(contact, diners, code, "Waiting");
+                        
                         ans = added ? "WAITING_ADDED|" + code : "ERROR|INSERT_FAILED";
                         if (added) broadcastWaitingListSnapshot();
                     } catch (Exception e) {
-                        ans = "ERROR|PARSE_FAILURE";
+                    	 e.printStackTrace();
+                    	    ans = "ERROR|ADD_WAITING_LIST_FAILED|"
+                    	            + e.getClass().getSimpleName() + "|"
+                    	            + (e.getMessage() == null ? "" : e.getMessage());
                     }
                     break;
                 }
@@ -420,7 +515,8 @@ public class EchoServer extends AbstractServer {
                     try {
                         ans = buildWaitingListProtocol();
                     } catch (Exception e) {
-                        ans = "ERROR|DB_READ_FAILED";
+                        ans = "ERROR|DB_READ_FAILED"+ e.getClass().getSimpleName() + "|" +
+                                (e.getMessage() == null ? "" : e.getMessage());;
                     }
                     break;
                 }
@@ -430,7 +526,8 @@ public class EchoServer extends AbstractServer {
                     try {
                         ans = buildWaitingListProtocol();
                     } catch (Exception e) {
-                        ans = "ERROR|DB_READ_FAILED";
+                        ans = "ERROR|DB_READ_FAILED" + e.getClass().getSimpleName() + "|" +
+                                (e.getMessage() == null ? "" : e.getMessage());;
                     }
                     break;
                 }
@@ -453,6 +550,25 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                
+                case "#LEAVE_WAITING_LIST": {
+                    try {
+                        String code = parts[1]; // Format: #LEAVE_WAITING_LIST <code>
+
+                        boolean deleted = waitingListDAO.deleteByConfirmationCode(code);
+                        ans = deleted ? ("WAITING_LEFT|" + code) : "ERROR|WAITING_NOT_FOUND";
+
+                        if (deleted) broadcastWaitingListSnapshot();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        ans = "ERROR|LEAVE_WAITING_LIST_FAILED|" + e.getClass().getSimpleName() + "|" +
+                              (e.getMessage() == null ? "" : e.getMessage());
+                    }
+                    break;
+                }
+
+                
+                
 
                 case "#UPDATE_WAITING_ENTRY": {
                     try {
@@ -501,7 +617,7 @@ public class EchoServer extends AbstractServer {
                     if (b == null) ans = "BILL_NOT_FOUND";
                     else ans = "BILL|" + b.getConfirmationCode() + "|" + b.getDiners() + "|"
                             + b.getSubtotal().toPlainString() + "|" + b.getDiscountPercent() + "|"
-                            + b.getTotal().toPlainString() + "|" + b.getCustomerType();
+                            + b.getTotal().toPlainString() + "|" + b.getRole();
                     break;
                 }
 
@@ -578,7 +694,74 @@ public class EchoServer extends AbstractServer {
                     }
                     break;
                 }
+                case "#UPDATE_SUBSCRIBER_INFO": {
+                    // Format: #UPDATE_SUBSCRIBER_INFO <id> <phone> <email>
+                    try {
+                        int subId = Integer.parseInt(parts[1]);
+                        String phone = parts[2];
+                        String email = parts[3];
+                        
+                        boolean updated = subscriberDAO.updateContactInfo(subId, phone, email);
+                        ans = updated ? "UPDATE_SUBSCRIBER_SUCCESS" : "ERROR|UPDATE_FAILED";
+                    } catch (Exception e) {
+                        ans = "ERROR|UPDATE_EXCEPTION";
+                        e.printStackTrace();
+                    }
+                    break;
+                }
 
+                case "#GET_SUBSCRIBER_DATA": {
+                    try {
+                        int subId = Integer.parseInt(parts[1]);
+
+                        Subscriber subInfo = subscriberDAO.getSubscriberById(subId);
+                        String phone = (subInfo != null) ? subInfo.getPhoneNumber() : "";
+                        String email = (subInfo != null) ? subInfo.getEmail() : "";
+
+                        List<entities.VisitHistory> history = subscriberDAO.getSubscriberVisitHistory(subId);
+                        List<entities.ActiveReservation> active = subscriberDAO.getSubscriberActiveReservations(subId);
+
+                        // Format: SUBSCRIBER_DATA_RESPONSE|DETAILS:phone,email|ACTIVE:...|HISTORY:...
+                        StringBuilder sb = new StringBuilder("SUBSCRIBER_DATA_RESPONSE|");
+                        
+                        sb.append("DETAILS:").append(phone).append(",").append(email).append("|");
+
+                        sb.append("ACTIVE:");
+                        if (active.isEmpty()) {
+                            sb.append("EMPTY");
+                        } else {
+                            for (entities.ActiveReservation r : active) {
+                                sb.append(r.getReservationDate()).append(",")
+                                  .append(r.getReservationTime()).append(",")
+                                  .append(r.getNumOfDiners()).append(",")
+                                  .append(r.getConfirmationCode()).append(",")
+                                  .append(r.getStatus()).append(";");
+                            }
+                        }
+
+                        sb.append("|HISTORY:");
+                        if (history.isEmpty()) {
+                            sb.append("EMPTY");
+                        } else {
+                            for (entities.VisitHistory h : history) {
+                                sb.append(h.getOriginalReservationDate()).append(",")
+                                  .append(h.getActualArrivalTime()).append(",")
+                                  .append(h.getActualDepartureTime()).append(",")
+                                  .append(h.getTotalBill()).append(",")
+                                  .append(h.getDiscountApplied()).append(",")
+                                  .append(h.getStatus()).append(";");
+                            }
+                        }
+
+                        ans = sb.toString();
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        ans = "ERROR|FETCH_DATA_FAILED";
+                    }
+                    break;
+                }
+                   
                 default:
                     ans = "ERROR|UNKNOWN_COMMAND";
                     break;
@@ -605,7 +788,7 @@ public class EchoServer extends AbstractServer {
     private String reservationToProtocolString(Reservation r) {
         return "RESERVATION|" + r.getReservationId() + "|" + r.getNumberOfGuests() + "|"
                 + r.getReservationDate() + "|" + r.getReservationTime() + "|"
-                + r.getConfirmationCode() + "|" + r.getSubscriberId() + "|" + r.getStatus() + "|" + r.getCustomerType();
+                + r.getConfirmationCode() + "|" + r.getSubscriberId() + "|" + r.getStatus() + "|" + r.getRole();
     }
 
     private void callUIMethod(String methodName, Class<?>[] parameterTypes, Object[] parameters) {
@@ -813,8 +996,7 @@ public class EchoServer extends AbstractServer {
                 String status = rs.getString("Status");
                 int tableNumber = rs.getInt("TableNumber");
 
-                String customerB64 = Base64.getUrlEncoder()
-                        .encodeToString(customer.getBytes(StandardCharsets.UTF_8));
+                String customerB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(customer.getBytes(StandardCharsets.UTF_8));
 
                 if (sb.length() > 0) sb.append("~");
 

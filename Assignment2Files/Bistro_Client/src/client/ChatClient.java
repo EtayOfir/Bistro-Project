@@ -139,7 +139,18 @@ public class ChatClient extends AbstractClient {
                 ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateReservationsFromMessage(s);
             }
        }
+		if (s.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
+            // הנחת עבודה: יש משתנה סטטי instance בקונטרולר (נגדיר אותו בשלב הבא)
+            if (ClientGUI.controller.SubscriberUIController.instance != null) {
+                ClientGUI.controller.SubscriberUIController.instance.updateTablesFromMessage(s);
+            }
+        }
         
+        if (s.equals("UPDATE_SUBSCRIBER_SUCCESS")) {
+             if (ClientGUI.controller.SubscriberUIController.instance != null) {
+                ClientGUI.controller.SubscriberUIController.instance.showSuccessUpdate();
+            }
+        }
 		
 		if (clientUI != null) {
 			// Display message to UI via ClientMessageRouter

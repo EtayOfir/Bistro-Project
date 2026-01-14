@@ -119,7 +119,11 @@ public class ReceiveTableUIController {
             showAlert(AlertType.ERROR, "Invalid Code", "Error",
                     "The confirmation code was not found.");
 
-        } else {
+        }else if (response.equals("RESERVATION_ALREADY_USED")) {
+            showAlert(AlertType.WARNING, "Reservation Closed", "Duplicate Entry",
+                    "This reservation has already been used (Status: Arrived).\nPlease contact the hostess.");
+        }
+        else {
             showAlert(AlertType.ERROR, "Server Error", "Error", response);
         }
     }

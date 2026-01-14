@@ -25,7 +25,7 @@
 		</VBox.margin>
 	</Label>
 
-	<Label fx:id="welcomeLabel" text="Welcome Manager">
+	<Label fx:id="welcomeLabel" >
 		<font>
 			<Font size="14.0" />
 		</font>
@@ -46,6 +46,11 @@
 	<HBox alignment="CENTER" spacing="10.0">
 		<Button onAction="#onMakeReservation" prefHeight="35.0"
 			prefWidth="140.0" text="Make Reservation" />
+		<Button onAction="#onMakeCustomerReservation" prefHeight="35.0"
+			prefWidth="140.0" text="Create Customer Res." />
+	</HBox>
+
+	<HBox alignment="CENTER" spacing="10.0">
 		<Button onAction="#onCancelReservation" prefHeight="35.0"
 			prefWidth="140.0" text="Cancel Reservation" />
 	</HBox>
@@ -101,10 +106,10 @@
 	</Separator>
 
 	<HBox alignment="CENTER" spacing="20.0">
-		<Button fx:id="btnBack" mnemonicParsing="false"
-			onAction="#onBack" prefHeight="35.0" prefWidth="100.0" text="Back" />
-		<Button fx:id="btnExit" mnemonicParsing="false"
-			onAction="#onExit" prefHeight="35.0" prefWidth="100.0" text="Exit" />
+		<Button fx:id="btnSignOff" mnemonicParsing="false" onAction="#onSignOff" 
+        	prefHeight="35.0" prefWidth="100.0" text="Sign Off" />
+		<Button fx:id="btnExit" mnemonicParsing="false" onAction="#onExit"
+			prefHeight="35.0" prefWidth="100.0" text="Exit" />
 	</HBox>
 
 </VBox>

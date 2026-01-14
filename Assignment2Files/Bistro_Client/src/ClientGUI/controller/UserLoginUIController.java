@@ -5,6 +5,7 @@ import java.net.URL;
 
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
+import entities.Subscriber;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -41,6 +42,7 @@ public class UserLoginUIController {
     @FXML private TextField hostField;
     @FXML private TextField portField;
 
+    
     /**
      * Initializes the controller class.
      */
@@ -134,14 +136,43 @@ public class UserLoginUIController {
             }
 
             if (response.startsWith("LOGIN_SUCCESS")) {
-                // Format: LOGIN_SUCCESS|<Role>
+                // Format: LOGIN_SUCCESS|<Role>|<SubscriberId>|<FullName>
                 String[] parts = response.split("\\|");
                 String role = (parts.length > 1) ? parts[1] : "";
 
+             
+                
                 // ✅ Tell the server who logged in (for server table + logs)
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + username + "|" + role);
 
-                navigateBasedOnRole(event, username, role);
+                // If subscriber, manager, or representative, fetch full subscriber details
+                Subscriber subscriber = null;
+                if ("Subscriber".equalsIgnoreCase(role) || "Manager".equalsIgnoreCase(role) || "Representative".equalsIgnoreCase(role)) {
+                    try {
+                        ClientUI.chat.handleMessageFromClientUI("#GET_SUBSCRIBER_DETAILS " + username);
+                        String subResponse = ClientUI.chat.waitForMessage();
+                        
+                        if (subResponse != null && subResponse.startsWith("SUBSCRIBER_DETAILS|")) {
+                            // Format: SUBSCRIBER_DETAILS|<id>|<username>|<fullName>|<phone>|<email>|<role>
+                            String[] subParts = subResponse.split("\\|");
+                            if (subParts.length >= 7) {
+                                subscriber = new Subscriber();
+                                subscriber.setSubscriberId(Integer.parseInt(subParts[1]));
+                                subscriber.setUserName(subParts[2]);
+                                subscriber.setFullName(subParts[3]);
+                                subscriber.setPhoneNumber(subParts[4]);
+                                subscriber.setEmail(subParts[5]);
+                                subscriber.setRole(subParts[6]);
+                                System.out.println("DEBUG: Subscriber details fetched - ID: " + subscriber.getSubscriberId() + 
+                                                 ", Phone: " + subscriber.getPhoneNumber() + ", Email: " + subscriber.getEmail());
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Error fetching subscriber details: " + e.getMessage());
+                    }
+                }
+
+                navigateBasedOnRole(event, username, role, subscriber);
 
             } else {
                 showError(response);
@@ -156,7 +187,7 @@ public class UserLoginUIController {
     /**
      * Helper to navigate to the correct dashboard based on the Role.
      */
-    private void navigateBasedOnRole(ActionEvent event, String username, String role) {
+    private void navigateBasedOnRole(ActionEvent event, String username, String role, Subscriber subscriber) {
         try {
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             FXMLLoader loader;
@@ -167,8 +198,12 @@ public class UserLoginUIController {
             	loader = ViewLoader.fxml("ManagerUI.fxml");
                 root = loader.load();
 
-                // ManagerUIController controller = loader.getController();
-                // controller.setManagerName(username);
+                ManagerUIController controller = loader.getController();
+                controller.setManagerName(username);
+                if (subscriber != null) {
+                    controller.setSubscriber(subscriber);
+                    System.out.println("DEBUG: Passed subscriber to ManagerUIController - ID: " + subscriber.getSubscriberId());
+                }
 
                 stage.setTitle("Manager Dashboard - " + username);
                 stage.setScene(new Scene(root));
@@ -179,6 +214,13 @@ public class UserLoginUIController {
             	loader = ViewLoader.fxml("RepresentativeMenuUI.fxml");
                 root = loader.load();
 
+                RepresentativeMenuUIController controller = loader.getController();
+                controller.setRepresentativeName(username);
+                if (subscriber != null) {
+                    controller.setSubscriber(subscriber);
+                    System.out.println("DEBUG: Passed subscriber to RepresentativeMenuUIController - ID: " + subscriber.getSubscriberId());
+                }
+                
                 stage.setTitle("Representative Dashboard - " + username);
                 stage.setScene(new Scene(root));
                 stage.show();
@@ -187,6 +229,12 @@ public class UserLoginUIController {
             else if ("Subscriber".equalsIgnoreCase(role)) {
             	loader = ViewLoader.fxml("LoginSubscriberUI.fxml");
                 root = loader.load();
+
+                LoginSubscriberUIController controller = loader.getController();
+                if (subscriber != null) {
+                    controller.setSubscriber(subscriber);
+                    System.out.println("DEBUG: Passed subscriber to LoginSubscriberUIController - ID: " + subscriber.getSubscriberId());
+                }
 
                 stage.setTitle("Subscriber Menu - " + username);
                 stage.setScene(new Scene(root));
@@ -216,16 +264,29 @@ public class UserLoginUIController {
      */
     @FXML
     private void onTerminal(ActionEvent event) {
-        if (ClientUI.chat == null) {
-            statusLabel.setText("Not connected to server.");
-            // Optional: Auto-connect or show error
-            return;
-        }
-
         try {
-        	FXMLLoader loader = ViewLoader.fxml("RestaurantTerminalUI.fxml");
+            // Auto-connect if needed
+            if (ClientUI.chat == null) {
+                String host = (hostField != null && !hostField.getText().isEmpty())
+                        ? hostField.getText()
+                        : "localhost";
+
+                int port = 5555;
+                try {
+                    if (portField != null && !portField.getText().isEmpty()) {
+                        port = Integer.parseInt(portField.getText());
+                    }
+                } catch (NumberFormatException e) {
+                    showError("Invalid Port Number. Using 5555.");
+                }
+
+                ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                System.out.println("✅ Connected to server (" + host + ":" + port + ") for Terminal");
+            }
+
+            FXMLLoader loader = ViewLoader.fxml("RestaurantTerminalUI.fxml");
             Parent root = loader.load();
-            
+
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Restaurant Terminal");
             stage.setScene(new Scene(root));
@@ -233,7 +294,7 @@ public class UserLoginUIController {
 
         } catch (Exception e) {
             e.printStackTrace();
-            showError("Could not open Terminal. (Missing FXML?)\n" + e.getMessage());
+            showError("Could not open Terminal.\n" + e.getMessage());
         }
     }
     
@@ -243,7 +304,30 @@ public class UserLoginUIController {
     @FXML
     private void onLoginGuest(ActionEvent event) {
         try {
-        	FXMLLoader loader = ViewLoader.fxml("LoginGuestUI.fxml");
+            // Connect if not connected yet
+            if (ClientUI.chat == null) {
+                String host = (hostField != null && !hostField.getText().isEmpty())
+                        ? hostField.getText()
+                        : "localhost";
+
+                int port = 5555;
+                try {
+                    if (portField != null && !portField.getText().isEmpty()) {
+                        port = Integer.parseInt(portField.getText());
+                    }
+                } catch (NumberFormatException e) {
+                    showError("Invalid Port Number. Using 5555.");
+                }
+
+                ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                System.out.println("✅ Connected to server (" + host + ":" + port + ") as Guest");
+            }
+
+            // 2Identify as Guest (so server UI shows the connection)
+            ClientUI.chat.handleMessageFromClientUI("IDENTIFY|Guest|Guest");
+
+            // Navigate to Guest menu
+            FXMLLoader loader = ViewLoader.fxml("LoginGuestUI.fxml");
             Parent root = loader.load();
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
@@ -253,7 +337,7 @@ public class UserLoginUIController {
 
         } catch (Exception e) {
             e.printStackTrace();
-            showError("Could not open Guest Screen. (Missing FXML?)\n" + e.getMessage());
+            showError("Could not open Guest Screen.\n" + e.getMessage());
         }
     }
     

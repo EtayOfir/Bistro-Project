@@ -97,6 +97,7 @@ public class ClientUIController implements ChatIF {
     
     /** Active "New Reservation" window controller, if open. */
     private static volatile ReservationUIController activeReservationController;
+    private static volatile StaffReservationUIController activeStaffReservationController;
 
     /** Active "Receive Table" window controller, if open. */
     private static volatile ReceiveTableUIController activeReceiveTableController;
@@ -130,6 +131,27 @@ public class ClientUIController implements ChatIF {
      */
     public static void clearActiveReservationController() {
         activeReservationController = null;
+    }
+
+    /**
+     * Gets the currently active staff reservation controller (for creating customer reservations).
+     */
+    public static StaffReservationUIController getActiveStaffReservationController() {
+        return activeStaffReservationController;
+    }
+
+    /**
+     * Registers the currently active staff reservation controller.
+     */
+    public static void setActiveStaffReservationController(StaffReservationUIController controller) {
+        activeStaffReservationController = controller;
+    }
+
+    /**
+     * Clears the active staff reservation controller reference.
+     */
+    public static void clearActiveStaffReservationController() {
+        activeStaffReservationController = null;
     }
 
     /**
@@ -303,7 +325,7 @@ public class ClientUIController implements ChatIF {
     	}
 
     	if (message.startsWith("RESERVATION|")) {
-            // Protocol: RESERVATION|id|guests|date|time|code|subId|status|customerType
+            // Protocol: RESERVATION|id|guests|date|time|code|subId|status|Role
             String[] parts = message.split("\\|");
 
             if (parts.length >= 9) {
@@ -314,7 +336,7 @@ public class ClientUIController implements ChatIF {
                 String code   = parts[5];
                 String subId  = parts[6];
                 String status  = parts[7];
-                String customerType = parts[8];
+                String Role = parts[8];
 
                 this.currentReservationId = rId;
 
@@ -327,14 +349,14 @@ public class ClientUIController implements ChatIF {
                 sb.append("Reservation Details\n");
                 sb.append("-------------------\n");
                 sb.append("Reservation ID    : ").append(rId).append("\n");
-                sb.append("Customer Type     : ").append(customerType).append("\n");
+                sb.append("Customer Type     : ").append(Role).append("\n");
                 sb.append("Guests            : ").append(guests).append("\n");
                 sb.append("Date              : ").append(date).append("\n");
                 sb.append("Time              : ").append(time).append("\n");
                 sb.append("Confirmation Code : ").append(code).append("\n");
                 
                 // Only show Subscriber ID for Subscriber reservations
-                if ("Subscriber".equalsIgnoreCase(customerType)) {
+                if ("Subscriber".equalsIgnoreCase(Role)) {
                     sb.append("Subscriber ID     : ").append(subId).append("\n");
                 }
                 
@@ -342,7 +364,7 @@ public class ClientUIController implements ChatIF {
 
                 reservationDetailsTextArea.setText(sb.toString());
             } else if (parts.length >= 8) {
-                // Fallback for old protocol without CustomerType
+                // Fallback for old protocol without Role
                 String rId    = parts[1];
                 String guests = parts[2];
                 String date   = parts[3];
