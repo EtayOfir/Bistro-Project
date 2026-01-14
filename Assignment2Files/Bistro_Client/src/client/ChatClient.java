@@ -8,6 +8,8 @@ import ocsf.client.*;
 import common.*;
 import java.io.*;
 
+import ClientGUI.controller.HostDashboardController;
+
 /**
  * This class overrides some of the methods defined in the abstract superclass
  * in order to give more functionality to the client.
@@ -96,6 +98,12 @@ public class ChatClient extends AbstractClient {
 			lastResponse = s;
 			responseLock.notifyAll();
 		}
+		
+		if (msg.toString().startsWith("RESTAURANT_TABLES|")) {
+		    HostDashboardController.instance
+		            .updateTablesFromMessage(msg.toString());
+		}
+
 		if (s.startsWith("SEATED_CUSTOMERS|")) {
 		    if (ClientGUI.controller.HostDashboardController.instance != null) {
 		        ClientGUI.controller.HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
