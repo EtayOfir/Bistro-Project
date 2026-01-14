@@ -185,16 +185,20 @@ public class ReservationDAO {
                     return null;
                 }
 
+                Integer tableNum = rs.getObject("TableNumber", Integer.class);
+
                 return new Reservation(
-                        rs.getInt("order_number"),
-                        rs.getInt("number_of_guests"),
-                        rs.getDate("order_date"),
-                        rs.getTime("order_time"),
-                        rs.getString("confirmation_code"),
-                        rs.getInt("subscriber_id"),
-                        rs.getString("Status"),
-                        rs.getString("Role")
+                    rs.getInt("order_number"),
+                    rs.getInt("number_of_guests"),
+                    rs.getDate("order_date"),
+                    rs.getTime("order_time"),
+                    rs.getString("confirmation_code"),
+                    rs.getInt("subscriber_id"),
+                    rs.getString("Status"),
+                    rs.getString("Role"),
+                    tableNum
                 );
+
             }
         }
     }
@@ -243,15 +247,18 @@ public class ReservationDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return null;
 
+                Integer tableNum = rs.getObject("TableNumber", Integer.class);
+
                 return new Reservation(
-                        rs.getInt("ReservationID"),
-                        rs.getInt("NumOfDiners"),
-                        rs.getDate("ReservationDate"),
-                        rs.getTime("ReservationTime"),
-                        rs.getString("ConfirmationCode"),
-                        rs.getInt("SubscriberID"),
-                        rs.getString("Status"),
-                        rs.getString("Role")
+                    rs.getInt("ReservationID"),
+                    rs.getInt("NumOfDiners"),
+                    rs.getDate("ReservationDate"),
+                    rs.getTime("ReservationTime"),
+                    rs.getString("ConfirmationCode"),
+                    rs.getInt("SubscriberID"),
+                    rs.getString("Status"),
+                    rs.getString("Role"),
+                    tableNum
                 );
             }
         }
@@ -269,11 +276,12 @@ public class ReservationDAO {
         List<Reservation> results = new ArrayList<>();
 
         final String sql =
-                "SELECT ReservationID, NumOfDiners, ReservationDate, ReservationTime, " +
-                "ConfirmationCode, SubscriberID, Status, Role " +
-                "FROM ActiveReservations " +
-                "WHERE ReservationDate = ? AND Status != 'Canceled' " +
-                "ORDER BY ReservationTime";
+        	    "SELECT ReservationID, NumOfDiners, ReservationDate, ReservationTime, " +
+        	    "ConfirmationCode, SubscriberID, Status, Role, TableNumber " +
+        	    "FROM ActiveReservations " +
+        	    "WHERE ReservationDate = ? AND Status != 'Canceled' " +
+        	    "ORDER BY ReservationTime";
+
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -282,7 +290,8 @@ public class ReservationDAO {
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    results.add(new Reservation(
+                	Integer tableNum = rs.getObject("TableNumber", Integer.class);
+                	results.add(new Reservation(
                             rs.getInt("ReservationID"),
                             rs.getInt("NumOfDiners"),
                             rs.getDate("ReservationDate"),
@@ -290,8 +299,9 @@ public class ReservationDAO {
                             rs.getString("ConfirmationCode"),
                             rs.getInt("SubscriberID"),
                             rs.getString("Status"),
-                            rs.getString("Role")
-                    ));
+                            rs.getString("Role"),
+                            tableNum
+                        ));
                 }
             }
         }
@@ -568,16 +578,11 @@ public class ReservationDAO {
                         }
                     }
 
-                    // Update table status
-                    try (PreparedStatement psUpdateTable = conn.prepareStatement(SQLQueries.UPDATE_TABLE_STATUS)) {
-                        psUpdateTable.setString(1, "Taken");
-                        psUpdateTable.setInt(2, assignedTable);
-                        psUpdateTable.executeUpdate();
-                    }
-
-                    // Update reservation status
-                    try (PreparedStatement psUpdateRes = conn.prepareStatement(SQLQueries.SET_RESERVATION_STATUS_ARRIVED)) {
-                        psUpdateRes.setString(1, confirmationCode);
+                    // Update reservation: mark arrived + store assigned table
+                    try (PreparedStatement psUpdateRes =
+                             conn.prepareStatement(SQLQueries.SET_RESERVATION_ARRIVED_AND_TABLE)) {
+                        psUpdateRes.setInt(1, assignedTable);
+                        psUpdateRes.setString(2, confirmationCode);
                         psUpdateRes.executeUpdate();
                     }
 
@@ -745,7 +750,7 @@ public class ReservationDAO {
                     res.put("ReservationTime", rs.getTime("ReservationTime"));
                     res.put("NumOfDiners", rs.getInt("NumOfDiners"));
                     res.put("Status", rs.getString("Status"));
-                    res.put("Role", rs.getString("CustomerType"));
+                    res.put("Role", rs.getString("Role"));
                     res.put("SubscriberID", rs.getInt("SubscriberID"));
                     res.put("CasualPhone", rs.getString("CasualPhone"));
                     res.put("CasualEmail", rs.getString("CasualEmail"));
@@ -838,7 +843,8 @@ public class ReservationDAO {
             while (rs.next()) {
                 // Mapping the ResultSet row to a Reservation entity.
                 // Note: The Reservation constructor must match this parameter order.
-                results.add(new Reservation(
+            	Integer tableNum = rs.getObject("TableNumber", Integer.class);
+            	results.add(new Reservation(
                         rs.getInt("ReservationID"),
                         rs.getInt("NumOfDiners"),
                         rs.getDate("ReservationDate"),
@@ -846,10 +852,74 @@ public class ReservationDAO {
                         rs.getString("ConfirmationCode"),
                         rs.getInt("SubscriberID"),
                         rs.getString("Status"),
-                        rs.getString("Role") // Essential for the representative view
-                ));
+                        rs.getString("Role"),
+                        tableNum
+                    ));
             }
         }
         return results;
     }
+    
+ // =================== BRANCH SETTINGS ===================
+
+    /** Updates the single row in openinghours. */
+    public boolean updateBranchHours(String openHHmm, String closeHHmm) {
+        String sql = "UPDATE OpeningHours SET OpenTime=?, CloseTime=? WHERE SpecialDate IS NULL";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, openHHmm);
+            ps.setString(2, closeHHmm);
+            return ps.executeUpdate() > 0;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+
+    /**
+     * Insert table if not exists; otherwise update capacity.
+     * Requires TableNumber to be PRIMARY KEY or UNIQUE.
+     */
+    public boolean upsertRestaurantTable(int tableNum, int capacity) {
+        String sql = """
+            INSERT INTO restauranttables (TableNumber, Capacity)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE Capacity = VALUES(Capacity)
+        """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, tableNum);
+            ps.setInt(2, capacity);
+
+            return ps.executeUpdate() > 0;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /** Deletes a table by table number. */
+    public boolean deleteRestaurantTable(int tableNum) {
+        String sql = "DELETE FROM restauranttables WHERE TableNumber = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, tableNum);
+            return ps.executeUpdate() > 0;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    
 }

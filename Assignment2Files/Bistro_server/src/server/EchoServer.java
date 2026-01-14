@@ -382,7 +382,18 @@ public class EchoServer extends AbstractServer {
 					System.out.println("DEBUG: subscriberId=" + subscriberId + ", role=" + role + ", cType=" + cType);
 					System.out.println("DEBUG: phone=" + phone + ", email=" + email);
 
-					Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
+					Reservation newRes = new Reservation(
+						    0,
+						    numGuests,
+						    date,
+						    time,
+						    confirmationCode,
+						    subscriberId,
+						    "Confirmed",
+						    cType,
+						    null // TableNumber: not assigned yet
+						);
+
 					System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
 
 					try {
