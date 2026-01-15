@@ -23,7 +23,8 @@ import entities.ReservationRow;
 
 public class HostDashboardController {
 
-    // Table (queue)
+	public static HostDashboardController instance;
+	// Table (queue)
     @FXML private TableView<ReservationRow> queueTable;
     @FXML private TableColumn<ReservationRow, String> colCustomer;
     @FXML private TableColumn<ReservationRow, Integer> colGuests;
@@ -63,7 +64,8 @@ public class HostDashboardController {
 
     @FXML
     private void initialize() {
-        // columns binding
+        instance = this;
+    	// columns binding
         colCustomer.setCellValueFactory(data -> data.getValue().customerProperty());
         colGuests.setCellValueFactory(data -> data.getValue().guestsProperty().asObject());
         colTime.setCellValueFactory(data -> data.getValue().timeProperty());
@@ -160,7 +162,8 @@ public class HostDashboardController {
 
     @FXML
     private void onCloseClicked(ActionEvent event) {
-        Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+        cleanup();
+    	Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
         stage.close();
         System.exit(0);
     }
@@ -191,6 +194,71 @@ public class HostDashboardController {
                 shadow);
     }
 
+    private Button getTableButton(int tableNum) {
+        return switch (tableNum) {
+            case 1 -> table1Btn;
+            case 2 -> table2Btn;
+            case 3 -> table3Btn;
+            case 4 -> table4Btn;
+            case 5 -> table5Btn;
+            case 6 -> table6Btn;
+            default -> null;
+        };
+    }
+    
+    public void updateTablesFromMessage(String msg) {
+        // Expected format:
+        // RESTAURANT_TABLES|tableNum,capacity,status,assignedTo~tableNum,capacity,status,assignedTo...
+
+        if (msg == null || !msg.startsWith("RESTAURANT_TABLES|")) return;
+
+        Platform.runLater(() -> {
+            try {
+            	occupied.replaceAll((btn, v) -> false);
+            	
+            	String payload = msg.substring("RESTAURANT_TABLES|".length());
+                if (payload.equals("EMPTY")) return;
+
+                String[] rows = payload.split("~");
+
+                for (String row : rows) {
+                    String[] parts = row.split(",", -1);
+                    if (parts.length < 3) continue;
+
+                    int tableNum = Integer.parseInt(parts[0].trim());
+                    String status = parts[2].trim(); // Taken / Available
+
+                    Button btn = getTableButton(tableNum);
+                    if (btn == null) continue;
+
+                    boolean isOccupied = "Taken".equalsIgnoreCase(status);
+                    occupied.put(btn, isOccupied);
+                }
+
+                refreshTableColors();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+    
+    public void updateSeatedCustomersFromMessage(String msg) {
+        // Expected format: SEATED_CUSTOMERS|customerB64,guests,time,status,tableNum~...
+        if (msg == null || !msg.startsWith("SEATED_CUSTOMERS|")) return;
+
+        Platform.runLater(() -> {
+            // TODO: parse and update queueTable / reservations list
+            System.out.println("DEBUG HostDashboardController: " + msg);
+        });
+    }
+    
+    public void cleanup() {
+        if (instance == this) {
+            instance = null;
+        }
+    }
+
     // ==========================
     // Navigation Logic (Back)
     // ==========================
@@ -203,7 +271,8 @@ public class HostDashboardController {
 
     @FXML
     private void onBack(ActionEvent event) {
-        try {
+        cleanup();
+    	try {
         	Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             boolean wasMaximized = stage.isMaximized();
             
@@ -228,4 +297,5 @@ public class HostDashboardController {
             e.printStackTrace();
         }
     }
+    
 }

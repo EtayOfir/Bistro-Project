@@ -375,14 +375,25 @@ public class EchoServer extends AbstractServer {
 					int subscriberId = Integer.parseInt(parts[5]);
 					String phone = parts.length > 6 ? parts[6] : "";
 					String email = parts.length > 7 ? parts[7] : "";
-					String role = parts.length > 8 ? parts[8] : (subscriberId > 0 ? "Subscriber" : "Casual");
-					// Use the role sent from the client, not a recalculated one
-					String cType = role;
+					// Reservation type is derived ONLY from subscriberId (NOT staff role)
+					String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
 
-					System.out.println("DEBUG: subscriberId=" + subscriberId + ", role=" + role + ", cType=" + cType);
+
+					System.out.println("DEBUG: subscriberId=" + subscriberId + ", cType=" + cType);
 					System.out.println("DEBUG: phone=" + phone + ", email=" + email);
 
-					Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId, "Confirmed", cType);
+					Reservation newRes = new Reservation(
+						    0,
+						    numGuests,
+						    date,
+						    time,
+						    confirmationCode,
+						    subscriberId,
+						    "Confirmed",
+						    cType,
+						    null // TableNumber: not assigned yet
+						);
+
 					System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
 
 					try {

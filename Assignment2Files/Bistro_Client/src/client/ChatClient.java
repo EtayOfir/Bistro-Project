@@ -9,6 +9,8 @@ import common.*;
 import java.io.*;
 
 import ClientGUI.controller.HostDashboardController;
+import ClientGUI.controller.RepresentativeViewDetailsUIController;
+import ClientGUI.controller.SubscriberUIController;
 
 /**
  * This class overrides some of the methods defined in the abstract superclass
@@ -99,56 +101,56 @@ public class ChatClient extends AbstractClient {
 			responseLock.notifyAll();
 		}
 		
-		if (msg.toString().startsWith("RESTAURANT_TABLES|")) {
-		    HostDashboardController.instance
-		            .updateTablesFromMessage(msg.toString());
+		if (s.startsWith("RESTAURANT_TABLES|")) {
+		    if (HostDashboardController.instance != null) {
+		        HostDashboardController.instance.updateTablesFromMessage(s);
+		    } else {
+		        System.err.println("DEBUG: HostDashboardController.instance is NULL (Host screen not open).");
+		    }
 		}
 
 		if (s.startsWith("SEATED_CUSTOMERS|")) {
-		    if (ClientGUI.controller.HostDashboardController.instance != null) {
-		        ClientGUI.controller.HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
+		    if (HostDashboardController.instance != null) {
+		        HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
 		    }
 		}
+		
 		if (s.startsWith("SUBSCRIBERS_LIST|")) {
             // בדיקה שהמסך אכן פתוח והמשתנה אותחל
-            if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
-            	ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateSubscribersFromMessage(s);
+            if (RepresentativeViewDetailsUIController.instance != null) {
+            	RepresentativeViewDetailsUIController.instance.updateSubscribersFromMessage(s);
             }
             else {
             System.err.println("ERROR: RepresentativeViewUIController is NULL, cannot update table!");
-            }}
+            }
+        }
+
 		if (s.startsWith("WAITING_LIST|")) {
 		    System.out.println("DEBUG: ChatClient received WAITING_LIST");
 
-		    // NEW: update Host Dashboard if open
-		    if (s.startsWith("SEATED_CUSTOMERS|")) {
-		        if (ClientGUI.controller.HostDashboardController.instance != null) {
-		            ClientGUI.controller.HostDashboardController.instance.updateSeatedCustomersFromMessage(s);
-		        }
-		    }
-
-
 		    // existing representative screen (if open)
-		    if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
-		        ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateWaitingListFromMessage(s);
+		    if (RepresentativeViewDetailsUIController.instance != null) {
+		        RepresentativeViewDetailsUIController.instance.updateWaitingListFromMessage(s);
+		    } else {
+		        System.err.println("DEBUG: RepresentativeViewDetailsUIController.instance is NULL (screen not open).");
 		    }
 		}
 
 		if (s.startsWith("ACTIVE_RESERVATIONS|")) {
-            if (ClientGUI.controller.RepresentativeViewDetailsUIController.instance != null) {
-                ClientGUI.controller.RepresentativeViewDetailsUIController.instance.updateReservationsFromMessage(s);
+            if (RepresentativeViewDetailsUIController.instance != null) {
+                RepresentativeViewDetailsUIController.instance.updateReservationsFromMessage(s);
             }
        }
 		if (s.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
             // הנחת עבודה: יש משתנה סטטי instance בקונטרולר (נגדיר אותו בשלב הבא)
-            if (ClientGUI.controller.SubscriberUIController.instance != null) {
-                ClientGUI.controller.SubscriberUIController.instance.updateTablesFromMessage(s);
+            if (SubscriberUIController.instance != null) {
+                SubscriberUIController.instance.updateTablesFromMessage(s);
             }
         }
         
         if (s.equals("UPDATE_SUBSCRIBER_SUCCESS")) {
-             if (ClientGUI.controller.SubscriberUIController.instance != null) {
-                ClientGUI.controller.SubscriberUIController.instance.showSuccessUpdate();
+             if (SubscriberUIController.instance != null) {
+                SubscriberUIController.instance.showSuccessUpdate();
             }
         }
 		

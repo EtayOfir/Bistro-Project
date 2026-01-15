@@ -86,6 +86,9 @@ public final class SQLQueries {
     public static final String UPDATE_TABLE_STATUS =
             "UPDATE RestaurantTables SET Status = ? WHERE TableNumber = ?";
     
+    public static final String SET_RESERVATION_ARRIVED_AND_TABLE =
+    	    "UPDATE ActiveReservations SET Status='Arrived', TableNumber=? WHERE ConfirmationCode=?";
+
     /** Get all restaurant tables and capacities. */
     public static final String GET_ALL_RESTAURANT_TABLES =
             "SELECT TableNumber, Capacity FROM RestaurantTables ORDER BY TableNumber";
@@ -108,10 +111,10 @@ public final class SQLQueries {
      * Removed the "WHERE Status != 'Canceled'" filter.
      */
     public static final String GET_ALL_ACTIVE_RESERVATIONS =
-            "SELECT ReservationID, Role, ReservationDate, ReservationTime, " +
-            "NumOfDiners, Status, ConfirmationCode, SubscriberID " +
-            "FROM ActiveReservations " +
-            "ORDER BY ReservationDate ASC, ReservationTime ASC";
+    	    "SELECT ReservationID, Role, ReservationDate, ReservationTime, " +
+    	    "NumOfDiners, Status, ConfirmationCode, SubscriberID, TableNumber " +
+    	    "FROM ActiveReservations " +
+    	    "ORDER BY ReservationDate ASC, ReservationTime ASC";
     
     /** * Get all active (future/current) reservations for a specific subscriber.
      * We need the 'Status' field for the table, which was missing in the other query.
@@ -125,9 +128,9 @@ public final class SQLQueries {
     
     /** Get reservation by confirmation code. */
     public static final String GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE =
-            "SELECT ReservationID, Role, SubscriberID, CasualPhone, CasualEmail, " +
-            "ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status " +
-            "FROM ActiveReservations WHERE ConfirmationCode = ?";
+    	    "SELECT ReservationID, Role, SubscriberID, CasualPhone, CasualEmail, " +
+    	    "ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status, TableNumber " +
+    	    "FROM ActiveReservations WHERE ConfirmationCode = ?";
 
     /** Get reservation by id. */
     public static final String GET_ACTIVE_RESERVATION_BY_ID =
@@ -137,16 +140,16 @@ public final class SQLQueries {
 
     /** Insert subscriber reservation (with dynamic CustomerType). */
     public static final String INSERT_ACTIVE_RESERVATION_SUBSCRIBER =
-            "INSERT INTO ActiveReservations " +
-            "(Role, SubscriberID, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
-            "VALUES ('Subscriber', ?, ?, ?, ?, ?, 'Confirmed')";
+    	    "INSERT INTO ActiveReservations " +
+    	    "(Role, SubscriberID, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
+    	    "VALUES (?, ?, ?, ?, ?, ?, 'Confirmed')";
 
     /** Insert casual reservation (with dynamic CustomerType). */
     public static final String INSERT_ACTIVE_RESERVATION_CASUAL =
-            "INSERT INTO ActiveReservations " +
-            "(Role, CasualPhone, CasualEmail, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
-            "VALUES ('Casual', ?, ?, ?, ?, ?, ?, 'Confirmed')";
-
+    	    "INSERT INTO ActiveReservations " +
+    	    "(Role, CasualPhone, CasualEmail, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status) " +
+    	    "VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmed')";
+    
     /** Update reservation details by confirmation code. */
     public static final String UPDATE_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE =
             "UPDATE ActiveReservations SET ReservationDate = ?, ReservationTime = ?, NumOfDiners = ? " +
@@ -305,12 +308,13 @@ public final class SQLQueries {
      * Removed 'date_of_placing_order' as it does not exist in the new schema.
      */
     public static final String GET_RESERVATION_BY_ORDER_NUMBER =
-            "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
-            "ReservationDate AS order_date, ReservationTime AS order_time, " +
-            "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
-            "Status, Role " +
-            "FROM ActiveReservations " +
-            "WHERE ReservationID = ?";
+    	    "SELECT ReservationID AS order_number, NumOfDiners AS number_of_guests, " +
+    	    "ReservationDate AS order_date, ReservationTime AS order_time, " +
+    	    "ConfirmationCode AS confirmation_code, SubscriberID AS subscriber_id, " +
+    	    "Status, Role, TableNumber " +
+    	    "FROM ActiveReservations " +
+    	    "WHERE ReservationID = ?";
+
 
     /**
      * Updates an existing reservation.

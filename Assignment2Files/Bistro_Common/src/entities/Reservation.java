@@ -31,18 +31,21 @@ public class Reservation {
     private final String confirmationCode;
 
     /** Identifier of the subscriber who placed the reservation (0 or -1 if casual) */
-    private final int subscriberId;
-    
+    private final Integer subscriberId;
+
+    /** Assigned table number when seated (null if not seated). */
+    private final Integer tableNumber;
+
     /** * The current status of the reservation (e.g., "Active", "Canceled", "Arrived", "Finished").
      * Maps to the 'ReservationStatus' column.
      */
-    private final String status;
+    private String status;
     
     /** * The type of the customer making the reservation.
      * Can be 'Subscriber' or 'Casual'.
      * Maps to the 'Role' column in the database.
      */
-    private final String Role;
+    private String Role;
     
     /**
      * Constructs a new {@code Reservation} object with all relevant reservation data.
@@ -60,8 +63,8 @@ public class Reservation {
      * @param Role     the type of customer ('Subscriber' or 'Casual')
      */
     public Reservation(int reservationId, int numberOfGuests, Date reservationDate,
-                       Time reservationTime, String confirmationCode, int subscriberId, 
-                       String status, String Role) {
+                       Time reservationTime, String confirmationCode, Integer subscriberId, 
+                       String status, String Role, Integer tableNumber) {
         this.reservationId = reservationId;
         this.numberOfGuests = numberOfGuests;
         this.reservationDate = reservationDate;
@@ -70,6 +73,7 @@ public class Reservation {
         this.subscriberId = subscriberId;
         this.status = status;
         this.Role = Role;
+        this.tableNumber = tableNumber;
     }
 
     /**
@@ -128,26 +132,32 @@ public class Reservation {
      *
      * @return subscriber ID
      */
-    public int getSubscriberId() {
+    public Integer getSubscriberId() {
         return subscriberId;
     }
     
     /**
-     * Returns the current status of the reservation.
-     * Maps to the 'ReservationStatus' column.
-     *
-     * @return the reservation status string
-     */
-    public String getStatus() {
-        return status;
-    }
+	 * Returns the current status of the reservation.
+	 * Maps to the 'ReservationStatus' column.
+	 *
+	 * @return reservation status
+	 */
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    
     
     /**
      * Returns the type of customer for this reservation.
      * Maps to the 'Role' column.
      * * @return 'Subscriber' or 'Casual'
      */
-    public String getRole() {
-        return Role;
-    }
+    public String getRole() { return Role; }
+    public void setRole(String Role) { this.Role = Role; }
+    
+    /** 
+	 * Returns the assigned table number for this reservation.
+	 * Maps to the 'TableNumber' column.
+	 * @return table number or null if not assigned
+	 */
+    public Integer getTableNumber() { return tableNumber; }
 }

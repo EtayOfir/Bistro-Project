@@ -313,6 +313,10 @@ public class RepresentativeViewDetailsUIController {
                             java.sql.Time time = java.sql.Time.valueOf(cols[3]); // מוודא פורמט HH:mm:ss
                             int diners = Integer.parseInt(cols[4]);
                             String status = cols[5];
+                            Integer tableNumber = null;
+                            if (cols[6] != null && !cols[6].isBlank() && !"null".equalsIgnoreCase(cols[6])) {
+                                tableNumber = Integer.valueOf(cols[6]);
+                            }
 
                             // יצירת אובייקט Reservation.
                             // הערה: הבנאי שלך דורש גם confirmationCode ו-subscriberId.
@@ -321,13 +325,17 @@ public class RepresentativeViewDetailsUIController {
                             
                             // תיקון: אם את רוצה להשתמש בבנאי הקיים, צריך לשלוח מהשרת גם את Code ו-SubID.
                             // נניח כרגע שאנחנו משתמשים בבנאי המלא:
-                             Reservation r = new Reservation(
-                                    id, diners, date, time, 
-                                    "", // Code (אם לא קריטי לתצוגה)
-                                    0,  // SubID
-                                    status, 
-                                    type // ודאי שהוספת את זה לבנאי כמו שדיברנו קודם!
-                            );
+                            Reservation r = new Reservation(
+                                    id,
+                                    diners,
+                                    date,
+                                    time,
+                                    "",     // confirmationCode (not displayed)
+                                    0,      // subscriberId (not displayed)
+                                    status,
+                                    type,
+                                    tableNumber
+                                );
                             list.add(r);
                         }
                     }
