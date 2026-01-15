@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -67,7 +68,7 @@ public class ReservationUIController {
     private static final DateTimeFormatter TIME_WITH_SECONDS_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private static final int RES_DURATION_MIN = 120;
-    private static final int OPEN_HOUR = 9;
+    private static final int OPEN_HOUR = 8;
     private static final int CLOSE_HOUR = 23;
     private static final int MIN_NOTICE_MIN = 60;
     private static final int MAX_DAYS_AHEAD = 30;
@@ -93,6 +94,9 @@ public class ReservationUIController {
 
     /** Cache of booked times per date to avoid redundant server requests. */
     private final Map<LocalDate, Set<LocalTime>> bookedTimesCache = new java.util.HashMap<>();
+
+    /** Cache of opening hours per date. */
+    private final Map<LocalDate, Map<String, LocalTime>> openingHoursCache = new java.util.HashMap<>();
 
     /** Last generated confirmation code for the current booking flow. */
     private String currentConfirmationCode = null;
@@ -130,10 +134,11 @@ public class ReservationUIController {
         guestSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 20, 2));
         datePicker.setValue(LocalDate.now());
 
-        // When the date changes, fetch booked times for the new date
+        // When the date changes, fetch booked times and opening hours for the new date
         datePicker.valueProperty().addListener((obs, oldV, newV) -> {
             if (newV != null) {
                 fetchExistingReservations(newV);
+                fetchOpeningHours(newV);
             }
         });
 
@@ -147,6 +152,7 @@ public class ReservationUIController {
 
         // Fetch data for today at startup
         fetchExistingReservations(LocalDate.now());
+        fetchOpeningHours(LocalDate.now());
     }
 
     // UI helpers
@@ -223,6 +229,24 @@ public class ReservationUIController {
         String command = "#GET_RESERVATIONS_BY_DATE " + date.format(DATE_FMT);
         ClientUI.chat.handleMessageFromClientUI(command);
         System.out.println("DEBUG: Fetching reservations for " + date);
+    }
+
+    /**
+     * Requests opening hours for a given date from the server.
+     *
+     * <p>Protocol: {@code #GET_OPENING_HOURS yyyy-MM-dd}</p>
+     *
+     * @param date the date to query
+     */
+    private void fetchOpeningHours(LocalDate date) {
+        if (ClientUI.chat == null) {
+            System.out.println("ERROR: Not connected to server.");
+            return;
+        }
+
+        String command = "#GET_OPENING_HOURS " + date.format(DATE_FMT);
+        ClientUI.chat.handleMessageFromClientUI(command);
+        System.out.println("DEBUG: Fetching opening hours for " + date);
     }
 
     // Server response callbacks (routed)
@@ -303,6 +327,80 @@ public class ReservationUIController {
                 processPendingAvailabilityCheck();
             }
         });
+    }
+
+    /**
+     * Callback invoked by {@link ClientUIController} when the server responds with opening
+     * hours for a specific date.
+     *
+     * <p>Expected format:
+     * {@code OPENING_HOURS|yyyy-MM-dd|HH:mm:ss|HH:mm:ss}</p>
+     *
+     * @param message the raw server message
+     */
+    public void onOpeningHoursReceived(String message) {
+        System.out.println("DEBUG onOpeningHoursReceived: Received message: " + message);
+        
+        if (message == null || !message.startsWith("OPENING_HOURS|")) {
+            System.out.println("DEBUG: Invalid message or not OPENING_HOURS: " + message);
+            return;
+        }
+
+        String[] parts = message.split("\\|");
+        System.out.println("DEBUG: Message parts count: " + parts.length);
+        if (parts.length < 4) {
+            System.out.println("DEBUG: Incomplete opening hours message - need 4 parts, got " + parts.length);
+            for (int i = 0; i < parts.length; i++) {
+                System.out.println("DEBUG: Part[" + i + "]: " + parts[i]);
+            }
+            return;
+        }
+
+        LocalDate dateReceived;
+        try {
+            dateReceived = LocalDate.parse(parts[1], DATE_FMT);
+            System.out.println("DEBUG: Parsed date: " + dateReceived);
+        } catch (Exception e) {
+            System.err.println("Failed to parse date from opening hours message: " + parts[1]);
+            e.printStackTrace();
+            return;
+        }
+
+        try {
+            System.out.println("DEBUG: Parsing open time: " + parts[2]);
+            System.out.println("DEBUG: Parsing close time: " + parts[3]);
+            
+            LocalTime openTime = LocalTime.parse(parts[2], TIME_WITH_SECONDS_FMT);
+            LocalTime closeTime = LocalTime.parse(parts[3], TIME_WITH_SECONDS_FMT);
+
+            Map<String, LocalTime> hours = new HashMap<>();
+            hours.put("open", openTime);
+            hours.put("close", closeTime);
+
+            openingHoursCache.put(dateReceived, hours);
+            System.out.println("DEBUG: Successfully cached opening hours for " + dateReceived + ": " + openTime + " - " + closeTime);
+            System.out.println("DEBUG: Cache now contains " + openingHoursCache.size() + " entries");
+            System.out.println("DEBUG: All cache keys: " + openingHoursCache.keySet());
+            
+            // Verify we can retrieve it
+            Map<String, LocalTime> verify = openingHoursCache.get(dateReceived);
+            if (verify != null) {
+                System.out.println("DEBUG: VERIFIED - Can retrieve hours for " + dateReceived + ": " + verify.get("open") + " - " + verify.get("close"));
+            } else {
+                System.out.println("ERROR: FAILED - Cannot retrieve hours for " + dateReceived + " immediately after caching!");
+            }
+
+            // Update UI constraints if this is the currently selected date
+            LocalDate selectedDate = datePicker.getValue();
+            System.out.println("DEBUG: Currently selected date: " + selectedDate);
+            if (selectedDate != null && selectedDate.equals(dateReceived)) {
+                System.out.println("DEBUG: This is the currently selected date, updating UI");
+                Platform.runLater(this::updateAvailableHours);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to parse opening hours times: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -435,9 +533,39 @@ public class ReservationUIController {
 
         int selectedHour = hourSpinner.getValue();
 
+        // Get opening hours for the selected date
+        Map<String, LocalTime> hours = openingHoursCache.get(date);
+        LocalTime openTime = null;
+        LocalTime closeTime = null;
+        
+        if (hours != null) {
+            openTime = hours.get("open");
+            closeTime = hours.get("close");
+            System.out.println("DEBUG: Opening hours for " + date + ": " + openTime + " - " + closeTime);
+        } else {
+            System.out.println("DEBUG: No opening hours found for " + date);
+        }
+
         // If today, enforce minimum notice by shifting earliest hour
-        if (date.equals(today) && selectedHour < now.getHour() + 1) {
-            hourSpinner.getValueFactory().setValue(Math.max(OPEN_HOUR, now.getHour() + 1));
+        int minHour = OPEN_HOUR;
+        if (date.equals(today)) {
+            minHour = Math.max(minHour, now.getHour() + 1);
+        }
+
+        // If we have opening hours, enforce them
+        if (openTime != null) {
+            minHour = Math.max(minHour, openTime.getHour());
+        }
+
+        // Set the spinner max to close hour
+        int maxHour = CLOSE_HOUR;
+        if (closeTime != null) {
+            maxHour = Math.min(maxHour, closeTime.getHour() - 1); // -1 because reservation needs RES_DURATION_MIN
+        }
+
+        // Update spinner constraints
+        if (selectedHour < minHour) {
+            hourSpinner.getValueFactory().setValue(minHour);
         }
 
         // Disable if beyond max days ahead
@@ -570,6 +698,45 @@ public class ReservationUIController {
             return false;
         }
 
+        // Validate against opening hours
+        LocalDate date = start.toLocalDate();
+        LocalTime time = start.toLocalTime();
+        LocalTime endTime = time.plusMinutes(RES_DURATION_MIN);
+
+        System.out.println("DEBUG validateWindow: Validating " + date + " at " + time);
+        System.out.println("DEBUG validateWindow: Opening hours cache contains " + openingHoursCache.size() + " entries");
+        System.out.println("DEBUG validateWindow: Cache keys: " + openingHoursCache.keySet());
+
+        Map<String, LocalTime> hours = openingHoursCache.get(date);
+        if (hours != null) {
+            LocalTime openTime = hours.get("open");
+            LocalTime closeTime = hours.get("close");
+
+            System.out.println("DEBUG validateWindow: Found opening hours - Checking time " + time + " against opening hours: " + openTime + " - " + closeTime);
+
+            if (openTime != null && time.isBefore(openTime)) {
+                System.out.println("ERROR: Requested time " + time + " is before opening time " + openTime);
+                showAlert(AlertType.ERROR, "Before Opening Hours",
+                        "Restaurant opens at " + openTime.format(TIME_FMT) + " on this date.");
+                return false;
+            }
+
+            if (closeTime != null && endTime.isAfter(closeTime)) {
+                System.out.println("ERROR: Reservation would end at " + endTime + " after closing time " + closeTime);
+                showAlert(AlertType.ERROR, "After Closing Hours",
+                        "Restaurant closes at " + closeTime.format(TIME_FMT) + " on this date. " +
+                        "Reservation duration is " + RES_DURATION_MIN + " minutes.");
+                return false;
+            }
+        } else {
+            System.out.println("ERROR: No opening hours found in cache for " + date);
+            System.out.println("ERROR: Opening hours cache keys: " + openingHoursCache.keySet());
+            fetchOpeningHours(date); // Trigger fetch for next attempt
+            showAlert(AlertType.ERROR, "Opening Hours Not Loaded",
+                    "Opening hours for this date are not loaded yet. Please wait a moment and try again.");
+            return false;
+        }
+
         return true;
     }
 
@@ -614,14 +781,21 @@ public class ReservationUIController {
         System.out.println("DEBUG: Looking for alternatives starting from " + desired);
         System.out.println("DEBUG: Current booked times for " + desiredDate + ": " + bookedTimesForDate);
 
+        // Get opening hours for desired date
+        Map<String, LocalTime> desiredHours = openingHoursCache.get(desiredDate);
+        LocalTime desiredOpenTime = (desiredHours != null) ? desiredHours.get("open") : LocalTime.of(OPEN_HOUR, 0);
+        LocalTime desiredCloseTime = (desiredHours != null) ? desiredHours.get("close") : LocalTime.of(CLOSE_HOUR, 0);
+
         // Same-day alternatives: from desired hour+1 onward
         Set<LocalTime> sameDayBookedTimes = bookedTimesForDate;
 
-        for (int hour = desired.getHour() + 1; hour <= CLOSE_HOUR && suggestions < 4; hour++) {
+        for (int hour = desired.getHour() + 1; hour <= desiredCloseTime.getHour() && suggestions < 4; hour++) {
             LocalDateTime alt = LocalDateTime.of(desiredDate, LocalTime.of(hour, 0));
             LocalDateTime altEnd = alt.plusMinutes(RES_DURATION_MIN);
 
-            if (altEnd.getHour() > CLOSE_HOUR || (altEnd.getHour() == CLOSE_HOUR && altEnd.getMinute() > 0)) {
+            // Check if reservation would fit within opening hours
+            if (alt.toLocalTime().isBefore(desiredOpenTime) || altEnd.toLocalTime().isAfter(desiredCloseTime)) {
+                System.out.println("DEBUG: Alternative " + alt + " is outside opening hours (" + desiredOpenTime + " - " + desiredCloseTime + ")");
                 break;
             }
 
@@ -655,11 +829,17 @@ public class ReservationUIController {
                     continue;
                 }
 
-                for (int hour = OPEN_HOUR; hour <= CLOSE_HOUR && suggestions < 4; hour++) {
+                // Get opening hours for next date
+                Map<String, LocalTime> nextHours = openingHoursCache.get(nextDate);
+                LocalTime nextOpenTime = (nextHours != null) ? nextHours.get("open") : LocalTime.of(OPEN_HOUR, 0);
+                LocalTime nextCloseTime = (nextHours != null) ? nextHours.get("close") : LocalTime.of(CLOSE_HOUR, 0);
+
+                for (int hour = nextOpenTime.getHour(); hour <= nextCloseTime.getHour() && suggestions < 4; hour++) {
                     LocalDateTime alt = LocalDateTime.of(nextDate, LocalTime.of(hour, 0));
                     LocalDateTime altEnd = alt.plusMinutes(RES_DURATION_MIN);
 
-                    if (altEnd.getHour() > CLOSE_HOUR || (altEnd.getHour() == CLOSE_HOUR && altEnd.getMinute() > 0)) {
+                    // Check if reservation would fit within opening hours
+                    if (alt.toLocalTime().isBefore(nextOpenTime) || altEnd.toLocalTime().isAfter(nextCloseTime)) {
                         continue;
                     }
 
