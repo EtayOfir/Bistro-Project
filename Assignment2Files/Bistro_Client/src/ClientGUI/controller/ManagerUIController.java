@@ -109,11 +109,7 @@ public class ManagerUIController {
     	navigate(event, "RepresentativeViewDetails.fxml");
     }
 
-    @FXML
-    void onUpdateDetails(ActionEvent event) {
-        // TODO: Implement UpdateDetailsUI logic
-        System.out.println("Navigate to Update Details Screen");
-    }
+   
 
     /**
      * Handles the "View Reports" button click.

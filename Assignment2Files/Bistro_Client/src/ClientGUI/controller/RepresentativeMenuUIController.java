@@ -110,13 +110,7 @@ public class RepresentativeMenuUIController {
     void onBranchSettings(ActionEvent event) {
         navigate(event, "BranchSettingsUI.fxml");
     }
-
-    @FXML
-    void onUpdateDetails(ActionEvent event) {
-        // TODO: לממש מסך UpdateDetailsUI.fxml
-        System.out.println("Navigate to Update Details Screen");
-    }
-
+    
     /**
      * Handles "Current Restaurant Status".
      * Navigates to the HostDashboard.

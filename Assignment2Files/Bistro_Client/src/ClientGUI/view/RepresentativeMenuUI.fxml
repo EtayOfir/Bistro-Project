@@ -85,9 +85,7 @@
 	<Button fx:id="btnViewDetails" onAction="#onViewDetails"
 		prefHeight="40.0" prefWidth="290.0" style="-fx-base: #e6f7ff;"
 		text="View Details" />
-	<Button fx:id="btnUpdateDetails" onAction="#onUpdateDetails"
-		prefHeight="40.0" prefWidth="290.0" style="-fx-base: #e6f7ff;"
-		text="Update Details" />
+	
 	<Button fx:id="btnRestaurantStatus"
 		onAction="#onRestaurantStatus" prefHeight="40.0" prefWidth="290.0"
 		style="-fx-base: #fff4e6;" text="Current Restaurant Status" />
