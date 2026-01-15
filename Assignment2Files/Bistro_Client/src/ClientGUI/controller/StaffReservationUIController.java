@@ -87,21 +87,34 @@ public class StaffReservationUIController {
         customerTypeCombo.setValue("Casual");
         customerTypeCombo.setOnAction(e -> {
             String type = customerTypeCombo.getValue();
+            boolean isSubscriber = "Subscriber".equalsIgnoreCase(type);
+
             System.out.println("DEBUG: Customer type selected: " + type);
-            
-            // Show/hide subscriber ID field based on selection
-            if ("Subscriber".equalsIgnoreCase(type)) {
-                subscriberIdField.setDisable(false);
-                subscriberIdField.setStyle("-fx-opacity: 1.0;");
-            } else {
-                subscriberIdField.setDisable(true);
+
+            // SubscriberID enabled only for Subscriber
+            subscriberIdField.setDisable(!isSubscriber);
+            subscriberIdField.setStyle(isSubscriber ? "-fx-opacity: 1.0;" : "-fx-opacity: 0.6;");
+            if (!isSubscriber) {
                 subscriberIdField.clear();
-                subscriberIdField.setStyle("-fx-opacity: 0.6;");
             }
-            
-            // Clear phone and email fields when customer type changes
-            phoneField.clear();
-            emailField.clear();
+
+            // Phone/Email enabled only for Casual
+            phoneField.setDisable(isSubscriber);
+            emailField.setDisable(isSubscriber);
+            phoneField.setStyle(isSubscriber ? "-fx-opacity: 0.6;" : "-fx-opacity: 1.0;");
+            emailField.setStyle(isSubscriber ? "-fx-opacity: 0.6;" : "-fx-opacity: 1.0;");
+
+            // Clear irrelevant fields on switch
+            if (isSubscriber) {
+                phoneField.clear();
+                emailField.clear();
+            } else {
+                // switching to Casual
+                // (SubscriberID already cleared above)
+                // keep phone/email empty so user fills customer data
+                phoneField.clear();
+                emailField.clear();
+            }
         });
 
         // Initially disable subscriber ID field (since Casual is default)

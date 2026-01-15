@@ -76,7 +76,7 @@
       <HBox alignment="CENTER_RIGHT" spacing="15.0">
          <children>
             <Button fx:id="btnBack" mnemonicParsing="false" onAction="#getBackBtn" prefWidth="80.0" text="Back" />
-            <Button fx:id="btnExit" mnemonicParsing="false" onAction="#getExitBtn" prefWidth="80.0" style="-fx-background-color: #ff4d4d; -fx-text-fill: white;" text="Exit" />
+            <Button fx:id="btnExit" mnemonicParsing="false" onAction="#getExitBtn" prefWidth="80.0" text="Exit" />
          </children>
       </HBox>
       
