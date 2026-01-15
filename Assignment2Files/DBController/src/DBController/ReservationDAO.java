@@ -336,12 +336,16 @@ public class ReservationDAO {
      * @return {@code true} if at least one row was updated, {@code false} otherwise
      * @throws SQLException if a database access error occurs
      */
-    public boolean cancelReservationByConfirmationCode(String confirmationCode) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(SQLQueries.CANCEL_ACTIVE_RESERVATION)) {
+    public boolean cancelReservationByConfirmationCode(String code) throws SQLException {
+        String sql =
+            "UPDATE ActiveReservations " +
+            "SET Status='Canceled', TableNumber=NULL " +
+            "WHERE ConfirmationCode=? AND Status IN ('Confirmed','Late','Arrived')";
 
-            ps.setString(1, confirmationCode);
-            return ps.executeUpdate() == 1;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, code);
+            return ps.executeUpdate() > 0;
         }
     }
 
@@ -540,6 +544,126 @@ public class ReservationDAO {
         }
     }
 
+    public boolean assignSpecificTable(String code, int tableNum) throws SQLException {
+        try (Connection conn = dataSource.getConnection()) {
+        	conn.setAutoCommit(false);
+            try {
+            	System.out.println("DEBUG assignSpecificTable code=" + code + " table=" + tableNum);
+            	// 1) reservation diners + status (TODAY ONLY) + lock row
+                String q1 =
+                    "SELECT NumOfDiners, Status, TableNumber " +
+                    "FROM ActiveReservations " +
+                    "WHERE ConfirmationCode=? AND ReservationDate=CURDATE() " +
+                    "FOR UPDATE";
+
+                int diners;
+                String status;
+                Integer existingTable;
+
+                try (PreparedStatement ps = conn.prepareStatement(q1)) {
+                    ps.setString(1, code);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) { conn.rollback(); return false; }
+                        diners = rs.getInt("NumOfDiners");
+                        status = rs.getString("Status");
+                        System.out.println("DEBUG reservation status=" + status + " diners=" + diners);
+                        existingTable = (Integer) rs.getObject("TableNumber");
+                    }
+                }
+
+                // already assigned? don't overwrite
+                if (existingTable != null) { conn.rollback(); return false; }
+
+                // allow only Confirmed/Late
+                if (!"Confirmed".equalsIgnoreCase(status) && !"Late".equalsIgnoreCase(status)) {
+                    conn.rollback();
+                    return false;
+                }
+
+                // 2) table capacity (lock row)
+                String q2 =
+                    "SELECT Capacity, Status " +
+                    "FROM RestaurantTables " +
+                    "WHERE TableNumber=? " +
+                    "FOR UPDATE";
+
+                int cap;
+                String tableStatus;
+
+                try (PreparedStatement ps = conn.prepareStatement(q2)) {
+                    ps.setInt(1, tableNum);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) { conn.rollback(); return false; }
+                        cap = rs.getInt("Capacity");
+                        System.out.println("DEBUG table cap=" + cap);
+                        tableStatus = rs.getString("Status");
+                    }
+                }
+
+                if (diners > cap) { conn.rollback(); return false; }
+
+                // optional: if you maintain RestaurantTables.Status
+                if ("Taken".equalsIgnoreCase(tableStatus)) { conn.rollback(); return false; }
+
+                // 3) check if table already taken today
+                String q3 =
+                	    "SELECT 1 FROM ActiveReservations " +
+                	    "WHERE TableNumber=? AND ReservationDate=CURDATE() " +
+                	    "AND Status IN ('Arrived') " +
+                	    "LIMIT 1";
+                boolean existingTable1 = false;
+
+                try (PreparedStatement ps = conn.prepareStatement(q3)) {
+                    ps.setInt(1, tableNum);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        existingTable1 = rs.next();
+                    }
+                }
+
+                System.out.println("DEBUG existingTable=" + existingTable1);
+
+                if (existingTable1) return false;
+//                try (PreparedStatement ps = conn.prepareStatement(q3)) {
+//                    ps.setInt(1, tableNum);
+//                    try (ResultSet rs = ps.executeQuery()) {
+//                        if (rs.next()) { conn.rollback(); return false; }
+//                    }
+//                }
+
+                // 4) update reservation (TODAY ONLY, no overwrite)
+                String upd =
+                    "UPDATE ActiveReservations " +
+                    "SET Status='Arrived', TableNumber=? " +
+                    "WHERE ConfirmationCode=? " +
+                    "  AND ReservationDate=CURDATE() " +
+                    "  AND Status IN ('Confirmed','Late') " +
+                    "  AND TableNumber IS NULL";
+
+                try (PreparedStatement ps = conn.prepareStatement(upd)) {
+                    ps.setInt(1, tableNum);
+                    ps.setString(2, code);
+                    boolean ok = ps.executeUpdate() > 0;
+                    if (!ok) { conn.rollback(); return false; }
+                }
+
+                // optional: keep RestaurantTables.Status in sync
+                // try (PreparedStatement ps = conn.prepareStatement(
+                //     "UPDATE RestaurantTables SET Status='Taken' WHERE TableNumber=?")) {
+                //     ps.setInt(1, tableNum);
+                //     ps.executeUpdate();
+                // }
+
+                conn.commit();
+                return true;
+
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
     /**
      * Attempts to allocate the best available table for a customer upon arrival.
      *
@@ -667,7 +791,7 @@ public class ReservationDAO {
      * Retrieves all active (current or future) reservations for a subscriber.
      *
      * <p>
-     * Uses {@link SQLQueries#GET_SUBSCRIBER_ACTIVE_RESERVATIONS} and maps rows to
+     * Uses {@link SQLQueriesGET_SUBSCRIBER_ACTIVE_RESERVATIONS} and maps rows to
      * {@link ActiveReservation}.
      * </p>
      *
