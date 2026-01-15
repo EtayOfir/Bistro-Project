@@ -106,6 +106,10 @@ public class RepresentativeMenuUIController {
     void onViewDetails(ActionEvent event) {
     	navigate(event, "RepresentativeViewDetails.fxml");
     }
+    @FXML
+    void onBranchSettings(ActionEvent event) {
+        navigate(event, "BranchSettingsUI.fxml");
+    }
 
     @FXML
     void onUpdateDetails(ActionEvent event) {
@@ -238,6 +242,11 @@ public class RepresentativeMenuUIController {
                     c.setUserContext(currentUserName, "Representative");
                     c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
                 }
+                case BranchSettingsUIController c -> {
+                    c.setUserContext(currentUserName, "Representative");
+                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                }
+
 
                 default -> {}
             }

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="ClientGUI.controller.BranchSettingsUIController">
+
+    <top>
+        <ToolBar>
+            <Button text="Back" onAction="#onBack"/>
+            <Separator/>
+            <Button text="Refresh" onAction="#onRefresh"/>
+            <Label text="  "/>
+            <Label fx:id="statusLabel" text=""/>
+        </ToolBar>
+    </top>
+
+    <center>
+        <VBox spacing="12" style="-fx-padding: 14;">
+            <TitledPane text="Opening Hours" expanded="true">
+                <HBox spacing="10" style="-fx-padding: 10;">
+                    <Label text="Open (HH:mm):"/>
+                    <TextField fx:id="openField" prefWidth="90"/>
+                    <Label text="Close (HH:mm):"/>
+                    <TextField fx:id="closeField" prefWidth="90"/>
+                    <Button text="Save Hours" onAction="#onSaveHours"/>
+                </HBox>
+            </TitledPane>
+
+            <TitledPane text="Restaurant Tables" expanded="true">
+                <VBox spacing="10" style="-fx-padding: 10;">
+                    <TableView fx:id="tablesTable" prefHeight="260">
+                        <columns>
+                            <TableColumn fx:id="colTableNumber" text="TableNumber" prefWidth="140"/>
+                            <TableColumn fx:id="colCapacity" text="Capacity" prefWidth="140"/>
+                        </columns>
+                    </TableView>
+
+                    <HBox spacing="10">
+                        <Label text="TableNumber:"/>
+                        <TextField fx:id="tableNumberField" prefWidth="80"/>
+                        <Label text="Capacity:"/>
+                        <TextField fx:id="capacityField" prefWidth="80"/>
+                        <Button text="Add/Update" onAction="#onUpsertTable"/>
+                        <Button text="Delete" onAction="#onDeleteTable"/>
+                    </HBox>
+                </VBox>
+            </TitledPane>
+        </VBox>
+    </center>
+
+</BorderPane>

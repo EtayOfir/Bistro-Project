@@ -123,6 +123,10 @@ public class ManagerUIController {
     void onViewReports(ActionEvent event) {
         navigate(event, "ReportsUI.fxml");
     }
+    @FXML
+    void onBranchSettings(ActionEvent event) {
+        navigate(event, "BranchSettingsUI.fxml");
+    }
 
     /**
      * Handles "Current Restaurant Status".
@@ -276,6 +280,11 @@ public class ManagerUIController {
                     c.setUserContext(currentUserName, "Manager");
                     c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
                 }
+                case BranchSettingsUIController c -> {
+                    c.setUserContext(currentUserName, "Manager");
+                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                }
+
                 default -> { 
                     // Log or ignore for other controllers
                 }
