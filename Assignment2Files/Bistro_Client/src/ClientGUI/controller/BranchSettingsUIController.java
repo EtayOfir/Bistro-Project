@@ -14,6 +14,8 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
+import ClientGUI.controller.ManagerUIController;
+import ClientGUI.controller.RepresentativeMenuUIController;
 
 import java.io.IOException;
 
@@ -187,9 +189,8 @@ public class BranchSettingsUIController {
         try {
             FXMLLoader loader = ViewLoader.fxml(returnScreenFXML);
             Parent root = loader.load();
-            Object controller = loader.getController();
+            // Object controller = loader.getController(); // אפשר להשאיר או למחוק
 
-           
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
             stage.setScene(new Scene(root));
@@ -199,6 +200,8 @@ public class BranchSettingsUIController {
             e.printStackTrace();
         }
     }
+
+
 
     private void setStatus(String s) {
         Platform.runLater(() -> statusLabel.setText(s));
