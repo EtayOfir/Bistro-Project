@@ -707,6 +707,8 @@ public class ReservationUIController {
         Integer guests = guestSpinner.getValue();
 
         String phone = phoneField.getText() == null ? "" : phoneField.getText().trim();
+        // Normalize phone: remove hyphens/spaces/etc.
+        phone = phone.replaceAll("\\D", "");
         String email = emailField.getText() == null ? "" : emailField.getText().trim();
 
         if (date == null) {
@@ -717,11 +719,15 @@ public class ReservationUIController {
             showAlert(AlertType.ERROR, "Missing Phone", "Phone number is required.");
             return;
         }
-        // Validate phone number - must be exactly 9 digits
-        if (!phone.matches("\\d{9}")) {
-            showAlert(AlertType.ERROR, "Invalid Phone", "Phone number must contain exactly 9 digits (no spaces or special characters).");
+        
+        // Validate phone number - must be exactly 10 digits and start with 0
+        if (!phone.matches("0\\d{9}")) {
+            showAlert(AlertType.ERROR, "Invalid Phone",
+                    "Phone number must contain exactly 10 digits and start with 0.");
             return;
         }
+
+
         if (email.isEmpty()) {
             showAlert(AlertType.ERROR, "Missing Email", "Email address is required.");
             return;
@@ -767,37 +773,39 @@ public class ReservationUIController {
         // Generate SHORT confirmation code (max 10 chars)
         currentConfirmationCode = generateConfirmation(start, guests);
 
-        // Prepare subscriber ID and role
-        int subscriberId = 0;
-        String role = "Casual";
-        
-        if (currentSubscriber != null) {
-            role = currentSubscriber.getRole() != null ? currentSubscriber.getRole() : "Subscriber";
-            
-            // Only use subscriber ID for actual Subscribers, not for Manager or Representative
-            if ("Subscriber".equalsIgnoreCase(role)) {
-                subscriberId = currentSubscriber.getSubscriberId();
-                System.out.println("DEBUG onBook: Subscriber reservation - ID=" + subscriberId + ", role=" + role);
-            } else {
-                // Manager or Representative - save as casual with their role
-                subscriberId = 0;
-                System.out.println("DEBUG onBook: " + role + " reservation - subscriberId=0, role=" + role);
-            }
-        } else if (!currentUserRole.isBlank() && !"Casual".equalsIgnoreCase(currentUserRole)) {
-            // For non-casual roles (Manager, Representative, etc.), use currentUserRole
-            role = currentUserRole;
-            subscriberId = 0; // These roles don't have a subscriber ID
-            System.out.println("DEBUG onBook: Using currentUserRole=" + role + ", subscriberId=0");
-        } else {
-            System.out.println("DEBUG onBook: currentSubscriber is NULL and no special role, using defaults: subscriberId=0, role=Casual");
-        }
+	    // Prepare subscriber ID and role
+	    // Decide if this booking is for the logged-in user (Subscriber/Manager/Representative)
+	    // or for a casual customer (phone/email were changed).
+	    int subscriberId = 0;
 
-        // Protocol:
+	    if (currentSubscriber != null) {	
+	        String uiPhone = phone.replaceAll("\\D", "");
+	        String subPhone = currentSubscriber.getPhoneNumber().replaceAll("\\D", "");
+
+	        boolean bookingForMyself =
+	                uiPhone.equals(subPhone) &&
+	                email.equalsIgnoreCase(currentSubscriber.getEmail());
+	
+	        subscriberId = bookingForMyself ? currentSubscriber.getSubscriberId() : 0;
+	
+	        System.out.println("DEBUG onBook: bookingForMyself=" + bookingForMyself
+	                + ", subscriberId=" + subscriberId
+	                + ", loggedInRole=" + currentSubscriber.getRole());
+	    }
+	
+	    // Reservation type for ActiveReservations (NOT staff role)
+	    String reservationType = (subscriberId > 0) ? "Subscriber" : "Casual";
+	    if ("Subscriber".equalsIgnoreCase(reservationType)) {
+	        phone = "";
+	        email = "";
+	    }
+	    
+	    // Protocol:
         // #CREATE_RESERVATION <numGuests> <yyyy-MM-dd> <HH:mm:ss> <confirmationCode> <subscriberId> <phone> <email> <role>
         String command = "#CREATE_RESERVATION " + guests + " "
                 + start.format(DATE_FMT) + " "
                 + start.format(TIME_WITH_SECONDS_FMT) + " "
-                + currentConfirmationCode + " " + subscriberId + " " + phone + " " + email + " " + role;
+                + currentConfirmationCode + " " + subscriberId + " " + phone + " " + email + " " + reservationType;
 
         System.out.println("DEBUG onBook: Sending command to server: " + command);
 

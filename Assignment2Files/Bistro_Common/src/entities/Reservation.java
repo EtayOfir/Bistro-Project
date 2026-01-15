@@ -31,7 +31,7 @@ public class Reservation {
     private final String confirmationCode;
 
     /** Identifier of the subscriber who placed the reservation (0 or -1 if casual) */
-    private final int subscriberId;
+    private final Integer subscriberId;
 
     /** Assigned table number when seated (null if not seated). */
     private final Integer tableNumber;
@@ -63,7 +63,7 @@ public class Reservation {
      * @param Role     the type of customer ('Subscriber' or 'Casual')
      */
     public Reservation(int reservationId, int numberOfGuests, Date reservationDate,
-                       Time reservationTime, String confirmationCode, int subscriberId, 
+                       Time reservationTime, String confirmationCode, Integer subscriberId, 
                        String status, String Role, Integer tableNumber) {
         this.reservationId = reservationId;
         this.numberOfGuests = numberOfGuests;
@@ -132,7 +132,7 @@ public class Reservation {
      *
      * @return subscriber ID
      */
-    public int getSubscriberId() {
+    public Integer getSubscriberId() {
         return subscriberId;
     }
     

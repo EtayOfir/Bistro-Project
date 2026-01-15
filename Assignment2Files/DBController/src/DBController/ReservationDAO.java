@@ -83,13 +83,29 @@ public class ReservationDAO {
                      SQLQueries.INSERT_ACTIVE_RESERVATION_CASUAL,
                      Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.setString(1, reservation.getRole());
-            ps.setString(2, phone == null ? "" : phone);
-            ps.setString(3, email == null ? "" : email);
+//            ps.setString(1, reservation.getRole());
+//            ps.setString(2, phone == null ? "" : phone);
+//            ps.setString(3, email == null ? "" : email);
+//            ps.setDate(4, reservation.getReservationDate());
+//            ps.setTime(5, reservation.getReservationTime());
+//            ps.setInt(6, reservation.getNumberOfGuests());
+//            ps.setString(7, reservation.getConfirmationCode());
+
+        	ps.setString(1, "Casual");
+
+            if (phone == null || phone.isBlank()) ps.setNull(2, java.sql.Types.VARCHAR);
+            else ps.setString(2, phone);
+
+            if (email == null || email.isBlank()) ps.setNull(3, java.sql.Types.VARCHAR);
+            else ps.setString(3, email);
+
             ps.setDate(4, reservation.getReservationDate());
             ps.setTime(5, reservation.getReservationTime());
             ps.setInt(6, reservation.getNumberOfGuests());
             ps.setString(7, reservation.getConfirmationCode());
+
+            System.out.println("DEBUG inserting ActiveReservations.Role = Casual");
+
 
             if (ps.executeUpdate() != 1) {
                 return -1;
@@ -141,7 +157,7 @@ public class ReservationDAO {
                          SQLQueries.INSERT_ACTIVE_RESERVATION_SUBSCRIBER,
                          Statement.RETURN_GENERATED_KEYS)) {
 
-                ps.setString(1, reservation.getRole());
+            	ps.setString(1, "Subscriber"); // DB Role is reservation type only
                 ps.setInt(2, subscriberId);
                 ps.setDate(3, reservation.getReservationDate());
                 ps.setTime(4, reservation.getReservationTime());

@@ -189,6 +189,11 @@ public class StaffReservationUIController {
         String email = emailField.getText() == null ? "" : emailField.getText().trim();
         String customerType = customerTypeCombo.getValue();
 
+        // normalize ONLY for Casual
+        if ("Casual".equalsIgnoreCase(customerType)) {
+            phone = phone.replaceAll("\\D", "");
+        }
+
         if (date == null) {
             showAlert(AlertType.ERROR, "Invalid Input", "Please select a date.");
             return;
@@ -219,26 +224,32 @@ public class StaffReservationUIController {
             }
         }
 
-        if (phone.isEmpty()) {
-            showAlert(AlertType.ERROR, "Missing Phone", "Phone number is required.");
-            return;
-        }
+     // Only require phone/email for Casual reservations
+        if ("Casual".equalsIgnoreCase(customerType)) {
 
-        // Validate phone number - must be exactly 9 digits
-        if (!phone.matches("\\d{9}")) {
-            showAlert(AlertType.ERROR, "Invalid Phone", "Phone number must contain exactly 9 digits (no spaces or special characters).");
-            return;
-        }
+            if (phone.isEmpty()) {
+                showAlert(AlertType.ERROR, "Missing Phone", "Phone number is required.");
+                return;
+            }
 
-        if (email.isEmpty()) {
-            showAlert(AlertType.ERROR, "Missing Email", "Email address is required.");
-            return;
-        }
+            // Validate phone number - must be exactly 10 digits and start with 0
+            if (!phone.matches("0\\d{9}")) {
+                showAlert(AlertType.ERROR, "Invalid Phone",
+                        "Phone number must contain exactly 10 digits and start with 0.");
+                return;
+            }
 
-        // Validate email format - must end with @provider.com or @provider.co.il
-        if (!isValidEmail(email)) {
-            showAlert(AlertType.ERROR, "Invalid Email", "Email must be in format: name@provider.com or name@provider.co.il");
-            return;
+            if (email.isEmpty()) {
+                showAlert(AlertType.ERROR, "Missing Email", "Email address is required.");
+                return;
+            }
+
+            // Validate email format - must end with @provider.com or @provider.co.il
+            if (!isValidEmail(email)) {
+                showAlert(AlertType.ERROR, "Invalid Email",
+                        "Email must be in format: name@provider.com or name@provider.co.il");
+                return;
+            }
         }
 
         LocalDateTime start = LocalDateTime.of(date, LocalTime.of(hour, minute));
@@ -261,6 +272,10 @@ public class StaffReservationUIController {
         } else {
             cType = "Casual";
             System.out.println("DEBUG onBook: Creating Casual reservation");
+        }
+        if ("Subscriber".equalsIgnoreCase(cType)) {
+            phone = "";
+            email = "";
         }
 
         // Protocol: #CREATE_RESERVATION <numGuests> <date> <time> <code> <subscriberId> <phone> <email> <role>

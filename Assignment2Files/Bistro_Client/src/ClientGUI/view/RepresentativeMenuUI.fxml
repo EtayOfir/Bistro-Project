@@ -45,9 +45,9 @@
 
 	<HBox alignment="CENTER" spacing="10.0">
 		<Button onAction="#onMakeReservation" prefHeight="35.0"
-			prefWidth="140.0" text="Make Reservation" />
+			prefWidth="140.0" text="My Reservation" />
 		<Button onAction="#onMakeCustomerReservation" prefHeight="35.0"
-			prefWidth="140.0" text="Create Customer Res." />
+			prefWidth="140.0" text="Customer Reservation" />
 	</HBox>
 
 	<HBox alignment="CENTER" spacing="10.0">
