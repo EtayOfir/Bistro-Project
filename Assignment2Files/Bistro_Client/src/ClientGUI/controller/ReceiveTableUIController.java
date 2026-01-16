@@ -124,6 +124,10 @@ public class ReceiveTableUIController {
             showAlert(AlertType.WARNING, "Reservation Closed", "Duplicate Entry",
                     "This reservation has already been used (Status: Arrived).\nPlease contact the hostess.");
         }
+        else if (response.equals("RESERVATION_NOT_FOR_TODAY")) {
+            showAlert(AlertType.WARNING, "Wrong Date", "Not for Today",
+                    "This reservation is not scheduled for today.");
+        }
         else {
             showAlert(AlertType.ERROR, "Server Error", "Error", response);
         }
