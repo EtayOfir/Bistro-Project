@@ -18,6 +18,8 @@ import javafx.scene.layout.Pane;
 import javafx.scene.shape.Circle;
 
 
+import ClientGUI.util.SceneUtil;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -538,7 +540,7 @@ public class HostDashboardController {
         }
             
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.setMaximized(wasMaximized);
             stage.show();
 

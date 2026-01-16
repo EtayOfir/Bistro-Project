@@ -2,6 +2,7 @@ package ClientGUI.controller;
 
 import java.io.IOException;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.controller.HostDashboardController;
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
@@ -620,7 +621,7 @@ public class ClientUIController implements ChatIF {
                 stage.initOwner(btn.getScene().getWindow());
             }
 
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {
@@ -760,39 +761,25 @@ public class ClientUIController implements ChatIF {
         	Object controller = loader.getController();
 
 
-            // Using Switch Case (Pattern Matching) to identify controller and restore context
-            switch (controller) {
-                // 1. Manager
-                case ManagerUIController c -> 
-                    c.setManagerName(currentUserName);
-
-                // 2. Representative
-                case RepresentativeMenuUIController c -> 
-                    c.setRepresentativeName(currentUserName);
-
-                // 3. Subscriber
-                case LoginSubscriberUIController c -> 
-                    c.setSubscriberName(currentUserName);
-
-                // 4. Guest (LoginGuestUI)
-                case LoginGuestUIController c -> {
-                    // Guest menu usually doesn't need specific user state restoration
-                }
-
-                // 5. Restaurant Terminal
-                case RestaurantTerminalUIController c -> {
-                    // Terminal usually doesn't need specific user state restoration
-                }
-
-                default -> {
-                    // Log or handle unknown controller types if necessary
-                    System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
-                }
+            // Using if-else to identify controller and restore context
+            if (controller instanceof ManagerUIController) {
+                ((ManagerUIController) controller).setManagerName(currentUserName);
+            } else if (controller instanceof RepresentativeMenuUIController) {
+                ((RepresentativeMenuUIController) controller).setRepresentativeName(currentUserName);
+            } else if (controller instanceof LoginSubscriberUIController) {
+                ((LoginSubscriberUIController) controller).setSubscriberName(currentUserName);
+            } else if (controller instanceof LoginGuestUIController) {
+                // Guest menu usually doesn't need specific user state restoration
+            } else if (controller instanceof RestaurantTerminalUIController) {
+                // Terminal usually doesn't need specific user state restoration
+            } else {
+                // Log or handle unknown controller types if necessary
+                System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
             }
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {

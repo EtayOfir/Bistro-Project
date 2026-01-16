@@ -16,6 +16,7 @@ import javafx.stage.Stage;
 import java.io.IOException;
 
 import ClientGUI.util.ViewLoader;
+import ClientGUI.util.SceneUtil;
 
 public class RegisterUIController {
 
@@ -154,7 +155,7 @@ public class RegisterUIController {
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {

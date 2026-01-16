@@ -1,5 +1,7 @@
 package ClientGUI.controller; // change if needed
 
+import ClientGUI.util.SceneUtil;
+
 import client.ChatClient;
 import common.ChatIF;
 import javafx.application.Platform;
@@ -364,7 +366,7 @@ public class ClientWaitingListController implements ChatIF {
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {

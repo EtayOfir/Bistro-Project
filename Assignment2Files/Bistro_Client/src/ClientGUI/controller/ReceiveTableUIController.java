@@ -1,6 +1,7 @@
 package ClientGUI.controller;
 
 import ClientGUI.util.ViewLoader;
+import ClientGUI.util.SceneUtil;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -226,25 +227,16 @@ public class ReceiveTableUIController {
         	Object controller = loader.getController();
 
 
-            // Using Switch Case (Pattern Matching) to identify controller and restore context
-            switch (controller) {
-                // 1. Manager Dashboard
-                case ManagerUIController c -> 
-                    c.setManagerName(currentUserName);
-
-                // 2. Representative Dashboard
-                case RepresentativeMenuUIController c -> 
-                    c.setRepresentativeName(currentUserName);
-
-                // 3. Restaurant Terminal (No specific user name usually needed)
-                case RestaurantTerminalUIController c -> {
-                    // Logic for terminal if needed (e.g., reset state)
-                }
-
-                default -> {
-                    // Handle unknown controller types (Log or ignore)
-                    System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
-                }
+            // Using if-else to identify controller and restore context
+            if (controller instanceof ManagerUIController) {
+                ((ManagerUIController) controller).setManagerName(currentUserName);
+            } else if (controller instanceof RepresentativeMenuUIController) {
+                ((RepresentativeMenuUIController) controller).setRepresentativeName(currentUserName);
+            } else if (controller instanceof RestaurantTerminalUIController) {
+                // Logic for terminal if needed (e.g., reset state)
+            } else {
+                // Handle unknown controller types (Log or ignore)
+                System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
             }
 
             // Unregister this controller from the ClientUI routing map
@@ -252,7 +244,7 @@ public class ReceiveTableUIController {
 
             Stage stage = (Stage)((Node) event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {

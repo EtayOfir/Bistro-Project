@@ -3,6 +3,7 @@ package ClientGUI.controller;
 import java.io.IOException;
 import java.net.URL;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
 import entities.Subscriber;
@@ -206,7 +207,7 @@ public class UserLoginUIController {
                 }
 
                 stage.setTitle("Manager Dashboard - " + username);
-                stage.setScene(new Scene(root));
+                stage.setScene(SceneUtil.createStyledScene(root));
                 stage.show();
             }
             // --- REPRESENTATIVE ---
@@ -222,7 +223,7 @@ public class UserLoginUIController {
                 }
                 
                 stage.setTitle("Representative Dashboard - " + username);
-                stage.setScene(new Scene(root));
+                stage.setScene(SceneUtil.createStyledScene(root));
                 stage.show();
             }
             // --- SUBSCRIBER ---
@@ -237,7 +238,7 @@ public class UserLoginUIController {
                 }
 
                 stage.setTitle("Subscriber Menu - " + username);
-                stage.setScene(new Scene(root));
+                stage.setScene(SceneUtil.createStyledScene(root));
                 stage.show();
             }
             // --- FALLBACK / CUSTOMER ---
@@ -249,7 +250,7 @@ public class UserLoginUIController {
                 controller.setUserContext(username, role);
 
                 stage.setTitle("Reservation Client - " + username);
-                stage.setScene(new Scene(root));
+                stage.setScene(SceneUtil.createStyledScene(root));
                 stage.show();
             }
 
@@ -289,7 +290,7 @@ public class UserLoginUIController {
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Restaurant Terminal");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {
@@ -332,7 +333,7 @@ public class UserLoginUIController {
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Guest Menu");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {

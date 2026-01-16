@@ -1,5 +1,6 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
 import common.ChatIF;
@@ -271,7 +272,7 @@ public class BillPaymentController implements ChatIF {
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {

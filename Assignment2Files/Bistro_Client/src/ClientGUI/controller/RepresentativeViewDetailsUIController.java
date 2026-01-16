@@ -1,5 +1,7 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
+
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -237,7 +239,7 @@ public class RepresentativeViewDetailsUIController {
             // 4. Switch Scene
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (java.io.IOException e) {

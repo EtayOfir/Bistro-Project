@@ -10,6 +10,7 @@ import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import java.io.IOException;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 import entities.Subscriber;
 
@@ -221,7 +222,7 @@ public class LoginSubscriberUIController {
             }
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {
