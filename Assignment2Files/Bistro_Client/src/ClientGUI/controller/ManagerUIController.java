@@ -110,11 +110,7 @@ public class ManagerUIController {
     	navigate(event, "RepresentativeViewDetails.fxml");
     }
 
-    @FXML
-    void onUpdateDetails(ActionEvent event) {
-        // TODO: Implement UpdateDetailsUI logic
-        System.out.println("Navigate to Update Details Screen");
-    }
+   
 
     /**
      * Handles the "View Reports" button click.
@@ -123,6 +119,10 @@ public class ManagerUIController {
     @FXML
     void onViewReports(ActionEvent event) {
         navigate(event, "ReportsUI.fxml");
+    }
+    @FXML
+    void onBranchSettings(ActionEvent event) {
+        navigate(event, "BranchSettingsUI.fxml");
     }
 
     /**
@@ -252,6 +252,18 @@ public class ManagerUIController {
                     c.setSubscriber(currentSubscriber);
                 } else {
                     System.out.println("DEBUG Manager navigate: currentSubscriber is null, not calling setSubscriber");
+                }
+                case RegisterUIController c -> {
+                    c.setUserContext(currentUserName, "Manager");
+                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                }
+                case BranchSettingsUIController c -> {
+                    c.setUserContext(currentUserName, "Manager");
+                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                }
+
+                default -> { 
+                    // Log or ignore for other controllers
                 }
             } else if (controller instanceof StaffReservationUIController) {
                 ((StaffReservationUIController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");

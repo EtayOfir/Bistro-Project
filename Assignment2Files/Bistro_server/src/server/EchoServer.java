@@ -178,6 +178,14 @@ public class EchoServer extends AbstractServer {
 			System.out.println("DEBUG: command parsed = " + command);
 
 			// --- Check if DB is ready for specific commands ---
+			boolean needsReservationDao = command.equals("#GET_RESERVATION") || command.equals("#UPDATE_RESERVATION")
+					|| command.equals("#CREATE_RESERVATION") || command.equals("#GET_RESERVATIONS_BY_DATE")
+					|| command.equals("#CANCEL_RESERVATION") || command.equals("#DELETE_EXPIRED_RESERVATIONS")
+					|| command.equals("#RECEIVE_TABLE") || command.equals("#GET_ACTIVE_RESERVATIONS")
+					|| command.equals("#GET_REPORTS_DATA") || command.equals("#MARK_RESERVATION_EXPIRED")|| command.equals("#SET_BRANCH_HOURS")
+					|| command.equals("#UPSERT_RESTAURANT_TABLE")
+					|| command.equals("#DELETE_RESTAURANT_TABLE")|| command.equals("#GET_OPENING_HOURS_WEEKLY")
+					|| command.equals("#SET_BRANCH_HOURS_DAY");
 			boolean needsReservationDao =
 			        command.equals("#GET_RESERVATION") ||
 			        command.equals("#UPDATE_RESERVATION") ||
@@ -246,6 +254,177 @@ public class EchoServer extends AbstractServer {
 
 				break;
 			}
+			case "#SET_BRANCH_HOURS_BY_DAY": {
+			    if (parts.length < 4) { ans = "ERROR|BAD_FORMAT"; break; }
+
+			    try {
+			        String day = parts[1].trim();
+			        String open = parts[2].trim() + ":00";
+			        String close = parts[3].trim() + ":00";
+
+			        try (var con = mysqlConnection1.getDataSource().getConnection()) {
+
+			            // ✅ לוג: על איזה DB אנחנו יושבים
+			            try (var psDb = con.prepareStatement("SELECT DATABASE()");
+			                 var rsDb = psDb.executeQuery()) {
+			                if (rsDb.next()) System.out.println("DEBUG DB=" + rsDb.getString(1));
+			            }
+
+			            System.out.println("DEBUG UPDATE HOURS day=" + day + " open=" + open + " close=" + close);
+
+			            try (var ps = con.prepareStatement(
+			                    "UPDATE bistro.openinghours SET OpenTime=?, CloseTime=? " +
+			                    "WHERE DayOfWeek=? AND SpecialDate IS NULL")) {
+
+			                ps.setString(1, open);
+			                ps.setString(2, close);
+			                ps.setString(3, day);
+
+			                int updated = ps.executeUpdate();
+			                System.out.println("DEBUG rowsUpdated=" + updated);
+
+			                ans = updated > 0 ? "BRANCH_DAY_UPDATED" : "DAY_NOT_FOUND";
+			            }
+			        }
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|UPDATE_DAY_FAILED";
+			    }
+			    break;
+			}
+			case "#SET_BRANCH_HOURS_BY_DATE": {
+			    // #SET_BRANCH_HOURS_BY_DATE 2026-01-20 10:00 16:00 <b64desc?>
+			    if (parts.length < 4) { ans = "ERROR|BAD_FORMAT"; break; }
+
+			    try {
+			        String dateStr = parts[1].trim();          // YYYY-MM-DD
+			        String open = parts[2].trim() + ":00";     // HH:mm:00
+			        String close = parts[3].trim() + ":00";
+			        String desc = (parts.length >= 5) ? decodeB64Url(parts[4]) : "";
+
+			        try (var con = mysqlConnection1.getDataSource().getConnection();
+			             var ps = con.prepareStatement(
+			                 "INSERT INTO bistro.openinghours (DayOfWeek, OpenTime, CloseTime, SpecialDate, Description) " +
+			                 "VALUES (NULL, ?, ?, ?, ?) " +
+			                 "ON DUPLICATE KEY UPDATE OpenTime=VALUES(OpenTime), CloseTime=VALUES(CloseTime), Description=VALUES(Description)"
+			             )) {
+
+			            ps.setString(1, open);
+			            ps.setString(2, close);
+			            ps.setDate(3, java.sql.Date.valueOf(dateStr));
+			            ps.setString(4, desc);
+
+			            int affected = ps.executeUpdate();
+			            ans = "BRANCH_DATE_SAVED|" + affected; // affected 1/2 depending on insert/update
+			        }
+
+			    } catch (Exception ex) {
+			        ex.printStackTrace();
+			        ans = "ERROR|SET_BY_DATE_FAILED";
+			    }
+			    break;
+			}
+			case "#GET_OPENING_HOURS_SPECIAL": {
+			    try {
+			        StringBuilder sb = new StringBuilder("OPENING_HOURS_SPECIAL|");
+
+			        try (var con = mysqlConnection1.getDataSource().getConnection();
+			             var ps = con.prepareStatement(
+			                 "SELECT SpecialDate, OpenTime, CloseTime, COALESCE(Description,'') AS Description " +
+			                 "FROM bistro.openinghours " +
+			                 "WHERE SpecialDate IS NOT NULL " +
+			                 "ORDER BY SpecialDate"
+			             );
+			             var rs = ps.executeQuery()) {
+
+			            boolean first = true;
+			            while (rs.next()) {
+			                if (!first) sb.append("~");
+			                first = false;
+
+			                String date = rs.getDate("SpecialDate").toString();
+			                String open = rs.getTime("OpenTime").toString();
+			                String close = rs.getTime("CloseTime").toString();
+			                String desc = encodeB64Url(rs.getString("Description"));
+
+			                sb.append(date).append(",").append(open).append(",").append(close).append(",").append(desc);
+			            }
+			        }
+
+			        ans = sb.toString().endsWith("|") ? "OPENING_HOURS_SPECIAL|EMPTY" : sb.toString();
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|OPENING_HOURS_SPECIAL";
+			    }
+			    break;
+			}
+			case "#DELETE_OPENING_HOURS_SPECIAL": {
+			    if (parts.length < 2) { ans = "ERROR|BAD_FORMAT"; break; }
+
+			    try {
+			        String dateStr = parts[1].trim();
+
+			        try (var con = mysqlConnection1.getDataSource().getConnection();
+			             var ps = con.prepareStatement(
+			                 "DELETE FROM bistro.openinghours WHERE SpecialDate=?"
+			             )) {
+			            ps.setDate(1, java.sql.Date.valueOf(dateStr));
+			            int deleted = ps.executeUpdate();
+			            ans = deleted > 0 ? "SPECIAL_DELETED" : "SPECIAL_NOT_FOUND";
+			        }
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|DELETE_SPECIAL_FAILED";
+			    }
+			    break;
+			}
+
+			case "#GET_OPENING_HOURS_WEEKLY": {
+				try {
+					StringBuilder sb = new StringBuilder("OPENING_HOURS_WEEKLY|");
+
+					try (var con = mysqlConnection1.getDataSource().getConnection();
+							var ps = con.prepareStatement(
+									"SELECT DayOfWeek, OpenTime, CloseTime " +
+											"FROM openinghours " +
+											"WHERE SpecialDate IS NULL AND DayOfWeek IS NOT NULL " +
+											"ORDER BY ScheduleID"
+									);
+							var rs = ps.executeQuery()) {
+
+						boolean first = true;
+						while (rs.next()) {
+							if (!first) sb.append("~");
+							first = false;
+
+							sb.append(rs.getString("DayOfWeek")).append(",")
+							.append(rs.getTime("OpenTime")).append(",")
+							.append(rs.getTime("CloseTime"));
+						}
+					}
+
+					if (sb.toString().endsWith("|")) {
+						ans = "OPENING_HOURS_WEEKLY|EMPTY";
+					} else {
+						ans = sb.toString();
+					}
+
+				} catch (Exception e) {
+					e.printStackTrace();
+					ans = "ERROR|OPENING_HOURS_WEEKLY";
+				}
+				break;
+			}
+
+			case "#GET_SEATED_CUSTOMERS": {
+				try {
+					ans = buildSeatedCustomersSnapshot();
+				} catch (Exception e) {
+					ans = "SEATED_CUSTOMERS|EMPTY";
+				}
+				break;
+			}
+
       
 	      case "#GET_SEATED_CUSTOMERS": {
 	          try {
@@ -401,16 +580,16 @@ public class EchoServer extends AbstractServer {
 					System.out.println("DEBUG: phone=" + phone + ", email=" + email);
 
 					Reservation newRes = new Reservation(
-						    0,
-						    numGuests,
-						    date,
-						    time,
-						    confirmationCode,
-						    subscriberId,
-						    "Confirmed",
-						    cType,
-						    null // TableNumber: not assigned yet
-						);
+							0,
+							numGuests,
+							date,
+							time,
+							confirmationCode,
+							subscriberId,
+							"Confirmed",
+							cType,
+							null // TableNumber: not assigned yet
+							);
 
 					System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
 
@@ -516,6 +695,12 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
+
+			case "#GET_RESTAURANT_TABLES": {
+				ans = getRestaurantTables();
+				break;
+			}    
+
       
 	        case "#GET_RESTAURANT_TABLES": {
 	            ans = getRestaurantTables();
@@ -805,8 +990,7 @@ public class EchoServer extends AbstractServer {
 
 					if (tablesPayload.length() == 0) tablesPayload.append("EMPTY");
 
-					// הפורמט שהלקוח מצפה:
-					// BRANCH_SETTINGS|open|close|t1,cap~t2,cap...
+
 					ans = "BRANCH_SETTINGS|"
 							+ (open == null ? "" : open) + "|"
 							+ (close == null ? "" : close) + "|"
@@ -1243,6 +1427,144 @@ public class EchoServer extends AbstractServer {
 			System.out.println("ERROR - Could not listen for clients!");
 		}
 	}
+
+	private String buildSeatedCustomersSnapshot() {
+
+		String sql =
+				"SELECT ar.CustomerType, " +
+						"       ar.SubscriberID, " +
+						"       ar.CasualPhone, " +
+						"       ar.CasualEmail, " +
+						"       ar.ReservationTime, " +
+						"       ar.NumOfDiners, " +
+						"       ar.Status, " +
+						"       ar.TableNumber, " +
+						"       s.FullName " +
+						"FROM ActiveReservations ar " +
+						"LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
+						"WHERE ar.TableNumber IS NOT NULL " +     // 🔥 זה כל הקסם
+						"ORDER BY ar.TableNumber ASC";
+
+		try (
+				Connection conn = mysqlConnection1.getDataSource().getConnection();
+				PreparedStatement ps = conn.prepareStatement(sql);
+				ResultSet rs = ps.executeQuery()
+				) {
+
+			StringBuilder sb = new StringBuilder();
+
+			while (rs.next()) {
+
+				String customer;
+				if ("Subscriber".equalsIgnoreCase(rs.getString("CustomerType"))) {
+					customer = rs.getString("FullName");
+					if (customer == null || customer.isBlank()) {
+						customer = "Subscriber#" + rs.getInt("SubscriberID");
+					}
+				} else {
+					customer = rs.getString("CasualPhone");
+					if (customer == null || customer.isBlank()) {
+						customer = rs.getString("CasualEmail");
+					}
+					if (customer == null || customer.isBlank()) {
+						customer = "Casual";
+					}
+				}
+
+				int guests = rs.getInt("NumOfDiners");
+				String time = rs.getTime("ReservationTime").toString();
+				String status = rs.getString("Status");
+				int tableNumber = rs.getInt("TableNumber");
+
+				String customerB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(customer.getBytes(StandardCharsets.UTF_8));
+
+				if (sb.length() > 0) sb.append("~");
+
+				sb.append(customerB64).append(",")
+				.append(guests).append(",")
+				.append(time).append(",")
+				.append(status).append(",")
+				.append(tableNumber);
+			}
+
+			if (sb.length() == 0) {
+				return "SEATED_CUSTOMERS|EMPTY";
+			}
+
+			return "SEATED_CUSTOMERS|" + sb;
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "SEATED_CUSTOMERS|EMPTY";
+		}
+	}
+
+	private String getRestaurantTables() {
+		StringBuilder sb = new StringBuilder();
+
+		String query = """
+				    SELECT
+				        rt.TableNumber,
+				        rt.Capacity,
+				        CASE
+				            WHEN EXISTS (
+				                SELECT 1
+				                FROM activereservations ar
+				                WHERE ar.TableNumber = rt.TableNumber
+				                  AND ar.Status IN ('Arrived', 'CheckedIn')
+				            )
+				            THEN 'Taken'
+				            ELSE 'Available'
+				        END AS Status,
+
+				        COALESCE((
+				            SELECT GROUP_CONCAT(
+				                CASE
+				                    WHEN ar.CustomerType = 'Subscriber'
+				                        THEN s.FullName
+				                    ELSE ar.CasualPhone
+				                END
+				                SEPARATOR ' | '
+				            )
+				            FROM activereservations ar
+				            LEFT JOIN subscribers s ON s.SubscriberID = ar.SubscriberID
+				            WHERE ar.TableNumber = rt.TableNumber
+				              AND ar.Status IN ('Arrived', 'CheckedIn')
+				        ), '') AS AssignedTo
+
+				    FROM restauranttables rt
+				    ORDER BY rt.TableNumber
+				""";
+
+
+
+
+		try (
+				Connection conn = mysqlConnection1.getDataSource().getConnection();
+				PreparedStatement ps = conn.prepareStatement(query);
+				ResultSet rs = ps.executeQuery()
+				) {
+			while (rs.next()) {
+				sb.append(rs.getInt("TableNumber")).append(",")
+				.append(rs.getInt("Capacity")).append(",")
+				.append(rs.getString("Status")).append(",")
+				.append(rs.getString("AssignedTo").replace(",", " "))
+				.append("~");
+			}
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "RESTAURANT_TABLES|EMPTY";
+		}
+
+		if (sb.length() == 0) {
+			return "RESTAURANT_TABLES|EMPTY";
+		}
+
+		sb.deleteCharAt(sb.length() - 1);
+		return "RESTAURANT_TABLES|" + sb;
+	}
+
   
   private String buildSeatedCustomersSnapshot() {
 

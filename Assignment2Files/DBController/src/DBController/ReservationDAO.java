@@ -1060,6 +1060,55 @@ public class ReservationDAO {
             return false;
         }
     }
+    public String getOpeningHoursWeekly() {
+        StringBuilder sb = new StringBuilder();
+        String query = "SELECT DayOfWeek, OpenTime, CloseTime " +
+                       "FROM openinghours " +
+                       "WHERE SpecialDate IS NULL AND DayOfWeek IS NOT NULL " +
+                       "ORDER BY FIELD(DayOfWeek,'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday')";
+
+        try (Connection con = mysqlConnection1.getDataSource().getConnection();
+             PreparedStatement ps = con.prepareStatement(query);
+             ResultSet rs = ps.executeQuery()) {
+
+            boolean first = true;
+            while (rs.next()) {
+                String day = rs.getString("DayOfWeek");
+                String open = rs.getTime("OpenTime").toString();   // HH:mm:ss
+                String close = rs.getTime("CloseTime").toString(); // HH:mm:ss
+
+                if (!first) sb.append("~");
+                first = false;
+                sb.append(day).append(",").append(open).append(",").append(close);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "ERROR";
+        }
+
+        return sb.length() == 0 ? "EMPTY" : sb.toString();
+    }
+
+    public String updateBranchHoursByDay(String dayOfWeek, String open, String close) {
+        String query = "UPDATE openinghours SET OpenTime = ?, CloseTime = ? " +
+                       "WHERE SpecialDate IS NULL AND DayOfWeek = ?";
+
+        try (Connection con = mysqlConnection1.getDataSource().getConnection();
+             PreparedStatement ps = con.prepareStatement(query)) {
+
+            ps.setString(1, open + ":00");   // HH:mm -> HH:mm:ss
+            ps.setString(2, close + ":00");
+            ps.setString(3, dayOfWeek);
+
+            int updated = ps.executeUpdate();
+            return updated > 0 ? "OK" : "NOT_FOUND";
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "ERROR";
+        }
+    }
 
     /**
      * Fetches opening hours for a specific date.

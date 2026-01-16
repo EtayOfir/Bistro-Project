@@ -107,13 +107,11 @@ public class RepresentativeMenuUIController {
     void onViewDetails(ActionEvent event) {
     	navigate(event, "RepresentativeViewDetails.fxml");
     }
-
     @FXML
-    void onUpdateDetails(ActionEvent event) {
-        // TODO: לממש מסך UpdateDetailsUI.fxml
-        System.out.println("Navigate to Update Details Screen");
+    void onBranchSettings(ActionEvent event) {
+        navigate(event, "BranchSettingsUI.fxml");
     }
-
+    
     /**
      * Handles "Current Restaurant Status".
      * Navigates to the HostDashboard.
@@ -215,22 +213,17 @@ public class RepresentativeMenuUIController {
                 if (currentSubscriber != null) {
                     c.setSubscriber(currentSubscriber);
                 }
-            } else if (controller instanceof StaffReservationUIController) {
-                ((StaffReservationUIController) controller).setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-            } else if (controller instanceof ReceiveTableUIController) {
-                ((ReceiveTableUIController) controller).setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-            } else if (controller instanceof HostDashboardController) {
-                ((HostDashboardController) controller).setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-            } else if (controller instanceof ClientUIController) {
-                ClientUIController c = (ClientUIController) controller;
-                c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-                c.setUserContext(currentUserName, "Representative");
-            } else if (controller instanceof RepresentativeViewDetailsUIController) {
-                ((RepresentativeViewDetailsUIController) controller).setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-            } else if (controller instanceof RegisterUIController) {
-                RegisterUIController c = (RegisterUIController) controller;
-                c.setUserContext(currentUserName, "Representative");
-                c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                case RegisterUIController c -> {
+                    c.setUserContext(currentUserName, "Representative");
+                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                }
+                case BranchSettingsUIController c -> {
+                    c.setUserContext(currentUserName, "Representative");
+                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                }
+
+
+                default -> {}
             }
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();

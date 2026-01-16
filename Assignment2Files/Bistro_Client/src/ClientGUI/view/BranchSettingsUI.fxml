@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+	xmlns:fx="http://javafx.com/fxml"
+	fx:controller="ClientGUI.controller.BranchSettingsUIController">
+
+	<top>
+		<ToolBar>
+			<Button text="Back" onAction="#onBack" />
+			<Separator />
+			<Button text="Refresh" onAction="#onRefresh" />
+			<Label text="  " />
+			<Label fx:id="statusLabel" text="" />
+		</ToolBar>
+	</top>
+
+	<center>
+		<VBox spacing="12" style="-fx-padding: 14;">
+			<TitledPane text="Opening Hours" expanded="true">
+				<VBox spacing="10">
+					<TableView fx:id="hoursTable" prefHeight="220">
+						<columns>
+							<TableColumn text="Day" fx:id="colDay"
+								prefWidth="120" />
+							<TableColumn text="Open" fx:id="colOpen"
+								prefWidth="120" />
+							<TableColumn text="Close" fx:id="colClose"
+								prefWidth="120" />
+						</columns>
+					</TableView>
+
+					<HBox spacing="10">
+						<ComboBox fx:id="dayCombo" prefWidth="140" />
+						<Label text="Open:" />
+						<TextField fx:id="openField" prefWidth="80" />
+						<Label text="Close:" />
+						<TextField fx:id="closeField" prefWidth="80" />
+						<Button text="Save Day" onAction="#onSaveDayHours" />
+					</HBox>
+					<Separator />
+
+					<Label text="Special Date (override):" />
+
+					<HBox spacing="10">
+						<DatePicker fx:id="specialDatePicker" prefWidth="160" />
+						<Label text="Open:" />
+						<TextField fx:id="specialOpenField" prefWidth="80" />
+						<Label text="Close:" />
+						<TextField fx:id="specialCloseField" prefWidth="80" />
+						<Button text="Save Special" onAction="#onSaveSpecialDate" />
+						<Button text="Delete Special"
+							onAction="#onDeleteSpecialDate" />
+					</HBox>
+
+					<TableView fx:id="specialTable" prefHeight="160">
+						<columns>
+							<TableColumn fx:id="colSpecialDate" text="Date"
+								prefWidth="140" />
+							<TableColumn fx:id="colSpecialOpen" text="Open"
+								prefWidth="120" />
+							<TableColumn fx:id="colSpecialClose" text="Close"
+								prefWidth="120" />
+						</columns>
+					</TableView>
+
+				</VBox>
+
+			</TitledPane>
+
+			<TitledPane text="Restaurant Tables" expanded="true">
+				<VBox spacing="10" style="-fx-padding: 10;">
+					<TableView fx:id="tablesTable" prefHeight="260">
+						<columns>
+							<TableColumn fx:id="colTableNumber"
+								text="TableNumber" prefWidth="140" />
+							<TableColumn fx:id="colCapacity" text="Capacity"
+								prefWidth="140" />
+						</columns>
+					</TableView>
+
+					<HBox spacing="10">
+						<Label text="TableNumber:" />
+						<TextField fx:id="tableNumberField" prefWidth="80" />
+						<Label text="Capacity:" />
+						<TextField fx:id="capacityField" prefWidth="80" />
+						<Button text="Add/Update" onAction="#onUpsertTable" />
+						<Button text="Delete" onAction="#onDeleteTable" />
+					</HBox>
+				</VBox>
+			</TitledPane>
+		</VBox>
+	</center>
+
+</BorderPane>
