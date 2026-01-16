@@ -213,18 +213,16 @@ public class RepresentativeMenuUIController {
                 if (currentSubscriber != null) {
                     c.setSubscriber(currentSubscriber);
                 }
-                case RegisterUIController c -> {
-                    c.setUserContext(currentUserName, "Representative");
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-                }
-                case BranchSettingsUIController c -> {
-                    c.setUserContext(currentUserName, "Representative");
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-                }
-
-
-                default -> {}
+            } else if (controller instanceof RegisterUIController) {
+                RegisterUIController c = (RegisterUIController) controller;
+                c.setUserContext(currentUserName, "Representative");
+                c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+            } else if (controller instanceof BranchSettingsUIController) {
+                BranchSettingsUIController c = (BranchSettingsUIController) controller;
+                c.setUserContext(currentUserName, "Representative");
+                c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
             }
+
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setScene(SceneUtil.createStyledScene(root));
