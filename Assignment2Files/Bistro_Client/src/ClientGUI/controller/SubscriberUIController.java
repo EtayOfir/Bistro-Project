@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ResourceBundle;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
 import entities.ActiveReservation; 
@@ -271,7 +272,7 @@ public class SubscriberUIController implements Initializable {
             }
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
         } catch (IOException e) {
             e.printStackTrace();

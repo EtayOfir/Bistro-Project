@@ -659,6 +659,32 @@ public class EchoServer extends AbstractServer {
 				break;
 			}
 
+			case "#GET_OPENING_HOURS": {
+				// Format: #GET_OPENING_HOURS yyyy-MM-dd
+				try {
+					if (parts.length < 2) {
+						ans = "ERROR|INVALID_FORMAT_OPENING_HOURS";
+						break;
+					}
+					java.time.LocalDate date = java.time.LocalDate.parse(parts[1]);
+					Map<String, String> hours = reservationDAO.getOpeningHoursForDate(date);
+					
+					if (hours != null) {
+						// Format: OPENING_HOURS|yyyy-MM-dd|HH:mm:ss|HH:mm:ss
+						ans = "OPENING_HOURS|" + parts[1] + "|" + hours.get("open") + "|" + hours.get("close");
+						System.out.println("DEBUG: Sending opening hours response: " + ans);
+					} else {
+						ans = "ERROR|NO_OPENING_HOURS";
+						System.out.println("DEBUG: No opening hours found, sending error response");
+					}
+				} catch (Exception e) {
+					ans = "ERROR|OPENING_HOURS_ERROR";
+					System.out.println("DEBUG: Exception in GET_OPENING_HOURS: " + e.getMessage());
+					e.printStackTrace();
+				}
+				break;
+			}
+
 			case "#MARK_RESERVATION_EXPIRED": {
 				try {
 					int resId = Integer.parseInt(parts[1]);

@@ -1,0 +1,296 @@
+/* =========================================================
+   Bistro Updated UI (Light Stone + Opaque Cards)
+   Goal: show background image BUT keep all text readable
+   File: bistro_updated.css
+   Put this file in: /ClientGUI/view/
+   Image path:       /ClientGUI/view/res.png
+   ========================================================= */
+
+/* ---------- Theme tokens (JavaFX doesn't support CSS vars reliably everywhere)
+   Palette:
+   - Tomato:   #C32A26
+   - Basil:    #128D57
+   - Charcoal: #333333
+   - Muted:    #666666
+   - Border:   #E6E6E6
+   - Cream:    #F1F0EC
+*/
+
+/* ---------- App background (IMPORTANT) ---------- */
+/* Use .root so it works even if FXML doesn't set styleClass */
+.root {
+    -fx-font-family: "Segoe UI", "Inter", "Arial";
+    -fx-font-size: 13px;
+
+    /* Background image from resources root */
+    -fx-background-image: url("/ClientGUI/view/res.png");
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center center;
+    -fx-background-size: cover;
+}
+
+/* Optional: if you do set styleClass="app-root" on root, keep same behavior */
+.app-root {
+    -fx-background-image: url("/ClientGUI/view/res.png");
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center center;
+    -fx-background-size: cover;
+}
+
+/* ---------- Readability strategy ----------
+   We DO NOT force every pane to transparent globally (that can break layouts).
+   Instead, we provide strong "card" containers that you wrap content with.
+*/
+
+/* Core card containers */
+.content-card,
+.sidebar-panel,
+.menu-card {
+    -fx-background-color: rgba(255, 255, 255, 0.92); /* readable over stone */
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(0,0,0,0.08);
+    -fx-border-width: 1;
+
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 18, 0.22, 0, 6);
+    -fx-padding: 16;
+}
+
+/* Overlay panel (for Server Settings / Login / forms) */
+.overlay-panel {
+    -fx-background-color: rgba(255, 255, 255, 0.85);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(0,0,0,0.08);
+    -fx-border-width: 1;
+
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.22), 22, 0.20, 0, 8);
+    -fx-padding: 22 24 20 24;
+}
+
+/* Titles */
+.section-title {
+    -fx-text-fill: #C32A26; /* tomato */
+    -fx-font-size: 20px;
+    -fx-font-weight: 900;
+}
+
+.section-subtitle {
+    -fx-text-fill: #666666;
+    -fx-font-size: 12.5px;
+}
+
+/* Overlay-specific headings */
+.overlay-title {
+    -fx-text-fill: #C32A26;
+    -fx-font-size: 22px;
+    -fx-font-weight: 900;
+}
+.overlay-subtitle {
+    -fx-text-fill: #555555;
+    -fx-font-size: 12.5px;
+}
+
+/* Labels */
+
+.label {
+    -fx-text-fill: #111;
+    -fx-font-weight: 800;
+    -fx-background-color: rgba(255,255,255,0.80);
+    -fx-background-radius: 8;
+    -fx-padding: 4 8;
+}
+
+.muted-label {
+    -fx-text-fill: #666666;
+}
+.form-label {
+    -fx-text-fill: #222222;
+    -fx-font-size: 13.5px;
+    -fx-font-weight: 800;
+}
+
+/* ---------- Inputs ---------- */
+.text-field, .password-field, .text-area {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #D7D7D7;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+
+    -fx-text-fill: #222222;
+    -fx-prompt-text-fill: #9A9A9A;
+}
+
+.text-field:focused, .password-field:focused, .text-area:focused {
+    -fx-border-color: #128D57; /* basil focus */
+    -fx-border-width: 1.2;
+}
+
+.combo-box, .choice-box, .date-picker {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #D7D7D7;
+    -fx-border-width: 1;
+    -fx-padding: 4 8;
+}
+
+/* For the Server form fields if you use styleClass="form-field" */
+.form-field {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #D7D7D7;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+    -fx-text-fill: #222222;
+    -fx-prompt-text-fill: #9A9A9A;
+}
+.form-field:focused {
+    -fx-border-color: #128D57;
+    -fx-border-width: 1.2;
+}
+
+/* ---------- Buttons ---------- */
+.button {
+    -fx-background-radius: 12;
+    -fx-padding: 10 16;
+    -fx-font-weight: 800;
+    -fx-cursor: hand;
+}
+
+/* Primary action (Basil Green) */
+.primary-button,
+.connect-button {
+    -fx-background-color: #128D57;
+    -fx-text-fill: #FFFFFF;
+}
+.primary-button:hover,
+.connect-button:hover {
+    -fx-background-color: #0F7B4C;
+}
+.primary-button:pressed,
+.connect-button:pressed {
+    -fx-background-color: #0D6A41;
+}
+
+/* Secondary / neutral (Warm cream/gray) */
+.secondary-button,
+.cancel-button {
+    -fx-background-color: #F1F0EC;
+    -fx-text-fill: #333333;
+
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+}
+.secondary-button:hover,
+.cancel-button:hover {
+    -fx-background-color: #E9E7E1;
+}
+.secondary-button:pressed,
+.cancel-button:pressed {
+    -fx-background-color: #E1DED6;
+}
+
+/* Danger */
+.danger-button {
+    -fx-background-color: #C32A26;
+    -fx-text-fill: #FFFFFF;
+}
+.danger-button:hover { -fx-background-color: #AB2421; }
+.danger-button:pressed { -fx-background-color: #941F1C; }
+
+/* Link-style */
+.link-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #128D57;
+    -fx-underline: true;
+    -fx-padding: 6 8;
+}
+.link-button:hover { -fx-text-fill: #0F7B4C; }
+
+/* ---------- Menu cards (Grid items) ---------- */
+.menu-card {
+    -fx-spacing: 8;
+}
+.menu-card-title {
+    -fx-text-fill: #333333;
+    -fx-font-size: 15px;
+    -fx-font-weight: 900;
+}
+.menu-card-price {
+    -fx-text-fill: #C32A26;
+    -fx-font-size: 14px;
+    -fx-font-weight: 900;
+}
+.badge {
+    -fx-background-color: rgba(122, 130, 41, 0.14);
+    -fx-text-fill: #4C4F1A;
+    -fx-background-radius: 999;
+    -fx-padding: 4 10;
+    -fx-font-weight: 900;
+    -fx-font-size: 11px;
+}
+
+/* ---------- TableView (Manager/Host/Reports) ---------- */
+.table-view {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: rgba(255,255,255,0.94);
+    -fx-background-radius: 12 12 0 0;
+    -fx-border-color: rgba(0,0,0,0.08);
+    -fx-border-width: 1 1 0 1;
+}
+
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-size: 40px;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #333333;
+    -fx-font-weight: 900;
+}
+
+.table-row-cell {
+    -fx-background-color: rgba(255,255,255,0.94);
+    -fx-border-color: rgba(0,0,0,0.06);
+    -fx-border-width: 0 0 1 0;
+}
+
+.table-row-cell:odd {
+    -fx-background-color: rgba(251,251,251,0.96);
+}
+
+.table-row-cell:selected {
+    -fx-background-color: rgba(18, 141, 87, 0.14);
+}
+
+.table-cell {
+    -fx-text-fill: #333333;
+    -fx-padding: 10 10;
+}
+
+/* ---------- ScrollPane ---------- */
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* ---------- Separators ---------- */
+.separator .line {
+    -fx-border-color: rgba(0,0,0,0.10);
+}
+
+/* ---------- Small utility spacing ---------- */
+.card-gap {
+    -fx-spacing: 12;
+}

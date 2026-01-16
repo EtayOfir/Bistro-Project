@@ -1004,7 +1004,7 @@ public class ReservationDAO {
 
     /** Updates the single row in openinghours. */
     public boolean updateBranchHours(String openHHmm, String closeHHmm) {
-        String sql = "UPDATE OpeningHours SET OpenTime=?, CloseTime=? WHERE SpecialDate IS NULL";
+        String sql = "UPDATE openinghours SET OpenTime=?, CloseTime=? WHERE SpecialDate IS NULL";
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -1108,6 +1108,89 @@ public class ReservationDAO {
             e.printStackTrace();
             return "ERROR";
         }
+    }
+
+    /**
+     * Fetches opening hours for a specific date.
+     * First checks if there are special opening hours for the given date.
+     * If not, fetches the regular opening hours for that day of the week.
+     *
+     * @param date the date to check opening hours for
+     * @return a map with "open" and "close" keys containing time strings (HH:mm:ss format), 
+     *         or null if no opening hours found
+     */
+    public Map<String, String> getOpeningHoursForDate(LocalDate date) {
+        try (Connection conn = dataSource.getConnection()) {
+            // First check for special opening hours for this specific date
+            String specialSql = "SELECT OpenTime, CloseTime FROM openinghours WHERE SpecialDate IS NOT NULL AND SpecialDate = ?";
+            try (PreparedStatement ps = conn.prepareStatement(specialSql)) {
+                ps.setDate(1, java.sql.Date.valueOf(date));
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        Map<String, String> hours = new HashMap<>();
+                        hours.put("open", rs.getString("OpenTime"));
+                        hours.put("close", rs.getString("CloseTime"));
+                        System.out.println("DEBUG: Found special opening hours for " + date);
+                        return hours;
+                    }
+                }
+            } catch (SQLException e) {
+                System.out.println("DEBUG: Special date query failed (may not have SpecialDate column): " + e.getMessage());
+            }
+
+            // If no special hours, try to fetch regular hours for the day of week
+            String dayOfWeek = getDayOfWeekName(date);
+            
+            // Try with DayOfWeek column first
+            String regularSql = "SELECT OpenTime, CloseTime FROM openinghours WHERE DayOfWeek = ? AND (SpecialDate IS NULL)";
+            try (PreparedStatement ps = conn.prepareStatement(regularSql)) {
+                ps.setString(1, dayOfWeek);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        Map<String, String> hours = new HashMap<>();
+                        hours.put("open", rs.getString("OpenTime"));
+                        hours.put("close", rs.getString("CloseTime"));
+                        System.out.println("DEBUG: Found regular opening hours for " + dayOfWeek + ": " + hours.get("open") + " - " + hours.get("close"));
+                        return hours;
+                    }
+                }
+            } catch (SQLException e) {
+                System.out.println("DEBUG: Regular query with DayOfWeek failed: " + e.getMessage());
+                
+                // Fallback: Try querying just the first row (for legacy tables with single opening hours)
+                String fallbackSql = "SELECT OpenTime, CloseTime FROM openinghours LIMIT 1";
+                try (PreparedStatement ps = conn.prepareStatement(fallbackSql)) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            Map<String, String> hours = new HashMap<>();
+                            hours.put("open", rs.getString("OpenTime"));
+                            hours.put("close", rs.getString("CloseTime"));
+                            System.out.println("DEBUG: Using fallback opening hours: " + hours.get("open") + " - " + hours.get("close"));
+                            return hours;
+                        }
+                    }
+                } catch (SQLException e2) {
+                    System.out.println("DEBUG: Fallback query also failed: " + e2.getMessage());
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("DEBUG: Error fetching opening hours: " + e.getMessage());
+            e.printStackTrace();
+        }
+        System.out.println("DEBUG: No opening hours found for " + date);
+        return null;
+    }
+
+    /**
+     * Helper method to get the day of week name from a LocalDate.
+     *
+     * @param date the date to get day of week from
+     * @return the day name (e.g., "Sunday", "Monday", etc.)
+     */
+    private String getDayOfWeekName(LocalDate date) {
+        return date.getDayOfWeek().toString().substring(0, 1).toUpperCase() 
+               + date.getDayOfWeek().toString().substring(1).toLowerCase();
     }
 
     

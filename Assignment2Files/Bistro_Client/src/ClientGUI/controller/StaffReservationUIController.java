@@ -1,5 +1,7 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
+
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
@@ -47,12 +49,16 @@ public class StaffReservationUIController {
     // Constants
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_WITH_SECONDS_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final int RES_DURATION_MIN = 90; // Reservation duration in minutes
+    private static final int MIN_NOTICE_MIN = 60;
+    private static final int MAX_DAYS_AHEAD = 30;
 
     // Instance state
     private String currentConfirmationCode = "";
     private int currentReservationId = -1;
     private Set<LocalTime> bookedTimesForDate = new HashSet<>();
+    private final Map<LocalDate, Map<String, LocalTime>> openingHoursCache = new java.util.HashMap<>();
 
     // Navigation context
     private String returnScreenFXML = "ManagerUI.fxml";
@@ -79,8 +85,13 @@ public class StaffReservationUIController {
         datePicker.valueProperty().addListener((obs, oldV, newV) -> {
             if (newV != null) {
                 fetchExistingReservations(newV);
+                fetchOpeningHours(newV);
             }
         });
+
+        // Fetch data for today at startup
+        fetchExistingReservations(LocalDate.now());
+        fetchOpeningHours(LocalDate.now());
 
         // Setup customer type combo box with items
         customerTypeCombo.setItems(FXCollections.observableArrayList("Casual", "Subscriber"));
@@ -123,6 +134,7 @@ public class StaffReservationUIController {
 
         // Fetch reservations for today
         fetchExistingReservations(LocalDate.now());
+        fetchOpeningHours(LocalDate.now());
 
         System.out.println("DEBUG StaffReservationUIController initialized");
     }
@@ -139,6 +151,20 @@ public class StaffReservationUIController {
         String command = "#GET_RESERVATIONS_BY_DATE " + date.format(DATE_FMT);
         System.out.println("DEBUG: Fetching reservations for date: " + date);
         ClientUI.chat.handleMessageFromClientUI(command);
+    }
+
+    /**
+     * Fetches opening hours for a given date from the server.
+     */
+    private void fetchOpeningHours(LocalDate date) {
+        if (ClientUI.chat == null) {
+            System.out.println("ERROR: Not connected to server.");
+            return;
+        }
+
+        String command = "#GET_OPENING_HOURS " + date.format(DATE_FMT);
+        ClientUI.chat.handleMessageFromClientUI(command);
+        System.out.println("DEBUG: Fetching opening hours for " + date);
     }
 
     /**
@@ -268,6 +294,9 @@ public class StaffReservationUIController {
         LocalDateTime start = LocalDateTime.of(date, LocalTime.of(hour, minute));
         LocalDateTime end = start.plusMinutes(RES_DURATION_MIN);
 
+        // Validate time window (opening hours, minimum notice, max days ahead)
+        if (!validateWindow(start)) return;
+
         if (!isAvailable(start, end)) {
             showAlert(AlertType.WARNING, "Slot Not Available",
                     "The selected slot is not available. Please choose another time.");
@@ -316,6 +345,71 @@ public class StaffReservationUIController {
     private String generateConfirmation(LocalDateTime start, int guests) {
         String randomPart = String.format("%06d", (int) (Math.random() * 1_000_000));
         return "RES" + randomPart;
+    }
+
+    /**
+     * Validates that the requested booking time is within allowed window constraints.
+     * Checks opening hours, minimum notice, and max days ahead.
+     *
+     * @param start requested start time
+     * @return true if valid; false otherwise (and shows an alert)
+     */
+    private boolean validateWindow(LocalDateTime start) {
+        LocalDateTime now = LocalDateTime.now();
+
+        if (start.isBefore(now.plusMinutes(MIN_NOTICE_MIN))) {
+            System.out.println("ERROR: Must book at least " + MIN_NOTICE_MIN + " minutes ahead.");
+            showAlert(AlertType.ERROR, "Invalid Booking Time",
+                    "You must book at least " + MIN_NOTICE_MIN + " minutes in advance.");
+            return false;
+        }
+
+        if (start.isAfter(now.plusDays(MAX_DAYS_AHEAD))) {
+            System.out.println("ERROR: Can book up to " + MAX_DAYS_AHEAD + " days ahead.");
+            showAlert(AlertType.ERROR, "Date Too Far",
+                    "You can only book up to " + MAX_DAYS_AHEAD + " days in advance.");
+            return false;
+        }
+
+        // Validate against opening hours
+        LocalDate date = start.toLocalDate();
+        LocalTime time = start.toLocalTime();
+        LocalTime endTime = time.plusMinutes(RES_DURATION_MIN);
+
+        System.out.println("DEBUG validateWindow: Validating " + date + " at " + time);
+        System.out.println("DEBUG validateWindow: Opening hours cache contains " + openingHoursCache.size() + " entries");
+
+        Map<String, LocalTime> hours = openingHoursCache.get(date);
+        if (hours != null) {
+            LocalTime openTime = hours.get("open");
+            LocalTime closeTime = hours.get("close");
+
+            System.out.println("DEBUG validateWindow: Found opening hours - Checking time " + time + " against opening hours: " + openTime + " - " + closeTime);
+
+            if (openTime != null && time.isBefore(openTime)) {
+                System.out.println("ERROR: Requested time " + time + " is before opening time " + openTime);
+                showAlert(AlertType.ERROR, "Before Opening Hours",
+                        "Restaurant opens at " + openTime.format(TIME_FMT) + " on this date.");
+                return false;
+            }
+
+            if (closeTime != null && endTime.isAfter(closeTime)) {
+                System.out.println("ERROR: Reservation would end at " + endTime + " after closing time " + closeTime);
+                showAlert(AlertType.ERROR, "After Closing Hours",
+                        "Restaurant closes at " + closeTime.format(TIME_FMT) + " on this date. " +
+                        "Reservation duration is " + RES_DURATION_MIN + " minutes.");
+                return false;
+            }
+        } else {
+            System.out.println("ERROR: No opening hours found in cache for " + date);
+            System.out.println("ERROR: Opening hours cache keys: " + openingHoursCache.keySet());
+            fetchOpeningHours(date); // Trigger fetch for next attempt
+            showAlert(AlertType.ERROR, "Opening Hours Not Loaded",
+                    "Opening hours for this date are not loaded yet. Please wait a moment and try again.");
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -429,6 +523,63 @@ public class StaffReservationUIController {
     }
 
     /**
+     * Handler for opening hours received from server.
+     */
+    public void onOpeningHoursReceived(String message) {
+        System.out.println("DEBUG onOpeningHoursReceived: Received message: " + message);
+        
+        if (message == null || !message.startsWith("OPENING_HOURS|")) {
+            System.out.println("DEBUG: Invalid message or not OPENING_HOURS: " + message);
+            return;
+        }
+
+        String[] parts = message.split("\\|");
+        System.out.println("DEBUG: Message parts count: " + parts.length);
+        if (parts.length < 4) {
+            System.out.println("DEBUG: Incomplete opening hours message - need 4 parts, got " + parts.length);
+            return;
+        }
+
+        LocalDate dateReceived;
+        try {
+            dateReceived = LocalDate.parse(parts[1], DATE_FMT);
+            System.out.println("DEBUG: Parsed date: " + dateReceived);
+        } catch (Exception e) {
+            System.err.println("Failed to parse date from opening hours message: " + parts[1]);
+            e.printStackTrace();
+            return;
+        }
+
+        try {
+            System.out.println("DEBUG: Parsing open time: " + parts[2]);
+            System.out.println("DEBUG: Parsing close time: " + parts[3]);
+            
+            LocalTime openTime = LocalTime.parse(parts[2], DateTimeFormatter.ofPattern("HH:mm:ss"));
+            LocalTime closeTime = LocalTime.parse(parts[3], DateTimeFormatter.ofPattern("HH:mm:ss"));
+
+            Map<String, LocalTime> hours = new java.util.HashMap<>();
+            hours.put("open", openTime);
+            hours.put("close", closeTime);
+
+            openingHoursCache.put(dateReceived, hours);
+            System.out.println("DEBUG: Successfully cached opening hours for " + dateReceived + ": " + openTime + " - " + closeTime);
+            System.out.println("DEBUG: Cache now contains " + openingHoursCache.size() + " entries");
+            System.out.println("DEBUG: All cache keys: " + openingHoursCache.keySet());
+            
+            // Verify we can retrieve it
+            Map<String, LocalTime> verify = openingHoursCache.get(dateReceived);
+            if (verify != null) {
+                System.out.println("DEBUG: VERIFIED - Can retrieve hours for " + dateReceived + ": " + verify.get("open") + " - " + verify.get("close"));
+            } else {
+                System.out.println("ERROR: FAILED - Cannot retrieve hours for " + dateReceived + " immediately after caching!");
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to parse opening hours times: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * Sets navigation parameters for returning to previous screen.
      */
     public void setReturnPath(String fxml, String title, String user, String role) {
@@ -480,7 +631,7 @@ public class StaffReservationUIController {
             }
 
             Stage stage = (Stage) datePicker.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.setTitle(returnTitle);
             stage.show();
         } catch (Exception e) {

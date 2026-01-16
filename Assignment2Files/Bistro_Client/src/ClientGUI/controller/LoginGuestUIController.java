@@ -9,6 +9,7 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import java.io.IOException;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 
 /**
@@ -91,7 +92,7 @@ public class LoginGuestUIController {
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Login");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {
@@ -155,7 +156,7 @@ public class LoginGuestUIController {
             }
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {

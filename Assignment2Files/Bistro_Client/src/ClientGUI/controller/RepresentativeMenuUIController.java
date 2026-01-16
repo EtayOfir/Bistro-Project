@@ -10,6 +10,7 @@ import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import java.io.IOException;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 import entities.Subscriber;
 
@@ -132,7 +133,7 @@ public class RepresentativeMenuUIController {
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle("Host Dashboard - Representative (" + currentUserName + ")");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {
@@ -172,7 +173,7 @@ public class RepresentativeMenuUIController {
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Login");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {
@@ -202,35 +203,15 @@ public class RepresentativeMenuUIController {
             Object controller = loader.getController();
 
             // Set the return path based on the controller type
-            switch (controller) {
-                case ClientWaitingListController c -> 
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-
-                case BillPaymentController c -> 
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-
-                case ReservationUIController c -> {
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-                    if (currentSubscriber != null) {
-                        c.setSubscriber(currentSubscriber);
-                    }
-                }
-
-                case StaffReservationUIController c -> 
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-
-                case ReceiveTableUIController c -> 
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-
-                case HostDashboardController c -> 
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-
-                case ClientUIController c -> {
-                    c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-                    c.setUserContext(currentUserName, "Representative");
-                }
-                case RepresentativeViewDetailsUIController c -> {
+            if (controller instanceof ClientWaitingListController) {
+                ((ClientWaitingListController) controller).setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+            } else if (controller instanceof BillPaymentController) {
+                ((BillPaymentController) controller).setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+            } else if (controller instanceof ReservationUIController) {
+                ReservationUIController c = (ReservationUIController) controller;
                 c.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
+                if (currentSubscriber != null) {
+                    c.setSubscriber(currentSubscriber);
                 }
                 case RegisterUIController c -> {
                     c.setUserContext(currentUserName, "Representative");
@@ -246,7 +227,7 @@ public class RepresentativeMenuUIController {
             }
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {
