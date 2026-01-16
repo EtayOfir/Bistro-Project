@@ -36,6 +36,8 @@ public class ClientMessageRouter implements ChatIF {
                 return; 
             }
             if (message.startsWith("RESERVATION_CREATED")) { sr.onBookingResponse(message); return; }
+            if (message.startsWith("RESERVATION_FAILED|")) { sr.onBookingResponse(message); return; }
+
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL")) { return; }
@@ -47,6 +49,8 @@ public class ClientMessageRouter implements ChatIF {
             if (message.startsWith("RESERVATIONS_FOR_DATE|")) { r.onReservationsReceived(message); return; }
             if (message.startsWith("OPENING_HOURS|")) { r.onOpeningHoursReceived(message); return; }
             if (message.startsWith("RESERVATION_CREATED")) { r.onBookingResponse(message); return; }
+            if (message.startsWith("RESERVATION_FAILED|")) { r.onBookingResponse(message); return; }
+
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL")) { r.onCancelResponse(message); return; }

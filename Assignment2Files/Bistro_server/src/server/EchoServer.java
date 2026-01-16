@@ -163,7 +163,7 @@ public class EchoServer extends AbstractServer {
 			uiController.addLog("Message from client: " + messageStr);
 		}
 
-		String ans;
+		String ans = "ERROR|UNKNOWN_COMMAND";
 
 		try {
 			String trimmed = messageStr.trim();
@@ -544,66 +544,106 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#CREATE_RESERVATION": {
-				try {
-					System.out.println("DEBUG: CREATE_RESERVATION command received");
-					int numGuests = Integer.parseInt(parts[1]);
-					Date date = Date.valueOf(parts[2]);
-					Time time = Time.valueOf(parts[3]);
-					String confirmationCode = parts[4];
-					int subscriberId = Integer.parseInt(parts[5]);
-					String phone = parts.length > 6 ? parts[6] : "";
-					String email = parts.length > 7 ? parts[7] : "";
-					// Reservation type is derived ONLY from subscriberId (NOT staff role)
-					String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
+			    ans = "ERROR|UNEXPECTED"; // חשוב כדי שלא יהיה "ans may not have been initialized"
 
+			    try {
+			        System.out.println("DEBUG: CREATE_RESERVATION command received");
 
-					System.out.println("DEBUG: subscriberId=" + subscriberId + ", cType=" + cType);
-					System.out.println("DEBUG: phone=" + phone + ", email=" + email);
+			        int numGuests = Integer.parseInt(parts[1]);
+			        Date date = Date.valueOf(parts[2]);
+			        Time time = Time.valueOf(parts[3]);
+			        String confirmationCode = parts[4];
+			        int subscriberId = Integer.parseInt(parts[5]);
 
-					Reservation newRes = new Reservation(
-							0,
-							numGuests,
-							date,
-							time,
-							confirmationCode,
-							subscriberId,
-							"Confirmed",
-							cType,
-							null // TableNumber: not assigned yet
-							);
+			        // אצלך לפעמים השדות 6/7 הם ריקים ואז נכנס "Subscriber"
+			        String phone = (parts.length > 6 && !parts[6].equalsIgnoreCase("Subscriber") && !parts[6].equalsIgnoreCase("Casual"))
+			                ? parts[6] : "";
+			        String email = (parts.length > 7 && !parts[7].equalsIgnoreCase("Subscriber") && !parts[7].equalsIgnoreCase("Casual"))
+			                ? parts[7] : "";
 
-					System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
+			        // Reservation type is derived ONLY from subscriberId
+			        String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
 
-					try {
-						int generatedId = reservationDAO.insertReservation(newRes, phone, email, subscriberId);
-						System.out.println("DEBUG: Generated reservation ID=" + generatedId);
-						ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
-						System.out.println("DEBUG: Sending response: " + ans);
-					} catch (java.sql.SQLException sqlEx) {
-						System.err.println("ERROR: SQL Exception during reservation insert: " + sqlEx.getMessage());
-						sqlEx.printStackTrace();
-						ans = "ERROR|DB_ERROR " + sqlEx.getMessage();
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-					ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
-				}
-				break;
+			        System.out.println("DEBUG: subscriberId=" + subscriberId + ", cType=" + cType);
+			        System.out.println("DEBUG: phone=" + phone + ", email=" + email);
+
+			        Reservation newRes = new Reservation(
+			                0,
+			                numGuests,
+			                date,
+			                time,
+			                confirmationCode,
+			                subscriberId,
+			                "Confirmed",
+			                cType,
+			                null // TableNumber: not assigned yet (DAO assigns)
+			        );
+
+			        System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
+
+			        try {
+			            int generatedId = reservationDAO.insertReservation(newRes, phone, email, subscriberId);
+			            System.out.println("DEBUG: Generated reservation ID=" + generatedId);
+
+			            ans = (generatedId > 0)
+			                    ? ("RESERVATION_CREATED|" + generatedId)
+			                    : "RESERVATION_FAILED|INSERT_FAILED";
+
+			        } catch (java.sql.SQLException sqlEx) {
+
+			            String sqlMsg = (sqlEx.getMessage() == null) ? "" : sqlEx.getMessage();
+			            System.err.println("ERROR: SQL Exception during reservation insert: " + sqlMsg);
+			            sqlEx.printStackTrace();
+
+			            // 1) capacity too large
+			            if (sqlMsg.startsWith("CAPACITY_TOO_LARGE|")) {
+			                String[] p = sqlMsg.split("\\|", -1);
+			                ans = (p.length >= 3)
+			                        ? ("RESERVATION_FAILED|CAPACITY_TOO_LARGE|" + p[1] + "|" + p[2])
+			                        : "RESERVATION_FAILED|CAPACITY_TOO_LARGE";
+
+			            // 2) no tables configured at all
+			            } else if (sqlMsg.equalsIgnoreCase("NO_TABLES_DEFINED")) {
+			                ans = "RESERVATION_FAILED|NO_TABLES_DEFINED";
+
+			            // 3) no available table for the slot
+			            } else if (sqlMsg.contains("No available table")) {
+			                ans = "RESERVATION_FAILED|NO_AVAILABLE_TABLE|" + sqlMsg;
+
+			            // 4) fallback
+			            } else {
+			                ans = "RESERVATION_FAILED|DB_ERROR|" + sqlMsg;
+			            }
+			        }
+
+			        System.out.println("DEBUG: Sending response: " + ans);
+			        break;
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "RESERVATION_FAILED|DATA_PARSE_FAILURE|" + (e.getMessage() == null ? "" : e.getMessage());
+			        break;
+			    }
 			}
+
 
 			case "#UPDATE_RESERVATION": {
-				try {
-					int id = Integer.parseInt(parts[1]);
-					int guests = Integer.parseInt(parts[2]);
-					Date date = Date.valueOf(parts[3]);
-					Time time = Time.valueOf(parts[4]);
-					boolean updated = reservationDAO.updateReservation(id, guests, date, time);
-					ans = updated ? "RESERVATION_UPDATED" : "RESERVATION_NOT_FOUND";
-				} catch (Exception e) {
-					ans = "ERROR|INVALID_DATA";
-				}
-				break;
+			    try {
+			        int id = Integer.parseInt(parts[1]);
+			        int guests = Integer.parseInt(parts[2]);
+			        Date date = Date.valueOf(parts[3]);
+			        Time time = Time.valueOf(parts[4]);
+
+			        boolean updated = reservationDAO.updateReservation(id, guests, date, time);
+			        ans = updated ? "RESERVATION_UPDATED" : "RESERVATION_NOT_FOUND";
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|DATA_PARSE_FAILURE|" + e.getMessage();
+			    }
+			    break;
 			}
+
 
 			case "#CANCEL_RESERVATION": {
 			    try {

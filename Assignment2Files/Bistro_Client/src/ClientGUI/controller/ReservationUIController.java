@@ -420,6 +420,7 @@ public class ReservationUIController {
         System.out.println("DEBUG: onBookingResponse called with: " + response);
         System.out.println("DEBUG: reservationIdField is null? " + (reservationIdField == null));
         // Note: No Platform.runLater here - caller (ClientMessageRouter.display) already ensures JavaFX thread
+
         if (response != null && response.startsWith("RESERVATION_CREATED")) {
             System.out.println("DEBUG: Processing RESERVATION_CREATED response");
             String[] parts = response.split("\\|");
@@ -442,10 +443,21 @@ public class ReservationUIController {
             int hour = hourSpinner.getValue();
             int minute = minuteSpinner.getValue();
             LocalTime bookedTime = LocalTime.of(hour, minute);
+            bookedTimesForDate.add(bookedTime);
 
-            if (date != null && date.equals(datePicker.getValue())) {
-                bookedTimesForDate.add(bookedTime);
-                System.out.println("DEBUG: Added booked time to local cache: " + bookedTime);
+            Set<LocalTime> cached = bookedTimesCache.get(date);
+            if (cached != null) {
+                cached.add(bookedTime);
+            } else {
+                Set<LocalTime> s = new HashSet<>();
+                s.add(bookedTime);
+                bookedTimesCache.put(date, s);
+            }
+
+            // אם אתה רוצה לרענן מהשרת אחרי יצירה - השאר את זה
+            if (date != null) {
+                bookedTimesCache.remove(date);
+                fetchExistingReservations(date);
             }
 
             if (resId > 0) {
@@ -455,13 +467,14 @@ public class ReservationUIController {
             } else {
                 System.out.println("DEBUG: resId is not > 0: " + resId);
             }
+
             confirmationField.setText(currentConfirmationCode);
             System.out.println("DEBUG: Set confirmation field to: " + currentConfirmationCode);
 
             // Clear and re-fill phone/email fields if user is subscriber/manager/representative
             phoneField.setText("");
             emailField.setText("");
-            
+
             // Re-fill the fields if we have a subscriber
             if (currentSubscriber != null) {
                 preFillSubscriberFields(currentSubscriber);
@@ -473,8 +486,114 @@ public class ReservationUIController {
                             "Reservation ID: " + resId + "\n" +
                             "Confirmation Code: " + currentConfirmationCode);
 
-            // Note: fetchExistingReservations is NOT called here to avoid duplicate requests.
-            // The time slot is already added to bookedTimesForDate above, and UI will update automatically.
+            return;
+
+        } else if (response != null && response.startsWith("RESERVATION_FAILED|")) {
+
+            String[] p = response.split("\\|", -1);
+            String reason = (p.length >= 2) ? p[1] : "";
+
+            // ניקוי שדות במקרה כשל
+            reservationIdField.setText("");
+            confirmationField.setText("");
+
+            // ---------- NO AVAILABLE TABLE ----------
+            if ("NO_AVAILABLE_TABLE".equalsIgnoreCase(reason)) {
+
+                LocalDate date = datePicker.getValue();
+                int hour = hourSpinner.getValue();
+                int minute = minuteSpinner.getValue();
+                int guests = guestSpinner.getValue();
+
+                LocalDateTime start = LocalDateTime.of(date, LocalTime.of(hour, minute));
+
+                new Thread(() -> {
+                    suggestAlternatives(start);
+                    Platform.runLater(() -> showAlert(AlertType.WARNING, "No Available Table",
+                            "No available table for this time.\nChoose an alternative time or join the waiting list."));
+                }).start();
+
+                // לפתוח חלון Waiting List
+                try {
+                    FXMLLoader loader = ViewLoader.fxml("ClientWaitingList.fxml");
+                    Parent root = loader.load();
+                    ClientWaitingListController ctrl = loader.getController();
+
+                    String timeStr = String.format("%02d:%02d", hour, minute);
+                    ctrl.setReservationContext(date, timeStr, null, guests, currentSubscriber);
+
+                    Stage stage = new Stage();
+                    stage.setScene(SceneUtil.createStyledScene(root));
+                    stage.setTitle("Waiting List - Alternatives");
+                    stage.show();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                return;
+            }
+
+            // ---------- CAPACITY TOO LARGE ----------
+            if ("CAPACITY_TOO_LARGE".equalsIgnoreCase(reason)) {
+                String diners = (p.length >= 3) ? p[2] : "";
+                String maxCap = (p.length >= 4) ? p[3] : "";
+
+                showAlert(AlertType.ERROR, "Invalid Number Of Diners",
+                        "The number of diners (" + diners + ") exceeds the maximum table capacity (" + maxCap + ").");
+                return;
+            }
+
+            // ---------- NO TABLES DEFINED ----------
+            if ("NO_TABLES_DEFINED".equalsIgnoreCase(reason)) {
+                showAlert(AlertType.ERROR, "System Error",
+                        "No tables are defined in RestaurantTables.");
+                return;
+            }
+
+            // ---------- OTHER FAILURES ----------
+            showAlert(AlertType.ERROR, "Booking Failed", "Failed to create reservation: " + response);
+            return;
+
+        } else if (response != null
+                && response.startsWith("ERROR|DB_ERROR")
+                && response.contains("No available table")) {
+
+            // גיבוי (אם נשארו הודעות ישנות מהשרת)
+            System.out.println("DEBUG: No available table - opening waiting list");
+
+            reservationIdField.setText("");
+            confirmationField.setText("");
+
+            LocalDate date = datePicker.getValue();
+            int hour = hourSpinner.getValue();
+            int minute = minuteSpinner.getValue();
+            int guests = guestSpinner.getValue();
+
+            LocalDateTime start = LocalDateTime.of(date, LocalTime.of(hour, minute));
+
+            new Thread(() -> {
+                suggestAlternatives(start);
+                Platform.runLater(() -> showAlert(AlertType.WARNING, "No Available Table",
+                        "No available table for this time.\nChoose an alternative time or join the waiting list."));
+            }).start();
+
+            try {
+                FXMLLoader loader = ViewLoader.fxml("ClientWaitingList.fxml");
+                Parent root = loader.load();
+                ClientWaitingListController ctrl = loader.getController();
+
+                String timeStr = String.format("%02d:%02d", hour, minute);
+                ctrl.setReservationContext(date, timeStr, null, guests, currentSubscriber);
+
+                Stage stage = new Stage();
+                stage.setScene(SceneUtil.createStyledScene(root));
+                stage.setTitle("Waiting List - Alternatives");
+                stage.show();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            return;
 
         } else {
             System.out.println("ERROR: Booking failed: " + response);
@@ -750,19 +869,26 @@ public class ReservationUIController {
      * @return true if available; false if overlaps with an existing reservation
      */
     private boolean isAvailable(LocalDateTime start, LocalDateTime end) {
-        for (LocalTime booked : bookedTimesForDate) {
-            LocalDateTime bookedStart = LocalDateTime.of(start.toLocalDate(), booked);
-            LocalDateTime bookedEnd = bookedStart.plusMinutes(RES_DURATION_MIN);
-
-            if (start.isBefore(bookedEnd) && end.isAfter(bookedStart)) {
-                System.out.println("DEBUG: Overlap detected - Requested: " + start + " to " + end
-                        + ", Booked: " + bookedStart + " to " + bookedEnd);
-                return false;
-            }
-        }
-        System.out.println("DEBUG: No conflicts for slot " + start + " to " + end);
+        // IMPORTANT:
+        // Client-side cannot know real availability because it doesn't know table capacity
+        // and how many tables exist / are free. Only the server/DB can decide.
         return true;
     }
+
+//    private boolean isAvailable(LocalDateTime start, LocalDateTime end) {
+//        for (LocalTime booked : bookedTimesForDate) {
+//            LocalDateTime bookedStart = LocalDateTime.of(start.toLocalDate(), booked);
+//            LocalDateTime bookedEnd = bookedStart.plusMinutes(RES_DURATION_MIN);
+//
+//            if (start.isBefore(bookedEnd) && end.isAfter(bookedStart)) {
+//                System.out.println("DEBUG: Overlap detected - Requested: " + start + " to " + end
+//                        + ", Booked: " + bookedStart + " to " + bookedEnd);
+//                return false;
+//            }
+//        }
+//        System.out.println("DEBUG: No conflicts for slot " + start + " to " + end);
+//        return true;
+//    }
 
     /**
      * Suggests alternative reservation times to the user, attempting same-day first and then
@@ -924,32 +1050,7 @@ public class ReservationUIController {
 
         if (!validateWindow(start)) return;
 
-        boolean available = isAvailable(start, end);
-        if (!available) {
-            suggestAlternatives(start);
-            showAlert(AlertType.WARNING, "Slot Not Available",
-                    "The selected slot is not available. Please choose from the suggested alternatives.");
-
-            // Open waiting-list UI and pass attempted reservation context (include subscriber if present)
-            try {
-            	FXMLLoader loader = ViewLoader.fxml("ClientWaitingList.fxml");
-            	Parent root = loader.load();
-            	ClientWaitingListController ctrl = loader.getController();
-
-                String timeStr = String.format("%02d:%02d", hour, minute);
-                // area is not selected in this UI; pass null. The controller should handle nulls.
-                ctrl.setReservationContext(datePicker.getValue(), timeStr, null, guestSpinner.getValue(), currentSubscriber);
-
-                Stage stage = new Stage();
-                stage.setScene(SceneUtil.createStyledScene(root));
-                stage.setTitle("Waiting List - Alternatives");
-                stage.show();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            return;
-        }
+        
 
         // Generate SHORT confirmation code (max 10 chars)
         currentConfirmationCode = generateConfirmation(start, guests);
@@ -999,7 +1100,6 @@ public class ReservationUIController {
         System.out.println("DEBUG onBook: Command sent, waiting for response...");
 
         // Show generated code immediately (server will confirm with reservation id)
-        Platform.runLater(() -> confirmationField.setText(currentConfirmationCode));
     }
 
     /**
