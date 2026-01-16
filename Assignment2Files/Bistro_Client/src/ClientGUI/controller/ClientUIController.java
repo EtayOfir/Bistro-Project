@@ -2,6 +2,7 @@ package ClientGUI.controller;
 
 import java.io.IOException;
 
+import ClientGUI.controller.HostDashboardController;
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
 import common.ChatIF;
@@ -298,6 +299,84 @@ public class ClientUIController implements ChatIF {
 
         // 3) Handle main screen messages
         System.out.println("DEBUG routeAndHandleServerMessage: Handling as main screen message: " + message);
+        handleMainScreenServerMessage(message);
+    /**
+     * Routes messages to active child controllers (if relevant), otherwise handles them
+     * on the main screen.
+     *
+     * @param message raw server message
+     */
+    private void routeAndHandleServerMessage(String message) {
+        if (message == null) return;
+
+        // 1) Route "New Reservation" window messages
+        ReservationUIController r = activeReservationController;
+        if (r != null) {
+            if (message.startsWith("RESERVATIONS_FOR_DATE|")) {
+                r.onReservationsReceived(message);
+                return;
+            }
+            if (message.startsWith("RESERVATION_CREATED")) {
+                r.onBookingResponse(message);
+                return;
+            }
+            if (message.startsWith("RESERVATION_CANCELED")
+                    || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
+                    || message.startsWith("ERROR|CANCEL_FAILED")
+                    || message.startsWith("ERROR|CANCEL")) {
+
+                // send to Reservation window if open
+                r.onCancelResponse(message);
+
+                // ALSO send to host dashboard if open
+                HostDashboardController h = HostDashboardController.instance;
+                if (h != null) {
+                    h.onCancelResponse(message);
+                }
+                return;
+            }
+        }
+
+        // 2) Route "Receive Table" window messages
+        ReceiveTableUIController t = activeReceiveTableController;
+        if (t != null) {
+            if (message.startsWith("TABLE_ASSIGNED|")
+                    || "NO_TABLE_AVAILABLE".equals(message)
+                    || "INVALID_CONFIRMATION_CODE".equals(message)) {
+                t.onReceiveTableResponse(message);
+                return;
+            }
+        }
+
+        // 2.5) Route Host Dashboard messages
+        HostDashboardController h = HostDashboardController.instance;
+        if (h != null) {
+            if (message.startsWith("RESTAURANT_TABLES|")) {
+                h.updateTablesFromMessage(message);
+                return;
+            }
+            if (message.startsWith("SEATED_CUSTOMERS|")) {
+                h.updateSeatedCustomersFromMessage(message);
+                return;
+            }
+
+            // Optional: if you implement explicit assign-table command replies
+            if (message.startsWith("ASSIGN_TABLE_OK|") || message.startsWith("ASSIGN_TABLE_FAIL|")) {
+                h.onAssignTableResponse(message);
+                return;
+            }
+            if (message.startsWith("TODAYS_RESERVATIONS|")) {
+                h.updateTodaysReservationsFromMessage(message);
+                return;
+            }
+            if (message.startsWith("RESERVATION_CANCELED|")
+                    || message.startsWith("ERROR|CANCEL_FAILED")
+                    || message.startsWith("ERROR|CANCEL")) {
+                h.onCancelResponse(message);
+                return;
+            }
+        }
+        // 3) Handle main screen messages
         handleMainScreenServerMessage(message);
     }
     

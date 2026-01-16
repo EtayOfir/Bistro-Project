@@ -166,8 +166,16 @@ public class EchoServer extends AbstractServer {
 		String ans;
 
 		try {
-			String[] parts = messageStr.trim().split("\\s+");
-			String command = (parts.length > 0) ? parts[0] : "";
+			String trimmed = messageStr.trim();
+
+			// Pipe format
+			String[] pipeParts = trimmed.split("\\|", -1);
+
+			// Space format
+			String[] parts = trimmed.split("\\s+");
+
+			String command = trimmed.contains("|") ? pipeParts[0] : parts[0];
+			System.out.println("DEBUG: command parsed = " + command);
 
 			// --- Check if DB is ready for specific commands ---
 			boolean needsReservationDao = command.equals("#GET_RESERVATION") || command.equals("#UPDATE_RESERVATION")
@@ -177,6 +185,23 @@ public class EchoServer extends AbstractServer {
 					|| command.equals("#GET_REPORTS_DATA") || command.equals("#MARK_RESERVATION_EXPIRED")|| command.equals("#SET_BRANCH_HOURS")
 					|| command.equals("#UPSERT_RESTAURANT_TABLE")
 					|| command.equals("#DELETE_RESTAURANT_TABLE") || command.equals("#GET_OPENING_HOURS");
+			boolean needsReservationDao =
+			        command.equals("#GET_RESERVATION") ||
+			        command.equals("#UPDATE_RESERVATION") ||
+			        command.equals("#CREATE_RESERVATION") ||
+			        command.equals("#GET_RESERVATIONS_BY_DATE") ||
+			        command.equals("#GET_TODAYS_RESERVATIONS") ||
+			        command.equals("#CANCEL_RESERVATION") ||
+			        command.equals("#DELETE_EXPIRED_RESERVATIONS") ||
+			        command.equals("#RECEIVE_TABLE") ||
+			        command.equals("#ASSIGN_TABLE") ||
+			        command.equals("#GET_ACTIVE_RESERVATIONS") ||
+			        command.equals("#GET_REPORTS_DATA") ||
+			        command.equals("#MARK_RESERVATION_EXPIRED") ||
+			        command.equals("#SET_BRANCH_HOURS") ||
+			        command.equals("#UPSERT_RESTAURANT_TABLE") ||
+			        command.equals("#DELETE_RESTAURANT_TABLE");
+
 
 
 
@@ -229,14 +254,14 @@ public class EchoServer extends AbstractServer {
 				break;
 			}
       
-      case "#GET_SEATED_CUSTOMERS": {
-          try {
-              ans = buildSeatedCustomersSnapshot();
-          } catch (Exception e) {
-              ans = "SEATED_CUSTOMERS|EMPTY";
-          }
-          break;
-      }
+	      case "#GET_SEATED_CUSTOMERS": {
+	          try {
+	              ans = buildSeatedCustomersSnapshot();
+	          } catch (Exception e) {
+	              ans = "SEATED_CUSTOMERS|EMPTY";
+	          }
+	          break;
+	      }
           
 			case "#GET_SUBSCRIBER_DETAILS": {
 				// Format: #GET_SUBSCRIBER_DETAILS <username>
@@ -428,14 +453,23 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#CANCEL_RESERVATION": {
-				try {
-					String code = parts[1].trim();
-					boolean canceled = reservationDAO.cancelReservationByConfirmationCode(code);
-					ans = canceled ? "RESERVATION_CANCELED|" + code : "ERROR|CANCEL_FAILED";
-				} catch (Exception e) {
-					ans = "ERROR|DB_ERROR";
-				}
-				break;
+			    try {
+			        String code = pipeParts[1].trim();
+			        boolean canceled = reservationDAO.cancelReservationByConfirmationCode(code);
+
+			        ans = canceled
+			            ? "RESERVATION_CANCELED|" + code
+			            : "ERROR|CANCEL_FAILED|" + code;
+			        if (canceled) {
+			            client.sendToClient(getRestaurantTables());
+			            client.sendToClient(buildSeatedCustomersSnapshot());
+			            client.sendToClient(buildTodaysReservationsSnapshot());
+			        }
+
+			    } catch (Exception e) {
+			        ans = "ERROR|CANCEL_FAILED|" + (pipeParts.length > 1 ? pipeParts[1] : "") + "|" + e.getMessage();
+			    }
+			    break;
 			}
 
 			case "#GET_RESERVATIONS_BY_DATE": {
@@ -490,10 +524,10 @@ public class EchoServer extends AbstractServer {
 				break;
 			}
       
-      case "#GET_RESTAURANT_TABLES": {
-          ans = getRestaurantTables();
-          break;
-      }    
+	        case "#GET_RESTAURANT_TABLES": {
+	            ans = getRestaurantTables();
+	            break;
+	        }    
       
 			case "#DELETE_EXPIRED_RESERVATIONS": {
 				try {
@@ -515,7 +549,10 @@ public class EchoServer extends AbstractServer {
 					} 
 					else if ("Arrived".equalsIgnoreCase(res.getStatus())) {
 						ans = "RESERVATION_ALREADY_USED";
-					} 
+					}
+					else if (!res.getReservationDate().toLocalDate().equals(java.time.LocalDate.now())) {
+					    ans = "RESERVATION_NOT_FOR_TODAY";
+					}
 					else {
 						int tableNum = reservationDAO.allocateTableForCustomer(code);
 
@@ -877,7 +914,35 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
+			case "#ASSIGN_TABLE": {
+			    try {
+			    	// #ASSIGN_TABLE|CODE|7
+			    	if (pipeParts.length < 3) {
+			            ans = "ASSIGN_TABLE_FAIL||BAD_FORMAT|Missing parameters";
+			            break;
+			        }
 
+			        String code = pipeParts[1].trim();
+			        int tableNum = Integer.parseInt(pipeParts[2].trim());
+
+			        boolean ok = reservationDAO.assignSpecificTable(code, tableNum);
+
+			        ans = ok
+			            ? "ASSIGN_TABLE_OK|" + code + "|" + tableNum
+			            : "ASSIGN_TABLE_FAIL|" + code + "|VALIDATION|Assign failed";
+
+			        if (ok) {
+			            try { client.sendToClient(getRestaurantTables()); } catch (Exception ignored) {}
+			            try { client.sendToClient(buildSeatedCustomersSnapshot()); } catch (Exception ignored) {}
+			            try { client.sendToClient(buildTodaysReservationsSnapshot()); } catch (Exception ignored) {}
+			        }
+
+			    } catch (Exception e) {
+			        ans = "ASSIGN_TABLE_FAIL||EXCEPTION|" + (e.getMessage() == null ? "" : e.getMessage());
+			    }
+			    break;
+			}
+			
 			case "#UPSERT_RESTAURANT_TABLE": {
 				// Format: #UPSERT_RESTAURANT_TABLE <tableNum> <capacity>
 				if (parts.length < 3) {
@@ -895,6 +960,14 @@ public class EchoServer extends AbstractServer {
 					ans = "ERROR|BRANCH_SETTINGS|BAD_FORMAT_TABLE";
 				}
 				break;
+			}
+			case "#GET_TODAYS_RESERVATIONS": {
+			    try {
+			        ans = buildTodaysReservationsSnapshot();
+			    } catch (Exception e) {
+			        ans = "TODAYS_RESERVATIONS|EMPTY";
+			    }
+			    break;
 			}
 
 			case "#DELETE_RESTAURANT_TABLE": {
@@ -1019,6 +1092,85 @@ public class EchoServer extends AbstractServer {
 		}
 	}
 
+	private String buildTodaysReservationsSnapshot() {
+	    String sql =
+	        "SELECT " +
+	        "  ar.ConfirmationCode, " +
+	        "  ar.Role, " +
+	        "  ar.SubscriberID, " +
+	        "  ar.CasualPhone, " +
+	        "  ar.CasualEmail, " +
+	        "  ar.ReservationTime, " +
+	        "  ar.NumOfDiners, " +
+	        "  ar.Status, " +
+	        "  ar.TableNumber, " +
+	        "  s.FullName " +
+	        "FROM ActiveReservations ar " +
+	        "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
+	        "WHERE ar.ReservationDate = CURDATE() " +
+	        "  AND ar.Status IN ('Confirmed','Late','Arrived') " +
+	        "ORDER BY ar.ReservationTime ASC";
+
+	    try (
+	        Connection conn = mysqlConnection1.getDataSource().getConnection();
+	        PreparedStatement ps = conn.prepareStatement(sql);
+	        ResultSet rs = ps.executeQuery()
+	    ) {
+	        StringBuilder sb = new StringBuilder();
+
+	        while (rs.next()) {
+	            String role = rs.getString("Role");
+
+	            String customer;
+	            if ("Subscriber".equalsIgnoreCase(role)) {
+	                customer = rs.getString("FullName");
+	                if (customer == null || customer.isBlank()) {
+	                    customer = "Subscriber#" + rs.getInt("SubscriberID");
+	                }
+	            } else { // Casual
+	                customer = rs.getString("CasualPhone");
+	                if (customer == null || customer.isBlank()) {
+	                    customer = rs.getString("CasualEmail");
+	                }
+	                if (customer == null || customer.isBlank()) {
+	                    customer = "Casual";
+	                }
+	            }
+
+	            String customerB64 = encodeB64Url(customer);
+
+	            int guests = rs.getInt("NumOfDiners");
+	            String time = rs.getTime("ReservationTime").toString();
+	            String status = rs.getString("Status");
+	            Integer tableNumber = (Integer) rs.getObject("TableNumber"); // may be null
+	            String tableStr = (tableNumber == null) ? "" : String.valueOf(tableNumber);
+
+	            String confirmationCode = rs.getString("ConfirmationCode");
+	            if (confirmationCode == null) confirmationCode = "";
+
+	            if (sb.length() > 0) sb.append("~");
+
+	            // Format must match your client:
+	            // customerB64,guests,time,status,tableNum,confirmationCode
+	            sb.append(customerB64).append(",")
+	              .append(guests).append(",")
+	              .append(time).append(",")
+	              .append(status).append(",")
+	              .append(tableStr).append(",")
+	              .append(confirmationCode);
+	        }
+
+	        if (sb.length() == 0) {
+	            return "TODAYS_RESERVATIONS|EMPTY";
+	        }
+
+	        return "TODAYS_RESERVATIONS|" + sb;
+
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        return "TODAYS_RESERVATIONS|EMPTY";
+	    }
+	}
 	// Lifecycle ******************************************************
 
 	@Override
@@ -1102,19 +1254,21 @@ public class EchoServer extends AbstractServer {
   private String buildSeatedCustomersSnapshot() {
 
         String sql =
-            "SELECT ar.CustomerType, " +
-            "       ar.SubscriberID, " +
-            "       ar.CasualPhone, " +
-            "       ar.CasualEmail, " +
-            "       ar.ReservationTime, " +
-            "       ar.NumOfDiners, " +
-            "       ar.Status, " +
-            "       ar.TableNumber, " +
-            "       s.FullName " +
-            "FROM ActiveReservations ar " +
-            "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
-            "WHERE ar.TableNumber IS NOT NULL " +     // 🔥 זה כל הקסם
-            "ORDER BY ar.TableNumber ASC";
+        			"SELECT 	ar.ConfirmationCode, " +
+        				"		ar.Role, " +
+        			    "       ar.SubscriberID, " +
+        			    "       ar.CasualPhone, " +
+        			    "       ar.CasualEmail, " +
+        			    "       ar.ReservationTime, " +
+        			    "       ar.NumOfDiners, " +
+        			    "       ar.Status, " +
+        			    "       ar.TableNumber, " +
+        			    "       s.FullName " +
+        			    "FROM ActiveReservations ar " +
+        			    "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
+        			    "WHERE ar.TableNumber IS NOT NULL " +
+        			    "  AND ar.Status = 'Arrived' AND ar.ReservationDate = CURDATE() " +          // only seated/arrived customers
+        			    "ORDER BY ar.TableNumber ASC";
 
         try (
             Connection conn = mysqlConnection1.getDataSource().getConnection();
@@ -1127,7 +1281,7 @@ public class EchoServer extends AbstractServer {
             while (rs.next()) {
 
                 String customer;
-                if ("Subscriber".equalsIgnoreCase(rs.getString("CustomerType"))) {
+                if ("Subscriber".equalsIgnoreCase(rs.getString("Role"))) {
                     customer = rs.getString("FullName");
                     if (customer == null || customer.isBlank()) {
                         customer = "Subscriber#" + rs.getInt("SubscriberID");
@@ -1145,6 +1299,8 @@ public class EchoServer extends AbstractServer {
                 int guests = rs.getInt("NumOfDiners");
                 String time = rs.getTime("ReservationTime").toString();
                 String status = rs.getString("Status");
+                String confirmationCode = rs.getString("ConfirmationCode");
+                if (confirmationCode == null) confirmationCode = "";
                 int tableNumber = rs.getInt("TableNumber");
 
                 String customerB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(customer.getBytes(StandardCharsets.UTF_8));
@@ -1155,7 +1311,8 @@ public class EchoServer extends AbstractServer {
                   .append(guests).append(",")
                   .append(time).append(",")
                   .append(status).append(",")
-                  .append(tableNumber);
+                  .append(tableNumber).append(",")
+                  .append(confirmationCode);
             }
 
             if (sb.length() == 0) {
@@ -1175,37 +1332,36 @@ public class EchoServer extends AbstractServer {
 
         String query = """
         	    SELECT
-        	        rt.TableNumber,
-        	        rt.Capacity,
-        	        CASE
-        	            WHEN EXISTS (
-        	                SELECT 1
-        	                FROM activereservations ar
-        	                WHERE ar.TableNumber = rt.TableNumber
-        	                  AND ar.Status IN ('Arrived', 'CheckedIn')
-        	            )
-        	            THEN 'Taken'
-        	            ELSE 'Available'
-        	        END AS Status,
-
-        	        COALESCE((
-        	            SELECT GROUP_CONCAT(
-        	                CASE
-        	                    WHEN ar.CustomerType = 'Subscriber'
-        	                        THEN s.FullName
-        	                    ELSE ar.CasualPhone
-        	                END
-        	                SEPARATOR ' | '
-        	            )
-        	            FROM activereservations ar
-        	            LEFT JOIN subscribers s ON s.SubscriberID = ar.SubscriberID
-        	            WHERE ar.TableNumber = rt.TableNumber
-        	              AND ar.Status IN ('Arrived', 'CheckedIn')
-        	        ), '') AS AssignedTo
-
-        	    FROM restauranttables rt
-        	    ORDER BY rt.TableNumber
-        	""";
+			        rt.TableNumber,
+			        rt.Capacity,
+			        CASE
+			            WHEN EXISTS (
+			                SELECT 1
+			                FROM activereservations ar
+			                WHERE ar.TableNumber = rt.TableNumber
+			                  AND ar.Status IN ('Arrived', 'CheckedIn', 'Checked In')
+			            )
+			            THEN 'Taken'
+			            ELSE 'Available'
+			        END AS Status,
+			
+			        COALESCE((
+			            SELECT GROUP_CONCAT(
+			                CASE
+			                    WHEN ar.Role = 'Subscriber' THEN COALESCE(s.FullName, CONCAT('Subscriber#', ar.SubscriberID))
+			                    ELSE COALESCE(ar.CasualPhone, ar.CasualEmail, 'Casual')
+			                END
+			                SEPARATOR ' | '
+			            )
+			            FROM activereservations ar
+			            LEFT JOIN subscribers s ON s.SubscriberID = ar.SubscriberID
+			            WHERE ar.TableNumber = rt.TableNumber
+			              AND ar.Status IN ('Arrived', 'CheckedIn', 'Checked In')
+			        ), '') AS AssignedTo
+			
+			    FROM restauranttables rt
+			    ORDER BY rt.TableNumber
+			""";
 
 
 
@@ -1219,7 +1375,7 @@ public class EchoServer extends AbstractServer {
         	    sb.append(rs.getInt("TableNumber")).append(",")
         	      .append(rs.getInt("Capacity")).append(",")
         	      .append(rs.getString("Status")).append(",")
-        	      .append(rs.getString("AssignedTo").replace(",", " "))
+        	      .append(encodeB64Url(rs.getString("AssignedTo")).replace(",", " "))
         	      .append("~");
         	}
 
