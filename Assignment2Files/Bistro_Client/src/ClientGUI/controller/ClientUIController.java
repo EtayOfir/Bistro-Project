@@ -263,6 +263,57 @@ public class ClientUIController implements ChatIF {
         ReservationUIController r = activeReservationController;
         if (r != null) {
             if (message.startsWith("RESERVATIONS_FOR_DATE|")) {
+                System.out.println("DEBUG routeAndHandleServerMessage: Routing RESERVATIONS_FOR_DATE to ReservationUIController");
+                r.onReservationsReceived(message);
+                return;
+            }
+            if (message.startsWith("OPENING_HOURS|")) {
+                System.out.println("DEBUG routeAndHandleServerMessage: Routing OPENING_HOURS to ReservationUIController: " + message);
+                r.onOpeningHoursReceived(message);
+                return;
+            }
+            if (message.startsWith("RESERVATION_CREATED")) {
+                System.out.println("DEBUG routeAndHandleServerMessage: Routing RESERVATION_CREATED to ReservationUIController");
+                r.onBookingResponse(message);
+                return;
+            }
+            if (message.startsWith("RESERVATION_CANCELED")
+                    || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
+                    || message.startsWith("ERROR|CANCEL")) {
+                System.out.println("DEBUG routeAndHandleServerMessage: Routing cancel response to ReservationUIController");
+                r.onCancelResponse(message);
+                return;
+            }
+        }
+
+        // 2) Route "Receive Table" window messages
+        ReceiveTableUIController t = activeReceiveTableController;
+        if (t != null) {
+            if (message.startsWith("TABLE_ASSIGNED|")
+                    || "NO_TABLE_AVAILABLE".equals(message)
+                    || "INVALID_CONFIRMATION_CODE".equals(message)) {
+                System.out.println("DEBUG routeAndHandleServerMessage: Routing table response to ReceiveTableUIController");
+                t.onReceiveTableResponse(message);
+                return;
+            }
+        }
+
+        // 3) Handle main screen messages
+        System.out.println("DEBUG routeAndHandleServerMessage: Handling as main screen message: " + message);
+        handleMainScreenServerMessage(message);
+    /**
+     * Routes messages to active child controllers (if relevant), otherwise handles them
+     * on the main screen.
+     *
+     * @param message raw server message
+     */
+    private void routeAndHandleServerMessage(String message) {
+        if (message == null) return;
+
+        // 1) Route "New Reservation" window messages
+        ReservationUIController r = activeReservationController;
+        if (r != null) {
+            if (message.startsWith("RESERVATIONS_FOR_DATE|")) {
                 r.onReservationsReceived(message);
                 return;
             }

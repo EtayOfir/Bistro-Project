@@ -178,6 +178,13 @@ public class EchoServer extends AbstractServer {
 			System.out.println("DEBUG: command parsed = " + command);
 
 			// --- Check if DB is ready for specific commands ---
+			boolean needsReservationDao = command.equals("#GET_RESERVATION") || command.equals("#UPDATE_RESERVATION")
+					|| command.equals("#CREATE_RESERVATION") || command.equals("#GET_RESERVATIONS_BY_DATE")
+					|| command.equals("#CANCEL_RESERVATION") || command.equals("#DELETE_EXPIRED_RESERVATIONS")
+					|| command.equals("#RECEIVE_TABLE") || command.equals("#GET_ACTIVE_RESERVATIONS")
+					|| command.equals("#GET_REPORTS_DATA") || command.equals("#MARK_RESERVATION_EXPIRED")|| command.equals("#SET_BRANCH_HOURS")
+					|| command.equals("#UPSERT_RESTAURANT_TABLE")
+					|| command.equals("#DELETE_RESTAURANT_TABLE") || command.equals("#GET_OPENING_HOURS");
 			boolean needsReservationDao =
 			        command.equals("#GET_RESERVATION") ||
 			        command.equals("#UPDATE_RESERVATION") ||
@@ -476,6 +483,32 @@ public class EchoServer extends AbstractServer {
 					ans = sb.toString();
 				} catch (Exception e) {
 					ans = "ERROR|DB_ERROR";
+				}
+				break;
+			}
+
+			case "#GET_OPENING_HOURS": {
+				// Format: #GET_OPENING_HOURS yyyy-MM-dd
+				try {
+					if (parts.length < 2) {
+						ans = "ERROR|INVALID_FORMAT_OPENING_HOURS";
+						break;
+					}
+					java.time.LocalDate date = java.time.LocalDate.parse(parts[1]);
+					Map<String, String> hours = reservationDAO.getOpeningHoursForDate(date);
+					
+					if (hours != null) {
+						// Format: OPENING_HOURS|yyyy-MM-dd|HH:mm:ss|HH:mm:ss
+						ans = "OPENING_HOURS|" + parts[1] + "|" + hours.get("open") + "|" + hours.get("close");
+						System.out.println("DEBUG: Sending opening hours response: " + ans);
+					} else {
+						ans = "ERROR|NO_OPENING_HOURS";
+						System.out.println("DEBUG: No opening hours found, sending error response");
+					}
+				} catch (Exception e) {
+					ans = "ERROR|OPENING_HOURS_ERROR";
+					System.out.println("DEBUG: Exception in GET_OPENING_HOURS: " + e.getMessage());
+					e.printStackTrace();
 				}
 				break;
 			}
