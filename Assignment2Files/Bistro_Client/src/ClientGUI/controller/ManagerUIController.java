@@ -253,18 +253,10 @@ public class ManagerUIController {
                 } else {
                     System.out.println("DEBUG Manager navigate: currentSubscriber is null, not calling setSubscriber");
                 }
-                case RegisterUIController c -> {
-                    c.setUserContext(currentUserName, "Manager");
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-                }
-                case BranchSettingsUIController c -> {
-                    c.setUserContext(currentUserName, "Manager");
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-                }
-
-                default -> { 
-                    // Log or ignore for other controllers
-                }
+            } else if (controller instanceof BranchSettingsUIController) {
+                BranchSettingsUIController c = (BranchSettingsUIController) controller;
+                c.setUserContext(currentUserName, "Manager");
+                c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
             } else if (controller instanceof StaffReservationUIController) {
                 ((StaffReservationUIController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
             } else if (controller instanceof ReceiveTableUIController) {
