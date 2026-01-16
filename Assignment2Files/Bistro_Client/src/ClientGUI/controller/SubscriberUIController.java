@@ -98,23 +98,21 @@ public class SubscriberUIController implements Initializable {
      * הגדרת העמודות בטבלאות
      */
     private void setupTables() {
-        // 1. הגדרת טבלת היסטוריה
-        reservationDateCol.setCellValueFactory(new PropertyValueFactory<>("date"));
-        arrivalCol.setCellValueFactory(new PropertyValueFactory<>("arrivalTime"));
-        departureCol.setCellValueFactory(new PropertyValueFactory<>("departureTime"));
-        billCol.setCellValueFactory(new PropertyValueFactory<>("bill"));
-        discountCol.setCellValueFactory(new PropertyValueFactory<>("discount"));
+        reservationDateCol.setCellValueFactory(new PropertyValueFactory<>("originalReservationDate"));
+        arrivalCol.setCellValueFactory(new PropertyValueFactory<>("actualArrivalTime"));
+        departureCol.setCellValueFactory(new PropertyValueFactory<>("actualDepartureTime"));
+        billCol.setCellValueFactory(new PropertyValueFactory<>("totalBill"));
+        discountCol.setCellValueFactory(new PropertyValueFactory<>("discountApplied"));
         statusHistoryCol.setCellValueFactory(new PropertyValueFactory<>("status"));
         
         if (historyTable != null) {
             historyTable.setItems(historyList);
         }
 
-        // 2. הגדרת טבלת הזמנות פעילות
-        dateCol.setCellValueFactory(new PropertyValueFactory<>("date"));
-        timeCol.setCellValueFactory(new PropertyValueFactory<>("time"));
-        dinersCol.setCellValueFactory(new PropertyValueFactory<>("diners"));
-        codeCol.setCellValueFactory(new PropertyValueFactory<>("code"));
+        dateCol.setCellValueFactory(new PropertyValueFactory<>("reservationDate"));
+        timeCol.setCellValueFactory(new PropertyValueFactory<>("reservationTime"));
+        dinersCol.setCellValueFactory(new PropertyValueFactory<>("numOfDiners"));
+        codeCol.setCellValueFactory(new PropertyValueFactory<>("confirmationCode"));
         statusActiveCol.setCellValueFactory(new PropertyValueFactory<>("status"));
 
         if (activeReservationsTable != null) {
@@ -239,8 +237,8 @@ public class SubscriberUIController implements Initializable {
 
         // --- בדיקת תקינות מספר טלפון ---
         // הוספנו את ה-trim() כדי למחוק רווחים מיותרים לפני או אחרי המספר אם הוכנסו בטעות
-        if (newPhone == null || !newPhone.trim().matches("\\d{10}")) {
-            showAlert("error", "The phone number is invalid.\\nYou must enter exactly 10 digits (no dashes or spaces).");
+        if (newPhone == null || !newPhone.trim().matches("\\d{3}-\\d{7}")) {
+            showAlert("error", "The phone number is invalid.\\nYou must enter exactly 10 digits.");
             return; // עוצר את הפונקציה ולא ממשיך לשמירה
         }
 
