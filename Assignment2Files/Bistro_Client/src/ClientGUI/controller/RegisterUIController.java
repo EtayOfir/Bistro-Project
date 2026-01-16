@@ -98,12 +98,8 @@ public class RegisterUIController {
             return;
         }
 
-        if (!phone.matches("\\d+")) {
-            statusLabel.setText("Phone number must contain only digits.");
-            return;
-        }
-        if (phone.length() != 10) {
-            statusLabel.setText("Phone number must be exactly 10 digits.");
+        if (!phone.matches("\\d{3}-\\d{7}")) {
+            statusLabel.setText("Phone number must contain 10 digits.");
             return;
         }
         
