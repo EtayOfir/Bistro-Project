@@ -178,13 +178,6 @@ public class EchoServer extends AbstractServer {
 			System.out.println("DEBUG: command parsed = " + command);
 
 			// --- Check if DB is ready for specific commands ---
-			boolean needsReservationDao = command.equals("#GET_RESERVATION") || command.equals("#UPDATE_RESERVATION")
-					|| command.equals("#CREATE_RESERVATION") || command.equals("#GET_RESERVATIONS_BY_DATE")
-					|| command.equals("#CANCEL_RESERVATION") || command.equals("#DELETE_EXPIRED_RESERVATIONS")
-					|| command.equals("#RECEIVE_TABLE") || command.equals("#GET_ACTIVE_RESERVATIONS")
-					|| command.equals("#GET_REPORTS_DATA") || command.equals("#MARK_RESERVATION_EXPIRED")|| command.equals("#SET_BRANCH_HOURS")
-					|| command.equals("#UPSERT_RESTAURANT_TABLE")
-					|| command.equals("#DELETE_RESTAURANT_TABLE") || command.equals("#GET_OPENING_HOURS");
 			boolean needsReservationDao =
 			        command.equals("#GET_RESERVATION") ||
 			        command.equals("#UPDATE_RESERVATION") ||
