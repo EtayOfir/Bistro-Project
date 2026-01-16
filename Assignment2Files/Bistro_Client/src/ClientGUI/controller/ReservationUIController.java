@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 import entities.Subscriber;
 
@@ -760,7 +761,7 @@ public class ReservationUIController {
                 ctrl.setReservationContext(datePicker.getValue(), timeStr, null, guestSpinner.getValue(), currentSubscriber);
 
                 Stage stage = new Stage();
-                stage.setScene(new Scene(root));
+                stage.setScene(SceneUtil.createStyledScene(root));
                 stage.setTitle("Waiting List - Alternatives");
                 stage.show();
             } catch (IOException e) {
@@ -862,7 +863,7 @@ public class ReservationUIController {
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Login");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {
@@ -975,34 +976,23 @@ public class ReservationUIController {
         	Object controller = loader.getController();
 
 
-            // Using Switch Case (Pattern Matching) to identify controller and restore context
-            switch (controller) {
-                // 1. Manager Dashboard
-                case ManagerUIController c -> 
-                    c.setManagerName(currentUserName);
-
-                // 2. Representative Dashboard
-                case RepresentativeMenuUIController c -> 
-                    c.setRepresentativeName(currentUserName);
-
-                // 3. Subscriber Area
-                case LoginSubscriberUIController c -> {
-                    c.setSubscriberName(currentUserName);
-                    if (currentSubscriber != null) {
-                        c.setSubscriber(currentSubscriber);
-                        System.out.println("DEBUG onBack: Restoring subscriber to LoginSubscriberUIController");
-                    }
+            // Using if-else to identify controller and restore context
+            if (controller instanceof ManagerUIController) {
+                ((ManagerUIController) controller).setManagerName(currentUserName);
+            } else if (controller instanceof RepresentativeMenuUIController) {
+                ((RepresentativeMenuUIController) controller).setRepresentativeName(currentUserName);
+            } else if (controller instanceof LoginSubscriberUIController) {
+                LoginSubscriberUIController c = (LoginSubscriberUIController) controller;
+                c.setSubscriberName(currentUserName);
+                if (currentSubscriber != null) {
+                    c.setSubscriber(currentSubscriber);
+                    System.out.println("DEBUG onBack: Restoring subscriber to LoginSubscriberUIController");
                 }
-
-                // 4. Guest Menu
-                case LoginGuestUIController c -> {
-                    // Usually no state to restore for guest, just navigation
-                }
-
-                default -> {
-                    // Handle unknown controller types
-                    System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
-                }
+            } else if (controller instanceof LoginGuestUIController) {
+                // Usually no state to restore for guest, just navigation
+            } else {
+                // Handle unknown controller types
+                System.out.println("Returning to generic screen: " + controller.getClass().getSimpleName());
             }
 
             // Unregister this controller from the ClientUI routing map
@@ -1010,7 +1000,7 @@ public class ReservationUIController {
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {

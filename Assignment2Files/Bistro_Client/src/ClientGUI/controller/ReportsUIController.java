@@ -1,5 +1,7 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
+
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -23,6 +25,7 @@ import java.time.YearMonth;
 import java.util.*;
 
 import ClientGUI.util.ViewLoader;
+import ClientGUI.util.SceneUtil;
 
 public class ReportsUIController {
 
@@ -97,7 +100,7 @@ public class ReportsUIController {
             // controller.setManagerName("Manager"); 
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
         } catch (IOException e) {
             e.printStackTrace();

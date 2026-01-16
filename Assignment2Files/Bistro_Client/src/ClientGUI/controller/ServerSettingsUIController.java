@@ -1,5 +1,6 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -99,7 +100,7 @@ public class ServerSettingsUIController {
                     Parent root = loader.load();
 
                     stage.setTitle("Bistro – User Login");
-                    stage.setScene(new Scene(root));
+                    stage.setScene(SceneUtil.createStyledScene(root));
                     stage.setResizable(true);
                     stage.show();
 

@@ -9,8 +9,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
-import java.net.URL;
-
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 
 /**
@@ -56,7 +55,7 @@ public class ClientUI extends Application {
     	
 
         primaryStage.setTitle("Bistro – Server Settings");
-        primaryStage.setScene(new Scene(root));
+        primaryStage.setScene(SceneUtil.createStyledScene(root));
         primaryStage.setResizable(false);
         primaryStage.show();
     }

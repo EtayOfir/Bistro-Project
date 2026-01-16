@@ -11,6 +11,7 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import java.io.IOException;
 
+import ClientGUI.util.SceneUtil;
 import ClientGUI.util.ViewLoader;
 
 /**
@@ -114,7 +115,7 @@ public class RestaurantTerminalUIController {
             // Create a new stage for the popup
             Stage popupStage = new Stage();
             popupStage.setTitle("Subscriber Login");
-            popupStage.setScene(new Scene(root));
+            popupStage.setScene(SceneUtil.createStyledScene(root));
             
             // Set Modality: WINDOW_MODAL blocks input to the owner window until the popup is closed
             popupStage.initModality(Modality.WINDOW_MODAL); 
@@ -209,7 +210,7 @@ public class RestaurantTerminalUIController {
             }
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {

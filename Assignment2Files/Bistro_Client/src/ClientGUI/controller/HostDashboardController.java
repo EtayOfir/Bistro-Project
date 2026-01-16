@@ -15,6 +15,8 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.stage.Stage;
 
+import ClientGUI.util.SceneUtil;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -289,7 +291,7 @@ public class HostDashboardController {
         }
             
             stage.setTitle(returnTitle);
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.setMaximized(wasMaximized);
             stage.show();
 

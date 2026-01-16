@@ -12,6 +12,7 @@ import entities.Subscriber;
 import java.io.IOException;
 
 import ClientGUI.util.ViewLoader;
+import ClientGUI.util.SceneUtil;
 
 /**
  * Controller class for the Manager Dashboard.
@@ -145,7 +146,7 @@ public class ManagerUIController {
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle("Host Dashboard - Manager (" + currentUserName + ")");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {
@@ -172,7 +173,7 @@ public class ManagerUIController {
 
             Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
             stage.setTitle("Login");
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (Exception e) {
@@ -234,55 +235,46 @@ public class ManagerUIController {
             Object controller = loader.getController();
 
             // Set the return path based on the controller type
-            switch (controller) {
-                case ClientWaitingListController c -> 
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-
-                case BillPaymentController c -> 
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-
-                case ReservationUIController c -> {
-                    System.out.println("DEBUG Manager navigate: currentSubscriber is " + (currentSubscriber != null ? "not null" : "null"));
-                    if (currentSubscriber != null) {
-                        System.out.println("DEBUG Manager navigate: subscriber role=" + currentSubscriber.getRole() + 
-                                         ", phone=" + currentSubscriber.getPhoneNumber() + 
-                                         ", email=" + currentSubscriber.getEmail());
-                    }
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-                    if (currentSubscriber != null) {
-                        c.setSubscriber(currentSubscriber);
-                    } else {
-                        System.out.println("DEBUG Manager navigate: currentSubscriber is null, not calling setSubscriber");
-                    }
+            if (controller instanceof ClientWaitingListController) {
+                ((ClientWaitingListController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+            } else if (controller instanceof BillPaymentController) {
+                ((BillPaymentController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+            } else if (controller instanceof ReservationUIController) {
+                ReservationUIController c = (ReservationUIController) controller;
+                System.out.println("DEBUG Manager navigate: currentSubscriber is " + (currentSubscriber != null ? "not null" : "null"));
+                if (currentSubscriber != null) {
+                    System.out.println("DEBUG Manager navigate: subscriber role=" + currentSubscriber.getRole() +
+                                     ", phone=" + currentSubscriber.getPhoneNumber() +
+                                     ", email=" + currentSubscriber.getEmail());
                 }
-
-                case StaffReservationUIController c -> 
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-
-                case ReceiveTableUIController c -> 
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-
-                case HostDashboardController c -> 
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-
-                case ClientUIController c -> { 
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-                    c.setUserContext(currentUserName, "Manager");
-                }
-                case RepresentativeViewDetailsUIController c -> {
                 c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                if (currentSubscriber != null) {
+                    c.setSubscriber(currentSubscriber);
+                } else {
+                    System.out.println("DEBUG Manager navigate: currentSubscriber is null, not calling setSubscriber");
                 }
-                case RegisterUIController c -> {
-                    c.setUserContext(currentUserName, "Manager");
-                    c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-                }
-                default -> { 
-                    // Log or ignore for other controllers
-                }
+            } else if (controller instanceof StaffReservationUIController) {
+                ((StaffReservationUIController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+            } else if (controller instanceof ReceiveTableUIController) {
+                ((ReceiveTableUIController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+            } else if (controller instanceof HostDashboardController) {
+                ((HostDashboardController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+            } else if (controller instanceof ClientUIController) {
+                ClientUIController c = (ClientUIController) controller;
+                c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+                c.setUserContext(currentUserName, "Manager");
+            } else if (controller instanceof RepresentativeViewDetailsUIController) {
+                ((RepresentativeViewDetailsUIController) controller).setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+            } else if (controller instanceof RegisterUIController) {
+                RegisterUIController c = (RegisterUIController) controller;
+                c.setUserContext(currentUserName, "Manager");
+                c.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
+            } else {
+                // Log or ignore for other controllers
             }
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.show();
 
         } catch (IOException e) {

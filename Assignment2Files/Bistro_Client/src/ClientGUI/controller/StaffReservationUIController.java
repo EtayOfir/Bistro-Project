@@ -1,5 +1,7 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
+
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
@@ -480,7 +482,7 @@ public class StaffReservationUIController {
             }
 
             Stage stage = (Stage) datePicker.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            stage.setScene(SceneUtil.createStyledScene(root));
             stage.setTitle(returnTitle);
             stage.show();
         } catch (Exception e) {
