@@ -1406,7 +1406,7 @@ public class EchoServer extends AbstractServer {
 	private String buildSeatedCustomersSnapshot() {
 
 		String sql =
-				"SELECT ar.CustomerType, " +
+				"SELECT ar.Role, " +
 						"       ar.SubscriberID, " +
 						"       ar.CasualPhone, " +
 						"       ar.CasualEmail, " +
@@ -1414,6 +1414,7 @@ public class EchoServer extends AbstractServer {
 						"       ar.NumOfDiners, " +
 						"       ar.Status, " +
 						"       ar.TableNumber, " +
+						"       ar.ConfirmationCode, " +
 						"       s.FullName " +
 						"FROM ActiveReservations ar " +
 						"LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
@@ -1431,7 +1432,7 @@ public class EchoServer extends AbstractServer {
 			while (rs.next()) {
 
 				String customer;
-				if ("Subscriber".equalsIgnoreCase(rs.getString("CustomerType"))) {
+				if ("Subscriber".equalsIgnoreCase(rs.getString("Role"))) {
 					customer = rs.getString("FullName");
 					if (customer == null || customer.isBlank()) {
 						customer = "Subscriber#" + rs.getInt("SubscriberID");
@@ -1450,6 +1451,7 @@ public class EchoServer extends AbstractServer {
 				String time = rs.getTime("ReservationTime").toString();
 				String status = rs.getString("Status");
 				int tableNumber = rs.getInt("TableNumber");
+				String code = rs.getString("ConfirmationCode");
 
 				String customerB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(customer.getBytes(StandardCharsets.UTF_8));
 
@@ -1459,7 +1461,8 @@ public class EchoServer extends AbstractServer {
 				.append(guests).append(",")
 				.append(time).append(",")
 				.append(status).append(",")
-				.append(tableNumber);
+				.append(tableNumber).append(",")   
+				  .append(code);
 			}
 
 			if (sb.length() == 0) {
@@ -1495,7 +1498,7 @@ public class EchoServer extends AbstractServer {
 				        COALESCE((
 				            SELECT GROUP_CONCAT(
 				                CASE
-				                    WHEN ar.CustomerType = 'Subscriber'
+				                    WHEN ar.Role = 'Subscriber'
 				                        THEN s.FullName
 				                    ELSE ar.CasualPhone
 				                END
