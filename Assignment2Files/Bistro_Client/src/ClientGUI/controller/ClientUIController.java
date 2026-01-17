@@ -574,12 +574,7 @@ public class ClientUIController implements ChatIF {
             return;
         }
 
-        // Trigger cleanup of expired reservations on server before canceling
-        try {
-            ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
-        } catch (Exception e) {
-            System.err.println("Failed to trigger expired reservations cleanup: " + e.getMessage());
-        }
+        ClientUI.chat.handleMessageFromClientUI("#DELETE_EXPIRED_RESERVATIONS");
 
         javafx.scene.control.TextInputDialog dialog = new javafx.scene.control.TextInputDialog();
         dialog.setTitle("Cancel Reservation");
