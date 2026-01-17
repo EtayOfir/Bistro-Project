@@ -34,6 +34,7 @@ public class ClientMessageRouter implements ChatIF {
                 System.out.println("CLIENT ROUTER: Routing OPENING_HOURS to StaffReservationUIController");
                 sr.onOpeningHoursReceived(message); 
                 return; 
+                
             }
             if (message.startsWith("RESERVATION_CREATED")) { sr.onBookingResponse(message); return; }
             if (message.startsWith("RESERVATION_FAILED|")) { sr.onBookingResponse(message); return; }
@@ -42,12 +43,20 @@ public class ClientMessageRouter implements ChatIF {
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL")) { return; }
         }
-
+       
         // 2) Route to active reservation window (if exists)
         ReservationUIController r = ClientUIController.getActiveReservationController();
+        
         if (r != null) {
             if (message.startsWith("RESERVATIONS_FOR_DATE|")) { r.onReservationsReceived(message); return; }
             if (message.startsWith("OPENING_HOURS|")) { r.onOpeningHoursReceived(message); return; }
+            if (message.startsWith("AVAILABILITY|")) { r.onAvailabilityResponse(message); return; }
+
+            if (message.startsWith("AVAILABILITY|")) { 
+                r.onAvailabilityResponse(message); 
+                return; 
+            }
+
             if (message.startsWith("RESERVATION_CREATED")) { r.onBookingResponse(message); return; }
             if (message.startsWith("RESERVATION_FAILED|")) { r.onBookingResponse(message); return; }
 

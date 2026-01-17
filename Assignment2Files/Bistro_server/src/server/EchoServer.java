@@ -181,6 +181,7 @@ public class EchoServer extends AbstractServer {
 			boolean needsReservationDao =
 			        command.equals("#GET_RESERVATION") ||
 			        command.equals("#UPDATE_RESERVATION") ||
+			        command.equals("#CHECK_AVAILABILITY") ||
 			        command.equals("#CREATE_RESERVATION") ||
 			        command.equals("#GET_RESERVATIONS_BY_DATE") ||
 			        command.equals("#GET_TODAYS_RESERVATIONS") ||
@@ -679,6 +680,52 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
+			case "#CHECK_AVAILABILITY": {
+			    try {
+			        if (parts.length < 4) {
+			            ans = "ERROR|INVALID_FORMAT_CHECK_AVAILABILITY";
+			            break;
+			        }
+			        java.time.LocalDate date = java.time.LocalDate.parse(parts[1]);
+			        java.time.LocalTime time = java.time.LocalTime.parse(parts[2]);
+			        int diners = Integer.parseInt(parts[3]);
+
+			        ReservationDAO.AvailabilityResult res = reservationDAO.checkAvailability(date, time, diners);
+
+			        String base = "AVAILABILITY|" + date.toString() + "|" +
+			                time.truncatedTo(java.time.temporal.ChronoUnit.MINUTES).toString();
+
+			        if (res.errorCode != null) {
+			            ans = base + "|ERROR|" + res.errorCode;
+			            break;
+			        }
+
+			        if (res.available) {
+			            ans = base + "|AVAILABLE";
+			            break;
+			        }
+
+			        StringBuilder sb = new StringBuilder(base).append("|NOT_AVAILABLE");
+			        for (java.time.LocalDateTime alt : res.alternatives) {
+			            if (alt.toLocalDate().equals(date)) {
+			                sb.append("|")
+			                  .append(alt.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+			                  .append(" (same day)");
+			            } else {
+			                sb.append("|")
+			                  .append(alt.toLocalDate().toString()).append(" ")
+			                  .append(alt.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+			            }
+			        }
+			        ans = sb.toString();
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|CHECK_AVAILABILITY_FAILED|" + (e.getMessage() == null ? "" : e.getMessage());
+			    }
+			    break;
+			}
+
 
 			case "#GET_OPENING_HOURS": {
 				// Format: #GET_OPENING_HOURS yyyy-MM-dd

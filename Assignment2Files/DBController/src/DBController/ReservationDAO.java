@@ -106,6 +106,121 @@ public class ReservationDAO {
             return rs.getInt("mx");
         }
     }
+ // ====== Availability checks (server-side source of truth) ======
+
+    /** Result object for an availability check. */
+    public static class AvailabilityResult {
+        public final boolean available;
+        public final List<LocalDateTime> alternatives;
+        public final String errorCode; // null if no error
+
+        public AvailabilityResult(boolean available, List<LocalDateTime> alternatives, String errorCode) {
+            this.available = available;
+            this.alternatives = alternatives;
+            this.errorCode = errorCode;
+        }
+    }
+
+    /**
+     * Checks whether the given date/time is available for the requested party size.
+     *
+     * Uses the same table-allocation logic as booking (including ±2 hours blocking rule),
+     * but does not insert anything into the DB.
+     */
+    public AvailabilityResult checkAvailability(LocalDate date, LocalTime time, int diners) throws SQLException {
+        try (Connection conn = dataSource.getConnection()) {
+            int maxCap = getMaxTableCapacity(conn);
+            if (maxCap <= 0) {
+                return new AvailabilityResult(false, List.of(), "NO_TABLES_DEFINED");
+            }
+            if (diners > maxCap) {
+                return new AvailabilityResult(false, List.of(), "CAPACITY_TOO_LARGE|" + diners + "|" + maxCap);
+            }
+
+            int table = findTableForBooking(conn, date, time, diners);
+            if (table != -1) {
+                return new AvailabilityResult(true, List.of(), null);
+            }
+
+            List<LocalDateTime> alts = findAlternativeSlots(date, time, diners, 4);
+            return new AvailabilityResult(false, alts, null);
+        }
+    }
+
+    /**
+     * Finds up to limit alternative slots (nearest first).
+     *
+     * Strategy:
+     * - Same day within ±3 hours, step 15 minutes (prefer later first).
+     * - If still not enough, scan next 3 days from opening time in 30-minute steps.
+     */
+    private List<LocalDateTime> findAlternativeSlots(LocalDate date, LocalTime requested, int diners, int limit) throws SQLException {
+        List<LocalDateTime> out = new ArrayList<>();
+
+        // Opening hours (fallback 08:00-23:00)
+        LocalTime open = LocalTime.of(8, 0);
+        LocalTime close = LocalTime.of(23, 0);
+        try {
+            Map<String, String> hours = getOpeningHoursForDate(date);
+            if (hours != null) {
+                if (hours.get("open") != null) open = LocalTime.parse(hours.get("open"));
+                if (hours.get("close") != null) close = LocalTime.parse(hours.get("close"));
+            }
+        } catch (Exception ignore) {}
+
+        int step = 15;
+        int maxDist = 180;
+
+        try (Connection conn = dataSource.getConnection()) {
+            // Same day: ±3h
+            for (int dist = step; dist <= maxDist && out.size() < limit; dist += step) {
+                for (int sign : new int[]{+1, -1}) {
+                    LocalTime cand = requested.plusMinutes(sign * dist);
+
+                    if (cand.isBefore(open) || cand.plusMinutes(RES_DURATION_MINUTES()).isAfter(close)) {
+                        continue;
+                    }
+
+                    if (findTableForBooking(conn, date, cand, diners) != -1) {
+                        out.add(LocalDateTime.of(date, cand));
+                        if (out.size() >= limit) break;
+                    }
+                }
+            }
+
+            // Next 3 days: 30-min steps from opening
+            for (int day = 1; day <= 3 && out.size() < limit; day++) {
+                LocalDate d = date.plusDays(day);
+
+                LocalTime dOpen = open;
+                LocalTime dClose = close;
+                try {
+                    Map<String, String> hours = getOpeningHoursForDate(d);
+                    if (hours != null) {
+                        if (hours.get("open") != null) dOpen = LocalTime.parse(hours.get("open"));
+                        if (hours.get("close") != null) dClose = LocalTime.parse(hours.get("close"));
+                    }
+                } catch (Exception ignore) {}
+
+                for (LocalTime t = dOpen;
+                     !t.plusMinutes(RES_DURATION_MINUTES()).isAfter(dClose) && out.size() < limit;
+                     t = t.plusMinutes(30)) {
+
+                    if (findTableForBooking(conn, d, t, diners) != -1) {
+                        out.add(LocalDateTime.of(d, t));
+                    }
+                }
+            }
+        }
+
+        return out;
+    }
+
+    // Keep duration consistent (2 hours)
+    private int RES_DURATION_MINUTES() {
+        return 120;
+    }
+
 
 
 

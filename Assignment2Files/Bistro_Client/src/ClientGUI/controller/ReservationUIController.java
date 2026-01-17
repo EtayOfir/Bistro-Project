@@ -708,34 +708,101 @@ public class ReservationUIController {
     @FXML
     private void onCheckAvailability(ActionEvent event) {
         LocalDate date = datePicker.getValue();
-        int hour = hourSpinner.getValue();
-        int minute = minuteSpinner.getValue();
-
-        System.out.println("DEBUG: onCheckAvailability() called");
-        System.out.println("  Date: " + date);
-        System.out.println("  Time: " + hour + ":" + String.format("%02d", minute));
-        System.out.println("  Booked times BEFORE check: " + bookedTimesForDate);
-
         if (date == null) {
-            System.out.println("ERROR: No date selected");
             showAlert(AlertType.ERROR, "Invalid Input", "Please select a date.");
             return;
         }
 
-        LocalDateTime checkDateTime = LocalDateTime.of(date, LocalTime.of(hour, minute));
+        int hour = hourSpinner.getValue();
+        int minute = minuteSpinner.getValue();
+        int diners = guestSpinner.getValue();
 
-        // If no cache, fetch and defer
-        if (!bookedTimesCache.containsKey(date)) {
-            System.out.println("DEBUG: Booked times not cached for " + date + ". Fetching and deferring check...");
-            pendingCheckDateTime = checkDateTime;
-            pendingCheckRequested = true;
-            fetchExistingReservations(date);
+        LocalDateTime start = LocalDateTime.of(date, LocalTime.of(hour, minute));
+        if (!validateWindow(start)) return;
+
+        // Ask the server to decide availability (server knows table-count + capacity + ±2h blocking rule)
+        // Format: #CHECK_AVAILABILITY yyyy-MM-dd HH:mm:ss <diners>
+        String msg = String.format("#CHECK_AVAILABILITY %s %s %d",
+                date.format(DATE_FMT),
+                start.toLocalTime().format(TIME_WITH_SECONDS_FMT),
+                diners);
+
+        System.out.println("DEBUG: Sending availability check to server: " + msg);
+        alternativesList.getItems().clear();
+
+        try {
+            ClientUI.chat.sendToServer(msg);
+        } catch (IOException e) {
+            showAlert(AlertType.ERROR, "Network Error", "Failed to contact server: " + e.getMessage());
+        }
+    }
+    /**
+     * Callback from {@link ClientUIController} when the server responds to #CHECK_AVAILABILITY.
+     *
+     * Expected formats:
+     *   AVAILABILITY|yyyy-MM-dd|HH:mm|AVAILABLE
+     *   AVAILABILITY|yyyy-MM-dd|HH:mm|NOT_AVAILABLE|alt1|alt2|...
+     *   AVAILABILITY|yyyy-MM-dd|HH:mm|ERROR|<details...>
+     */
+    public void onAvailabilityResponse(String message) {
+        System.out.println("DEBUG: onAvailabilityResponse received: " + message);
+        String[] parts = message.split("\\|");
+        if (parts.length < 4) return;
+
+        LocalDate date = LocalDate.parse(parts[1], DATE_FMT);
+        LocalTime time = LocalTime.parse(parts[2], TIME_FMT);
+        String status = parts[3];
+
+        LocalDateTime start = LocalDateTime.of(date, time);
+
+        if ("ERROR".equalsIgnoreCase(status)) {
+            String details = (parts.length > 4)
+                    ? String.join("|", java.util.Arrays.copyOfRange(parts, 4, parts.length))
+                    : "";
+            showAlert(AlertType.ERROR, "Availability Check Failed",
+                    details.isBlank() ? "Server could not complete the availability check." : details);
             return;
         }
 
-        // Cached, process now
-        processAvailabilityCheck(checkDateTime);
+        if ("AVAILABLE".equalsIgnoreCase(status)) {
+            showAlert(AlertType.INFORMATION, "Slot Available",
+                    "✓ The slot on " + start.toLocalDate() + " at " +
+                            String.format("%02d:%02d", start.getHour(), start.getMinute()) +
+                            " is available!\n\nYou can now book this reservation.");
+            alternativesList.getItems().clear();
+            return;
+        }
+
+        // NOT_AVAILABLE
+        alternativesList.getItems().clear();
+        if (parts.length > 4) {
+            for (int i = 4; i < parts.length; i++) {
+                alternativesList.getItems().add(parts[i]);
+            }
+        }
+        if (alternativesList.getItems().isEmpty()) {
+            alternativesList.getItems().add("No alternatives found");
+        }
+
+        StringBuilder msg = new StringBuilder();
+        msg.append("✗ The slot on ").append(start.toLocalDate()).append(" at ")
+                .append(String.format("%02d:%02d", start.getHour(), start.getMinute()))
+                .append(" is not available.\n\n")
+                .append("Suggested alternative times:\n\n");
+
+        if (alternativesList.getItems().size() == 1
+                && "No alternatives found".equals(alternativesList.getItems().get(0))) {
+            msg.append("No alternatives available for your requested timeframe.");
+        } else {
+            for (String alt : alternativesList.getItems()) {
+                msg.append("• ").append(alt).append("\n");
+            }
+            msg.append("\nClick on any suggestion to auto-fill the form.");
+        }
+
+        showAlert(AlertType.WARNING, "Slot Not Available", msg.toString());
     }
+
 
     /**
      * Performs the availability check (immediate or deferred).
