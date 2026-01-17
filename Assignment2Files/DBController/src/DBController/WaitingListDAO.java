@@ -199,4 +199,97 @@ public class WaitingListDAO {
 
         return result;
     }
+    
+    public WaitingEntry pickNextForTable(int tableCapacity) throws SQLException {
+        String sql =
+            "SELECT WaitingID, ContactInfo, NumOfDiners, ConfirmationCode, Status, EntryTime " +
+            "FROM WaitingList " +
+            "WHERE Status = 'Waiting' AND NumOfDiners <= ? " +
+            "ORDER BY EntryTime ASC " +
+            "LIMIT 1";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, tableCapacity);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+
+                WaitingEntry e = new WaitingEntry();
+                e.setWaitingId(rs.getInt("WaitingID"));
+                e.setContactInfo(rs.getString("ContactInfo"));
+                e.setNumOfDiners(rs.getInt("NumOfDiners"));
+                e.setConfirmationCode(rs.getString("ConfirmationCode"));
+                e.setStatus(rs.getString("Status"));
+                e.setEntryTime(rs.getTimestamp("EntryTime"));
+                return e;
+            }}
+        }
+        public void notifyNextWaitingCustomer(int tableNumber, WaitingListDAO waitingListDAO) throws SQLException {
+            int capacity = 0;
+
+            try (Connection conn = dataSource.getConnection()) {
+                // 1) capacity for this table
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT Capacity FROM restauranttables WHERE TableNumber = ?")) {
+                    ps.setInt(1, tableNumber);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) capacity = rs.getInt("Capacity");
+                    }
+                }
+
+                if (capacity <= 0) return;
+
+                // 2) pick next waiting entry that fits
+                WaitingEntry next = waitingListDAO.pickNextForTable(capacity);
+                if (next == null) return;
+
+                // 3) mark as notified (or seated)
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE WaitingList SET Status='Notified' WHERE WaitingID=?")) {
+                    ps.setInt(1, next.getWaitingId());
+                    ps.executeUpdate();
+                }
+
+                // 4) send mock SMS
+                StringBuilder sb = new StringBuilder();
+                sb.append("Table is now available!\n");
+                sb.append("Table Number: ").append(tableNumber).append("\n");
+                sb.append("For ").append(next.getNumOfDiners()).append(" diners\n");
+                sb.append("Your waiting confirmation code: ").append(next.getConfirmationCode()).append("\n");
+                sb.append("Please come to the host now.\n");
+
+                methods.CommonMethods.sendSMSMock(sb);
+            }
+        }
+    
+    
+
+    
+    public Integer findAvailableTableNumber(Connection conn, int diners) throws SQLException {
+        String sql =
+            "SELECT TableNumber " +
+            "FROM restauranttables " +
+            "WHERE Status='Available' AND Capacity >= ? " +
+            "ORDER BY Capacity ASC, TableNumber ASC " +
+            "LIMIT 1 FOR UPDATE";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, diners);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("TableNumber") : null;
+            }
+        }
+    }
+
+    public void setTableTaken(Connection conn, int tableNum) throws SQLException {
+        String sql = "UPDATE restauranttables SET Status='Taken' WHERE TableNumber=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableNum);
+            ps.executeUpdate();
+        }
+    }
+
+    
 }

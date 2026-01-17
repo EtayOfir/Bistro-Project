@@ -60,44 +60,90 @@ public class BillPaymentDAO {
             conn.setAutoCommit(false);
 
             try {
-                //Update status -> Paid (this “frees the table” in your logic because it’s no longer active)
+                // 1) Mark as paid
+                int updated;
                 if (bill.getSource() == Source.ACTIVE_RESERVATION) {
                     try (PreparedStatement ps = conn.prepareStatement(SQLQueries.SET_RESERVATION_STATUS_PAID)) {
                         ps.setString(1, confirmationCode);
-                        ps.executeUpdate();
+                        updated = ps.executeUpdate();
                     }
                 } else {
                     try (PreparedStatement ps = conn.prepareStatement(SQLQueries.SET_WAITING_STATUS_PAID)) {
                         ps.setString(1, confirmationCode);
-                        ps.executeUpdate();
+                        updated = ps.executeUpdate();
                     }
                 }
 
-                // Insert VisitHistory row
-                Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+                if (updated == 0) {
+                    // Nothing updated -> probably wrong code or already paid
+                    conn.rollback();
+                    return null;
+                }
 
+                // 2) Insert VisitHistory
+                Timestamp now = Timestamp.valueOf(LocalDateTime.now());
                 try (PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_VISIT_HISTORY)) {
-                    ps.setInt(1, bill.getSubscriberId());                 // SubscriberID (0 for casual)
-                    ps.setDate(2, bill.getOriginalReservationDate());     // OriginalReservationDate
-                    ps.setTimestamp(3, now);                              // ActualArrivalTime (mock)
-                    ps.setTimestamp(4, now);                              // ActualDepartureTime (payment time)
-                    ps.setBigDecimal(5, bill.getTotal());                 // TotalBill
-                    ps.setBoolean(6, bill.getDiscountPercent() > 0);      // DiscountApplied
-                    ps.setString(7, "Paid");                              // Status
+                    ps.setInt(1, bill.getSubscriberId());
+                    ps.setDate(2, bill.getOriginalReservationDate());
+                    ps.setTimestamp(3, now);
+                    ps.setTimestamp(4, now);
+                    ps.setBigDecimal(5, bill.getTotal());
+                    ps.setBoolean(6, bill.getDiscountPercent() > 0);
+
+                    // MUST match your ENUM values in VisitHistory.Status
+                    ps.setString(7, "Completed");
+
                     ps.executeUpdate();
+                }
+
+                // 3) Only if it was an active reservation: free table + delete active reservation
+                if (bill.getSource() == Source.ACTIVE_RESERVATION) {
+                    int tableNum = 0;
+
+                    // get table number
+                    try (PreparedStatement ps2 = conn.prepareStatement(SQLQueries.GET_TABLE_NUMBER_FROM_RESERVATION)) {
+                        ps2.setInt(1, bill.getSubscriberId());
+                        ps2.setString(2, confirmationCode);
+
+                        try (ResultSet rs = ps2.executeQuery()) {
+                            if (rs.next()) {
+                                tableNum = rs.getInt("TableNumber");
+                            }
+                        }
+                    }
+
+                    if (tableNum > 0) {
+                        // set table available
+                        try (PreparedStatement ps3 = conn.prepareStatement(SQLQueries.SET_TABLE_AVAILABLE)) {
+                            ps3.setInt(1, tableNum);
+                            ps3.executeUpdate();
+                        }
+                    }
+
+                    // delete active reservation row
+                    try (PreparedStatement ps1 = conn.prepareStatement(SQLQueries.DELETE_ACTIVE_RESERVATION_BY_CODE)) {
+                        ps1.setString(1, confirmationCode);
+                        ps1.executeUpdate();
+                    }
                 }
 
                 conn.commit();
                 return new PaidResult(confirmationCode, bill.getTotal(), method);
 
-            } catch (Exception e) {
+            } catch (SQLException e) {
+                // SQL-specific: rollback and rethrow
                 conn.rollback();
                 throw e;
+            } catch (Exception e) {
+                // Any other runtime errors: rollback and wrap as SQLException for consistent handling
+                conn.rollback();
+                throw new SQLException("payBill failed: " + e.getMessage(), e);
             } finally {
                 conn.setAutoCommit(true);
             }
         }
     }
+
 
     private BillDetails computeBill(String code, int diners, String Role, int subscriberId, Date date, Source source) {
         // Mock pricing until you have orders/menu

@@ -1,18 +1,17 @@
 package ClientGUI.controller;
 
-import ClientGUI.util.ViewLoader;
 import ClientGUI.util.SceneUtil;
+import ClientGUI.util.ViewLoader;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
-import javafx.scene.Node;
 
 
 
@@ -123,10 +122,6 @@ public class ReceiveTableUIController {
         }else if (response.equals("RESERVATION_ALREADY_USED")) {
             showAlert(AlertType.WARNING, "Reservation Closed", "Duplicate Entry",
                     "This reservation has already been used (Status: Arrived).\nPlease contact the hostess.");
-        }
-        else if (response.equals("RESERVATION_NOT_FOR_TODAY")) {
-            showAlert(AlertType.WARNING, "Wrong Date", "Not for Today",
-                    "This reservation is not scheduled for today.");
         }
         else {
             showAlert(AlertType.ERROR, "Server Error", "Error", response);

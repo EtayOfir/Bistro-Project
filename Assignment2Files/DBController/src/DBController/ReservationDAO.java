@@ -52,6 +52,7 @@ public class ReservationDAO {
 
     /** Data source used to obtain database connections from the pool. */
     private final DataSource dataSource;
+    WaitingListDAO waitingListDAO;
 
     /**
      * Constructs a new {@code ReservationDAO} using the given data source.
@@ -60,6 +61,7 @@ public class ReservationDAO {
      */
     public ReservationDAO(DataSource dataSource) {
         this.dataSource = dataSource;
+        waitingListDAO = new WaitingListDAO(dataSource);
     }
 
     /**
@@ -1192,6 +1194,75 @@ public class ReservationDAO {
         return date.getDayOfWeek().toString().substring(0, 1).toUpperCase() 
                + date.getDayOfWeek().toString().substring(1).toLowerCase();
     }
+    
+    public int expireOverdueReservations() throws SQLException {
+        int expiredCount = 0;
+
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement select = conn.prepareStatement(SQLQueries.SELECT_OVERDUE_CONFIRMED);
+                 ResultSet rs = select.executeQuery()) {
+
+                while (rs.next()) {
+                    String code = rs.getString("ConfirmationCode");
+                    int subscriberId = rs.getInt("SubscriberID");
+                    java.sql.Date date = rs.getDate("ReservationDate");
+                    java.sql.Time time = rs.getTime("ReservationTime");
+                    int tableNumber = rs.getInt("TableNumber");
+
+                    // 1) mark expired safely
+                    int updated;
+                    try (PreparedStatement upd = conn.prepareStatement(SQLQueries.MARK_RESERVATION_EXPIRED_BY_CODE)) {
+                        upd.setString(1, code);
+                        updated = upd.executeUpdate();
+                    }
+                    if (updated == 0) continue; // already handled
+
+                    // 2) insert VisitHistory with Expired
+                    Timestamp plannedStart = Timestamp.valueOf(date.toLocalDate().atTime(time.toLocalTime()));
+                    try (PreparedStatement ins = conn.prepareStatement(SQLQueries.INSERT_VISIT_HISTORY)) {
+                    	Integer subIdObj = (Integer) rs.getObject("SubscriberID"); // can be null
+                    	if (subIdObj == null || subIdObj <= 0) {
+                    	    ins.setNull(1, java.sql.Types.INTEGER);
+                    	} else {
+                    	    ins.setInt(1, subIdObj);
+                    	}
+
+                        ins.setDate(2, date);
+                        ins.setTimestamp(3, plannedStart);
+                        ins.setTimestamp(4, plannedStart);
+                        ins.setBigDecimal(5, java.math.BigDecimal.ZERO);
+                        ins.setBoolean(6, false);
+                        ins.setString(7, "Expired"); // must exist in VisitHistory ENUM
+                        ins.executeUpdate();
+                    }
+
+                    // 3) free table if relevant
+                    if (tableNumber > 0) {
+                        try (PreparedStatement free = conn.prepareStatement(SQLQueries.SET_TABLE_AVAILABLE)) {
+                            free.setInt(1, tableNumber);
+                            free.executeUpdate();
+                        }
+                    }
+                   
+                    waitingListDAO.notifyNextWaitingCustomer(tableNumber, waitingListDAO);
+
+                    expiredCount++;
+                }
+
+                conn.commit();
+                return expiredCount;
+
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
 
     
 }

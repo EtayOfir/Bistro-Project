@@ -1,22 +1,19 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
+import ClientGUI.util.ViewLoader;
+import java.io.IOException;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
-
-import java.io.IOException;
-
-import ClientGUI.util.ViewLoader;
-import ClientGUI.util.SceneUtil;
 
 public class RegisterUIController {
 
@@ -98,8 +95,12 @@ public class RegisterUIController {
             return;
         }
 
-        if (!phone.matches("\\d{3}-\\d{7}")) {
-            statusLabel.setText("Phone number must contain 10 digits.");
+        if (!phone.matches("\\d+")) {
+            statusLabel.setText("Phone number must contain only digits.");
+            return;
+        }
+        if (phone.length() != 10) {
+            statusLabel.setText("Phone number must be exactly 10 digits.");
             return;
         }
         

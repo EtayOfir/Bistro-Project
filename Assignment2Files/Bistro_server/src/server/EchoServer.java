@@ -1,4 +1,5 @@
 package server;
+
 import java.util.Map;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -9,7 +10,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
-
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import ocsf.server.*;
 import DBController.BillPaymentDAO;
 import DBController.ReservationDAO;
@@ -21,14 +24,13 @@ import ServerGUI.ServerUIController;
 import entities.Reservation;
 import entities.Subscriber;
 import entities.WaitingEntry;
-import DBController.mysqlConnection1;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 /**
- * Main TCP server of the Bistro system (Phase 1).
- * Handles client connections, commands, and database interactions.
+ * Main TCP server of the Bistro system (Phase 1). Handles client connections,
+ * commands, and database interactions.
  */
 public class EchoServer extends AbstractServer {
 
@@ -42,6 +44,10 @@ public class EchoServer extends AbstractServer {
 	/** Tracks currently connected clients and their metadata for UI display. */
 	private Map<ConnectionToClient, GetClientInfo> connectedClients;
 
+	/** initialize scheduler **/
+	private ScheduledExecutorService expiryScheduler;
+	private volatile boolean expiryJobStarted = false;
+
 	/** Date-time formatter used for connection logging. */
 	private DateTimeFormatter dateTimeFormatter;
 
@@ -53,7 +59,8 @@ public class EchoServer extends AbstractServer {
 	private LoginDAO loginDAO;
 
 	/** Managers that subscribed to live waiting-list updates. */
-	private final java.util.Set<ConnectionToClient> waitingListSubscribers = java.util.concurrent.ConcurrentHashMap.newKeySet();
+	private final java.util.Set<ConnectionToClient> waitingListSubscribers = java.util.concurrent.ConcurrentHashMap
+			.newKeySet();
 
 	// Constructors ****************************************************
 
@@ -69,7 +76,8 @@ public class EchoServer extends AbstractServer {
 	 * Safely removes a client from the map and updates the UI.
 	 */
 	private synchronized void removeConnectedClient(ConnectionToClient client, String message) {
-		if (client == null) return;
+		if (client == null)
+			return;
 
 		try {
 			String clientIP = "Unknown";
@@ -84,9 +92,12 @@ public class EchoServer extends AbstractServer {
 			if (removedClient != null) {
 				// Update UI
 				if (uiController != null) {
-					callUIMethod("addLog", new Class<?>[]{String.class}, new Object[]{message + ": " + removedClient.getClientIP()});
-					callUIMethod("updateClientCount", new Class<?>[]{int.class}, new Object[]{connectedClients.size()});
-					callUIMethod("removeClientFromTable", new Class<?>[]{GetClientInfo.class}, new Object[]{removedClient});
+					callUIMethod("addLog", new Class<?>[] { String.class },
+							new Object[] { message + ": " + removedClient.getClientIP() });
+					callUIMethod("updateClientCount", new Class<?>[] { int.class },
+							new Object[] { connectedClients.size() });
+					callUIMethod("removeClientFromTable", new Class<?>[] { GetClientInfo.class },
+							new Object[] { removedClient });
 				}
 				System.out.println("Client removed: " + removedClient.getClientIP());
 			}
@@ -100,7 +111,8 @@ public class EchoServer extends AbstractServer {
 	 * Helper to ensure client removal even if connection reference is tricky.
 	 */
 	private void ensureClientRemoved(ConnectionToClient client) {
-		if (client == null) return;
+		if (client == null)
+			return;
 		try {
 			if (connectedClients.containsKey(client)) {
 				removeConnectedClient(client, "Client disconnected (double-check removal)");
@@ -146,11 +158,13 @@ public class EchoServer extends AbstractServer {
 					if (info != null) {
 						info.setClientName(role + ", " + username);
 						if (uiController != null) {
-							uiController.addLog("Client identified: IP=" + clientIP + ", Username=" + username + ", Role=" + role);
+							uiController.addLog(
+									"Client identified: IP=" + clientIP + ", Username=" + username + ", Role=" + role);
 							uiController.refreshClientTable();
 						}
 					}
-					System.out.println("Client identified: IP=" + clientIP + ", Username=" + username + ", Role=" + role);
+					System.out
+							.println("Client identified: IP=" + clientIP + ", Username=" + username + ", Role=" + role);
 				}
 				return;
 			}
@@ -178,24 +192,15 @@ public class EchoServer extends AbstractServer {
 			System.out.println("DEBUG: command parsed = " + command);
 
 			// --- Check if DB is ready for specific commands ---
-			boolean needsReservationDao =
-			        command.equals("#GET_RESERVATION") ||
-			        command.equals("#UPDATE_RESERVATION") ||
-			        command.equals("#CREATE_RESERVATION") ||
-			        command.equals("#GET_RESERVATIONS_BY_DATE") ||
-			        command.equals("#GET_TODAYS_RESERVATIONS") ||
-			        command.equals("#CANCEL_RESERVATION") ||
-			        command.equals("#DELETE_EXPIRED_RESERVATIONS") ||
-			        command.equals("#RECEIVE_TABLE") ||
-			        command.equals("#ASSIGN_TABLE") ||
-			        command.equals("#GET_ACTIVE_RESERVATIONS") ||
-			        command.equals("#GET_REPORTS_DATA") ||
-			        command.equals("#MARK_RESERVATION_EXPIRED") ||
-			        command.equals("#SET_BRANCH_HOURS") ||
-			        command.equals("#UPSERT_RESTAURANT_TABLE") ||
-			        command.equals("#DELETE_RESTAURANT_TABLE") ||
-			        command.equals("#GET_OPENING_HOURS_WEEKLY") ||
-			        command.equals("#SET_BRANCH_HOURS_DAY");
+			boolean needsReservationDao = command.equals("#GET_RESERVATION") || command.equals("#UPDATE_RESERVATION")
+					|| command.equals("#CREATE_RESERVATION") || command.equals("#GET_RESERVATIONS_BY_DATE")
+					|| command.equals("#GET_TODAYS_RESERVATIONS") || command.equals("#CANCEL_RESERVATION")
+					|| command.equals("#DELETE_EXPIRED_RESERVATIONS") || command.equals("#RECEIVE_TABLE")
+					|| command.equals("#ASSIGN_TABLE") || command.equals("#GET_ACTIVE_RESERVATIONS")
+					|| command.equals("#GET_REPORTS_DATA") || command.equals("#MARK_RESERVATION_EXPIRED")
+					|| command.equals("#SET_BRANCH_HOURS") || command.equals("#UPSERT_RESTAURANT_TABLE")
+					|| command.equals("#DELETE_RESTAURANT_TABLE") || command.equals("#GET_OPENING_HOURS_WEEKLY")
+					|| command.equals("#SET_BRANCH_HOURS_BY_DAY");
 
 			boolean needsBillDao = command.equals("#GET_BILL") || command.equals("#PAY_BILL");
 
@@ -246,128 +251,132 @@ public class EchoServer extends AbstractServer {
 				break;
 			}
 			case "#SET_BRANCH_HOURS_BY_DAY": {
-			    if (parts.length < 4) { ans = "ERROR|BAD_FORMAT"; break; }
+				if (parts.length < 4) {
+					ans = "ERROR|BAD_FORMAT";
+					break;
+				}
 
-			    try {
-			        String day = parts[1].trim();
-			        String open = parts[2].trim() + ":00";
-			        String close = parts[3].trim() + ":00";
+				try {
+					String day = parts[1].trim();
+					String open = parts[2].trim() + ":00";
+					String close = parts[3].trim() + ":00";
 
-			        try (var con = mysqlConnection1.getDataSource().getConnection()) {
+					try (var con = mysqlConnection1.getDataSource().getConnection()) {
 
-			            // ✅ לוג: על איזה DB אנחנו יושבים
-			            try (var psDb = con.prepareStatement("SELECT DATABASE()");
-			                 var rsDb = psDb.executeQuery()) {
-			                if (rsDb.next()) System.out.println("DEBUG DB=" + rsDb.getString(1));
-			            }
+						// ✅ לוג: על איזה DB אנחנו יושבים
+						try (var psDb = con.prepareStatement("SELECT DATABASE()"); var rsDb = psDb.executeQuery()) {
+							if (rsDb.next())
+								System.out.println("DEBUG DB=" + rsDb.getString(1));
+						}
 
-			            System.out.println("DEBUG UPDATE HOURS day=" + day + " open=" + open + " close=" + close);
+						System.out.println("DEBUG UPDATE HOURS day=" + day + " open=" + open + " close=" + close);
 
-			            try (var ps = con.prepareStatement(
-			                    "UPDATE bistro.openinghours SET OpenTime=?, CloseTime=? " +
-			                    "WHERE DayOfWeek=? AND SpecialDate IS NULL")) {
+						try (var ps = con.prepareStatement("UPDATE bistro.openinghours SET OpenTime=?, CloseTime=? "
+								+ "WHERE DayOfWeek=? AND SpecialDate IS NULL")) {
 
-			                ps.setString(1, open);
-			                ps.setString(2, close);
-			                ps.setString(3, day);
+							ps.setString(1, open);
+							ps.setString(2, close);
+							ps.setString(3, day);
 
-			                int updated = ps.executeUpdate();
-			                System.out.println("DEBUG rowsUpdated=" + updated);
+							int updated = ps.executeUpdate();
+							System.out.println("DEBUG rowsUpdated=" + updated);
 
-			                ans = updated > 0 ? "BRANCH_DAY_UPDATED" : "DAY_NOT_FOUND";
-			            }
-			        }
-			    } catch (Exception e) {
-			        e.printStackTrace();
-			        ans = "ERROR|UPDATE_DAY_FAILED";
-			    }
-			    break;
+							ans = updated > 0 ? "BRANCH_DAY_UPDATED" : "DAY_NOT_FOUND";
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+					ans = "ERROR|UPDATE_DAY_FAILED";
+				}
+				break;
 			}
 			case "#SET_BRANCH_HOURS_BY_DATE": {
-			    // #SET_BRANCH_HOURS_BY_DATE 2026-01-20 10:00 16:00 <b64desc?>
-			    if (parts.length < 4) { ans = "ERROR|BAD_FORMAT"; break; }
+				// #SET_BRANCH_HOURS_BY_DATE 2026-01-20 10:00 16:00 <b64desc?>
+				if (parts.length < 4) {
+					ans = "ERROR|BAD_FORMAT";
+					break;
+				}
 
-			    try {
-			        String dateStr = parts[1].trim();          // YYYY-MM-DD
-			        String open = parts[2].trim() + ":00";     // HH:mm:00
-			        String close = parts[3].trim() + ":00";
-			        String desc = (parts.length >= 5) ? decodeB64Url(parts[4]) : "";
+				try {
+					String dateStr = parts[1].trim(); // YYYY-MM-DD
+					String open = parts[2].trim() + ":00"; // HH:mm:00
+					String close = parts[3].trim() + ":00";
+					String desc = (parts.length >= 5) ? decodeB64Url(parts[4]) : "";
 
-			        try (var con = mysqlConnection1.getDataSource().getConnection();
-			             var ps = con.prepareStatement(
-			                 "INSERT INTO bistro.openinghours (DayOfWeek, OpenTime, CloseTime, SpecialDate, Description) " +
-			                 "VALUES (NULL, ?, ?, ?, ?) " +
-			                 "ON DUPLICATE KEY UPDATE OpenTime=VALUES(OpenTime), CloseTime=VALUES(CloseTime), Description=VALUES(Description)"
-			             )) {
+					try (var con = mysqlConnection1.getDataSource().getConnection();
+							var ps = con.prepareStatement(
+									"INSERT INTO bistro.openinghours (DayOfWeek, OpenTime, CloseTime, SpecialDate, Description) "
+											+ "VALUES (NULL, ?, ?, ?, ?) "
+											+ "ON DUPLICATE KEY UPDATE OpenTime=VALUES(OpenTime), CloseTime=VALUES(CloseTime), Description=VALUES(Description)")) {
 
-			            ps.setString(1, open);
-			            ps.setString(2, close);
-			            ps.setDate(3, java.sql.Date.valueOf(dateStr));
-			            ps.setString(4, desc);
+						ps.setString(1, open);
+						ps.setString(2, close);
+						ps.setDate(3, java.sql.Date.valueOf(dateStr));
+						ps.setString(4, desc);
 
-			            int affected = ps.executeUpdate();
-			            ans = "BRANCH_DATE_SAVED|" + affected; // affected 1/2 depending on insert/update
-			        }
+						int affected = ps.executeUpdate();
+						ans = "BRANCH_DATE_SAVED|" + affected; // affected 1/2 depending on insert/update
+					}
 
-			    } catch (Exception ex) {
-			        ex.printStackTrace();
-			        ans = "ERROR|SET_BY_DATE_FAILED";
-			    }
-			    break;
+				} catch (Exception ex) {
+					ex.printStackTrace();
+					ans = "ERROR|SET_BY_DATE_FAILED";
+				}
+				break;
 			}
 			case "#GET_OPENING_HOURS_SPECIAL": {
-			    try {
-			        StringBuilder sb = new StringBuilder("OPENING_HOURS_SPECIAL|");
+				try {
+					StringBuilder sb = new StringBuilder("OPENING_HOURS_SPECIAL|");
 
-			        try (var con = mysqlConnection1.getDataSource().getConnection();
-			             var ps = con.prepareStatement(
-			                 "SELECT SpecialDate, OpenTime, CloseTime, COALESCE(Description,'') AS Description " +
-			                 "FROM bistro.openinghours " +
-			                 "WHERE SpecialDate IS NOT NULL " +
-			                 "ORDER BY SpecialDate"
-			             );
-			             var rs = ps.executeQuery()) {
+					try (var con = mysqlConnection1.getDataSource().getConnection();
+							var ps = con.prepareStatement(
+									"SELECT SpecialDate, OpenTime, CloseTime, COALESCE(Description,'') AS Description "
+											+ "FROM bistro.openinghours " + "WHERE SpecialDate IS NOT NULL "
+											+ "ORDER BY SpecialDate");
+							var rs = ps.executeQuery()) {
 
-			            boolean first = true;
-			            while (rs.next()) {
-			                if (!first) sb.append("~");
-			                first = false;
+						boolean first = true;
+						while (rs.next()) {
+							if (!first)
+								sb.append("~");
+							first = false;
 
-			                String date = rs.getDate("SpecialDate").toString();
-			                String open = rs.getTime("OpenTime").toString();
-			                String close = rs.getTime("CloseTime").toString();
-			                String desc = encodeB64Url(rs.getString("Description"));
+							String date = rs.getDate("SpecialDate").toString();
+							String open = rs.getTime("OpenTime").toString();
+							String close = rs.getTime("CloseTime").toString();
+							String desc = encodeB64Url(rs.getString("Description"));
 
-			                sb.append(date).append(",").append(open).append(",").append(close).append(",").append(desc);
-			            }
-			        }
+							sb.append(date).append(",").append(open).append(",").append(close).append(",").append(desc);
+						}
+					}
 
-			        ans = sb.toString().endsWith("|") ? "OPENING_HOURS_SPECIAL|EMPTY" : sb.toString();
-			    } catch (Exception e) {
-			        e.printStackTrace();
-			        ans = "ERROR|OPENING_HOURS_SPECIAL";
-			    }
-			    break;
+					ans = sb.toString().endsWith("|") ? "OPENING_HOURS_SPECIAL|EMPTY" : sb.toString();
+				} catch (Exception e) {
+					e.printStackTrace();
+					ans = "ERROR|OPENING_HOURS_SPECIAL";
+				}
+				break;
 			}
 			case "#DELETE_OPENING_HOURS_SPECIAL": {
-			    if (parts.length < 2) { ans = "ERROR|BAD_FORMAT"; break; }
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT";
+					break;
+				}
 
-			    try {
-			        String dateStr = parts[1].trim();
+				try {
+					String dateStr = parts[1].trim();
 
-			        try (var con = mysqlConnection1.getDataSource().getConnection();
-			             var ps = con.prepareStatement(
-			                 "DELETE FROM bistro.openinghours WHERE SpecialDate=?"
-			             )) {
-			            ps.setDate(1, java.sql.Date.valueOf(dateStr));
-			            int deleted = ps.executeUpdate();
-			            ans = deleted > 0 ? "SPECIAL_DELETED" : "SPECIAL_NOT_FOUND";
-			        }
-			    } catch (Exception e) {
-			        e.printStackTrace();
-			        ans = "ERROR|DELETE_SPECIAL_FAILED";
-			    }
-			    break;
+					try (var con = mysqlConnection1.getDataSource().getConnection();
+							var ps = con.prepareStatement("DELETE FROM bistro.openinghours WHERE SpecialDate=?")) {
+						ps.setDate(1, java.sql.Date.valueOf(dateStr));
+						int deleted = ps.executeUpdate();
+						ans = deleted > 0 ? "SPECIAL_DELETED" : "SPECIAL_NOT_FOUND";
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+					ans = "ERROR|DELETE_SPECIAL_FAILED";
+				}
+				break;
 			}
 
 			case "#GET_OPENING_HOURS_WEEKLY": {
@@ -375,22 +384,19 @@ public class EchoServer extends AbstractServer {
 					StringBuilder sb = new StringBuilder("OPENING_HOURS_WEEKLY|");
 
 					try (var con = mysqlConnection1.getDataSource().getConnection();
-							var ps = con.prepareStatement(
-									"SELECT DayOfWeek, OpenTime, CloseTime " +
-											"FROM openinghours " +
-											"WHERE SpecialDate IS NULL AND DayOfWeek IS NOT NULL " +
-											"ORDER BY ScheduleID"
-									);
+							var ps = con.prepareStatement("SELECT DayOfWeek, OpenTime, CloseTime "
+									+ "FROM openinghours " + "WHERE SpecialDate IS NULL AND DayOfWeek IS NOT NULL "
+									+ "ORDER BY ScheduleID");
 							var rs = ps.executeQuery()) {
 
 						boolean first = true;
 						while (rs.next()) {
-							if (!first) sb.append("~");
+							if (!first)
+								sb.append("~");
 							first = false;
 
-							sb.append(rs.getString("DayOfWeek")).append(",")
-							.append(rs.getTime("OpenTime")).append(",")
-							.append(rs.getTime("CloseTime"));
+							sb.append(rs.getString("DayOfWeek")).append(",").append(rs.getTime("OpenTime")).append(",")
+									.append(rs.getTime("CloseTime"));
 						}
 					}
 
@@ -415,7 +421,7 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
-          
+
 			case "#GET_SUBSCRIBER_DETAILS": {
 				// Format: #GET_SUBSCRIBER_DETAILS <username>
 				if (parts.length < 2) {
@@ -434,9 +440,10 @@ public class EchoServer extends AbstractServer {
 					Subscriber sub = subscriberDAO.getByUsername(username);
 					if (sub != null) {
 						// Format: SUBSCRIBER_DETAILS|<id>|<username>|<fullName>|<phone>|<email>|<role>
-						ans = "SUBSCRIBER_DETAILS|" + sub.getSubscriberId() + "|" + sub.getUserName() + "|" + 
-								sub.getFullName() + "|" + (sub.getPhoneNumber() != null ? sub.getPhoneNumber() : "") + "|" +
-								(sub.getEmail() != null ? sub.getEmail() : "") + "|" + (sub.getRole() != null ? sub.getRole() : "");
+						ans = "SUBSCRIBER_DETAILS|" + sub.getSubscriberId() + "|" + sub.getUserName() + "|"
+								+ sub.getFullName() + "|" + (sub.getPhoneNumber() != null ? sub.getPhoneNumber() : "")
+								+ "|" + (sub.getEmail() != null ? sub.getEmail() : "") + "|"
+								+ (sub.getRole() != null ? sub.getRole() : "");
 					} else {
 						ans = "ERROR|SUBSCRIBER_NOT_FOUND";
 					}
@@ -445,7 +452,6 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
-
 
 			case "#REGISTER": {
 				if (parts.length < 2) {
@@ -465,15 +471,15 @@ public class EchoServer extends AbstractServer {
 				}
 
 				String creatorRole = p[0].trim();
-				String fullName    = p[1].trim();
-				String phone       = p[2].trim();
-				String email       = p[3].trim();
-				String userName    = p[4].trim();
-				String password    = p[5].trim();
-				String targetRole  = p[6].trim();
+				String fullName = p[1].trim();
+				String phone = p[2].trim();
+				String email = p[3].trim();
+				String userName = p[4].trim();
+				String password = p[5].trim();
+				String targetRole = p[6].trim();
 
-				if (fullName.isEmpty() || phone.isEmpty() || email.isEmpty()
-						|| userName.isEmpty() || password.isEmpty() || targetRole.isEmpty()) {
+				if (fullName.isEmpty() || phone.isEmpty() || email.isEmpty() || userName.isEmpty() || password.isEmpty()
+						|| targetRole.isEmpty()) {
 					ans = "REGISTER_ERROR|MISSING_FIELDS";
 					break;
 				}
@@ -527,13 +533,12 @@ public class EchoServer extends AbstractServer {
 						StringBuilder sb = new StringBuilder("ACTIVE_RESERVATIONS|");
 						for (int i = 0; i < list.size(); i++) {
 							Reservation r = list.get(i);
-							sb.append(r.getReservationId()).append(",")
-							.append(r.getRole()).append(",")
-							.append(r.getReservationDate().toString()).append(",")
-							.append(r.getReservationTime().toString()).append(",")
-							.append(r.getNumberOfGuests()).append(",")
-							.append(r.getStatus());
-							if (i < list.size() - 1) sb.append("~");
+							sb.append(r.getReservationId()).append(",").append(r.getRole()).append(",")
+									.append(r.getReservationDate().toString()).append(",")
+									.append(r.getReservationTime().toString()).append(",").append(r.getNumberOfGuests())
+									.append(",").append(r.getStatus());
+							if (i < list.size() - 1)
+								sb.append("~");
 						}
 						ans = sb.toString();
 					}
@@ -556,21 +561,12 @@ public class EchoServer extends AbstractServer {
 					// Reservation type is derived ONLY from subscriberId (NOT staff role)
 					String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
 
-
 					System.out.println("DEBUG: subscriberId=" + subscriberId + ", cType=" + cType);
 					System.out.println("DEBUG: phone=" + phone + ", email=" + email);
 
-					Reservation newRes = new Reservation(
-							0,
-							numGuests,
-							date,
-							time,
-							confirmationCode,
-							subscriberId,
-							"Confirmed",
-							cType,
-							null // TableNumber: not assigned yet
-							);
+					Reservation newRes = new Reservation(0, numGuests, date, time, confirmationCode, subscriberId,
+							"Confirmed", cType, null // TableNumber: not assigned yet
+					);
 
 					System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
 
@@ -606,23 +602,21 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#CANCEL_RESERVATION": {
-			    try {
-			        String code = pipeParts[1].trim();
-			        boolean canceled = reservationDAO.cancelReservationByConfirmationCode(code);
+				try {
+					String code = pipeParts[1].trim();
+					boolean canceled = reservationDAO.cancelReservationByConfirmationCode(code);
 
-			        ans = canceled
-			            ? "RESERVATION_CANCELED|" + code
-			            : "ERROR|CANCEL_FAILED|" + code;
-			        if (canceled) {
-			            client.sendToClient(getRestaurantTables());
-			            client.sendToClient(buildSeatedCustomersSnapshot());
-			            client.sendToClient(buildTodaysReservationsSnapshot());
-			        }
+					ans = canceled ? "RESERVATION_CANCELED|" + code : "ERROR|CANCEL_FAILED|" + code;
+					if (canceled) {
+						client.sendToClient(getRestaurantTables());
+						client.sendToClient(buildSeatedCustomersSnapshot());
+						client.sendToClient(buildTodaysReservationsSnapshot());
+					}
 
-			    } catch (Exception e) {
-			        ans = "ERROR|CANCEL_FAILED|" + (pipeParts.length > 1 ? pipeParts[1] : "") + "|" + e.getMessage();
-			    }
-			    break;
+				} catch (Exception e) {
+					ans = "ERROR|CANCEL_FAILED|" + (pipeParts.length > 1 ? pipeParts[1] : "") + "|" + e.getMessage();
+				}
+				break;
 			}
 
 			case "#GET_RESERVATIONS_BY_DATE": {
@@ -649,7 +643,7 @@ public class EchoServer extends AbstractServer {
 					}
 					java.time.LocalDate date = java.time.LocalDate.parse(parts[1]);
 					Map<String, String> hours = reservationDAO.getOpeningHoursForDate(date);
-					
+
 					if (hours != null) {
 						// Format: OPENING_HOURS|yyyy-MM-dd|HH:mm:ss|HH:mm:ss
 						ans = "OPENING_HOURS|" + parts[1] + "|" + hours.get("open") + "|" + hours.get("close");
@@ -680,8 +674,8 @@ public class EchoServer extends AbstractServer {
 			case "#GET_RESTAURANT_TABLES": {
 				ans = getRestaurantTables();
 				break;
-			}    
-      
+			}
+
 			case "#DELETE_EXPIRED_RESERVATIONS": {
 				try {
 					int count = reservationDAO.deleteExpiredReservations();
@@ -699,17 +693,14 @@ public class EchoServer extends AbstractServer {
 
 					if (res == null) {
 						ans = "INVALID_CONFIRMATION_CODE";
-					} 
-					else if ("Arrived".equalsIgnoreCase(res.getStatus())) {
+					} else if ("Arrived".equalsIgnoreCase(res.getStatus())) {
 						ans = "RESERVATION_ALREADY_USED";
-					}
-					else if (!res.getReservationDate().toLocalDate().equals(java.time.LocalDate.now())) {
-					    ans = "RESERVATION_NOT_FOR_TODAY";
-					}
-					else {
+					} else if (!res.getReservationDate().toLocalDate().equals(java.time.LocalDate.now())) {
+						ans = "RESERVATION_NOT_FOR_TODAY";
+					} else {
 						int tableNum = reservationDAO.allocateTableForCustomer(code);
 
-						if (tableNum != -1) {                                
+						if (tableNum != -1) {
 							ans = "TABLE_ASSIGNED|" + tableNum;
 						} else {
 							ans = "NO_TABLE_AVAILABLE";
@@ -729,16 +720,17 @@ public class EchoServer extends AbstractServer {
 					int diners = Integer.parseInt(parts[1]);
 					String contact = decodeB64Url(parts[2]);
 					String code = parts[3];
-					//Integer subId = (parts.length >= 5) ? Integer.parseInt(parts[4]) : null;
-					//boolean added = waitingListDAO.insert(contact, subId, diners, code, "Waiting");
+					// Integer subId = (parts.length >= 5) ? Integer.parseInt(parts[4]) : null;
+					// boolean added = waitingListDAO.insert(contact, subId, diners, code,
+					// "Waiting");
 					boolean added = waitingListDAO.insert(contact, diners, code, "Waiting");
 
 					ans = added ? "WAITING_ADDED|" + code : "ERROR|INSERT_FAILED";
-					if (added) broadcastWaitingListSnapshot();
+					if (added)
+						broadcastWaitingListSnapshot();
 				} catch (Exception e) {
 					e.printStackTrace();
-					ans = "ERROR|ADD_WAITING_LIST_FAILED|"
-							+ e.getClass().getSimpleName() + "|"
+					ans = "ERROR|ADD_WAITING_LIST_FAILED|" + e.getClass().getSimpleName() + "|"
 							+ (e.getMessage() == null ? "" : e.getMessage());
 				}
 				break;
@@ -748,8 +740,9 @@ public class EchoServer extends AbstractServer {
 				try {
 					ans = buildWaitingListProtocol();
 				} catch (Exception e) {
-					ans = "ERROR|DB_READ_FAILED"+ e.getClass().getSimpleName() + "|" +
-							(e.getMessage() == null ? "" : e.getMessage());;
+					ans = "ERROR|DB_READ_FAILED" + e.getClass().getSimpleName() + "|"
+							+ (e.getMessage() == null ? "" : e.getMessage());
+					;
 				}
 				break;
 			}
@@ -759,8 +752,9 @@ public class EchoServer extends AbstractServer {
 				try {
 					ans = buildWaitingListProtocol();
 				} catch (Exception e) {
-					ans = "ERROR|DB_READ_FAILED" + e.getClass().getSimpleName() + "|" +
-							(e.getMessage() == null ? "" : e.getMessage());;
+					ans = "ERROR|DB_READ_FAILED" + e.getClass().getSimpleName() + "|"
+							+ (e.getMessage() == null ? "" : e.getMessage());
+					;
 				}
 				break;
 			}
@@ -777,7 +771,8 @@ public class EchoServer extends AbstractServer {
 					String status = parts[2];
 					boolean updated = waitingListDAO.updateStatusByCode(code, status);
 					ans = updated ? "WAITING_STATUS_UPDATED" : "WAITING_NOT_FOUND";
-					if (updated) broadcastWaitingListSnapshot();
+					if (updated)
+						broadcastWaitingListSnapshot();
 				} catch (Exception e) {
 					ans = "ERROR|DB_UPDATE";
 				}
@@ -791,17 +786,15 @@ public class EchoServer extends AbstractServer {
 					boolean deleted = waitingListDAO.deleteByConfirmationCode(code);
 					ans = deleted ? ("WAITING_LEFT|" + code) : "ERROR|WAITING_NOT_FOUND";
 
-					if (deleted) broadcastWaitingListSnapshot();
+					if (deleted)
+						broadcastWaitingListSnapshot();
 				} catch (Exception e) {
 					e.printStackTrace();
-					ans = "ERROR|LEAVE_WAITING_LIST_FAILED|" + e.getClass().getSimpleName() + "|" +
-							(e.getMessage() == null ? "" : e.getMessage());
+					ans = "ERROR|LEAVE_WAITING_LIST_FAILED|" + e.getClass().getSimpleName() + "|"
+							+ (e.getMessage() == null ? "" : e.getMessage());
 				}
 				break;
 			}
-
-
-
 
 			case "#UPDATE_WAITING_ENTRY": {
 				try {
@@ -811,7 +804,8 @@ public class EchoServer extends AbstractServer {
 					String status = parts[4];
 					boolean updated = waitingListDAO.updateById(id, contact, diners, status);
 					ans = updated ? "WAITING_ENTRY_UPDATED" : "WAITING_NOT_FOUND";
-					if (updated) broadcastWaitingListSnapshot();
+					if (updated)
+						broadcastWaitingListSnapshot();
 				} catch (Exception e) {
 					ans = "ERROR|DB_UPDATE";
 				}
@@ -823,7 +817,8 @@ public class EchoServer extends AbstractServer {
 					int id = Integer.parseInt(parts[1]);
 					boolean deleted = waitingListDAO.deleteById(id);
 					ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
-					if (deleted) broadcastWaitingListSnapshot();
+					if (deleted)
+						broadcastWaitingListSnapshot();
 				} catch (Exception e) {
 					ans = "ERROR|DB_DELETE";
 				}
@@ -835,7 +830,8 @@ public class EchoServer extends AbstractServer {
 					String code = parts[1];
 					boolean deleted = waitingListDAO.deleteByConfirmationCode(code);
 					ans = deleted ? "WAITING_DELETED" : "WAITING_NOT_FOUND";
-					if (deleted) broadcastWaitingListSnapshot();
+					if (deleted)
+						broadcastWaitingListSnapshot();
 				} catch (Exception e) {
 					ans = "ERROR|DB_DELETE";
 				}
@@ -847,10 +843,12 @@ public class EchoServer extends AbstractServer {
 			case "#GET_BILL": {
 				String code = parts[1];
 				BillPaymentDAO.BillDetails b = billPaymentDAO.getBillDetails(code);
-				if (b == null) ans = "BILL_NOT_FOUND";
-				else ans = "BILL|" + b.getConfirmationCode() + "|" + b.getDiners() + "|"
-						+ b.getSubtotal().toPlainString() + "|" + b.getDiscountPercent() + "|"
-						+ b.getTotal().toPlainString() + "|" + b.getRole();
+				if (b == null)
+					ans = "BILL_NOT_FOUND";
+				else
+					ans = "BILL|" + b.getConfirmationCode() + "|" + b.getDiners() + "|"
+							+ b.getSubtotal().toPlainString() + "|" + b.getDiscountPercent() + "|"
+							+ b.getTotal().toPlainString() + "|" + b.getRole();
 				break;
 			}
 
@@ -858,8 +856,10 @@ public class EchoServer extends AbstractServer {
 				String code = parts[1];
 				String method = parts[2];
 				BillPaymentDAO.PaidResult res = billPaymentDAO.payBill(code, method);
-				if (res == null) ans = "BILL_NOT_FOUND";
-				else ans = "BILL_PAID|" + res.getConfirmationCode() + "|" + res.getTotal().toPlainString();
+				if (res == null)
+					ans = "BILL_NOT_FOUND";
+				else
+					ans = "BILL_PAID|" + res.getConfirmationCode() + "|" + res.getTotal().toPlainString();
 				break;
 			}
 
@@ -874,26 +874,25 @@ public class EchoServer extends AbstractServer {
 					List<Map<String, Object>> waitData = waitingListDAO.getWaitingListByDateRange(start, end);
 
 					StringBuilder sb = new StringBuilder("REPORTS_DATA|STATS:");
-					sb.append(stats.getOrDefault("total", 0)).append(",")
-					.append(stats.getOrDefault("confirmed", 0)).append(",")
-					.append(stats.getOrDefault("arrived", 0)).append(",")
-					.append(stats.getOrDefault("late", 0)).append(",")
-					.append(stats.getOrDefault("expired", 0)).append(",")
-					.append(stats.getOrDefault("totalGuests", 0)).append("|TIME_DIST:");
+					sb.append(stats.getOrDefault("total", 0)).append(",").append(stats.getOrDefault("confirmed", 0))
+							.append(",").append(stats.getOrDefault("arrived", 0)).append(",")
+							.append(stats.getOrDefault("late", 0)).append(",").append(stats.getOrDefault("expired", 0))
+							.append(",").append(stats.getOrDefault("totalGuests", 0)).append("|TIME_DIST:");
 
 					boolean first = true;
 					for (Map.Entry<Integer, Integer> entry : timeDist.entrySet()) {
-						if (!first) sb.append(";");
+						if (!first)
+							sb.append(";");
 						sb.append(entry.getKey()).append(",").append(entry.getValue());
 						first = false;
 					}
 					sb.append("|WAITING:");
 					first = true;
 					for (Map<String, Object> row : waitData) {
-						if (!first) sb.append(";");
-						sb.append(row.get("EntryDate")).append(",")
-						.append(row.get("WaitingCount")).append(",")
-						.append(row.get("ServedCount"));
+						if (!first)
+							sb.append(";");
+						sb.append(row.get("EntryDate")).append(",").append(row.get("WaitingCount")).append(",")
+								.append(row.get("ServedCount"));
 						first = false;
 					}
 					ans = sb.toString();
@@ -913,12 +912,11 @@ public class EchoServer extends AbstractServer {
 						StringBuilder sb = new StringBuilder("SUBSCRIBERS_LIST|");
 						for (int i = 0; i < subs.size(); i++) {
 							Subscriber s = subs.get(i);
-							sb.append(s.getSubscriberId()).append(",")
-							.append(s.getFullName()).append(",")
-							.append(s.getPhoneNumber()).append(",")
-							.append(s.getEmail()).append(",")
-							.append(s.getUserName());
-							if (i < subs.size() - 1) sb.append("~");
+							sb.append(s.getSubscriberId()).append(",").append(s.getFullName()).append(",")
+									.append(s.getPhoneNumber()).append(",").append(s.getEmail()).append(",")
+									.append(s.getUserName());
+							if (i < subs.size() - 1)
+								sb.append("~");
 						}
 						ans = sb.toString();
 					}
@@ -940,7 +938,7 @@ public class EchoServer extends AbstractServer {
 
 						if (rs.next()) {
 							// הנחה רק על סדר עמודות: id ואז open ואז close
-							open  = rs.getString("OpenTime");
+							open = rs.getString("OpenTime");
 							close = rs.getString("CloseTime");
 
 						}
@@ -949,26 +947,26 @@ public class EchoServer extends AbstractServer {
 					// ===== שולחנות: restauranttables =====
 					StringBuilder tablesPayload = new StringBuilder();
 					try (var con = mysqlConnection1.getDataSource().getConnection();
-							var ps = con.prepareStatement("SELECT TableNumber, Capacity FROM restauranttables ORDER BY TableNumber");
+							var ps = con.prepareStatement(
+									"SELECT TableNumber, Capacity FROM restauranttables ORDER BY TableNumber");
 							var rs = ps.executeQuery()) {
 
 						boolean first = true;
 						while (rs.next()) {
 							int tableNum = rs.getInt("TableNumber");
-							int cap      = rs.getInt("Capacity");
+							int cap = rs.getInt("Capacity");
 
-							if (!first) tablesPayload.append("~");
+							if (!first)
+								tablesPayload.append("~");
 							tablesPayload.append(tableNum).append(",").append(cap);
 							first = false;
 						}
 					}
 
-					if (tablesPayload.length() == 0) tablesPayload.append("EMPTY");
+					if (tablesPayload.length() == 0)
+						tablesPayload.append("EMPTY");
 
-
-					ans = "BRANCH_SETTINGS|"
-							+ (open == null ? "" : open) + "|"
-							+ (close == null ? "" : close) + "|"
+					ans = "BRANCH_SETTINGS|" + (open == null ? "" : open) + "|" + (close == null ? "" : close) + "|"
 							+ tablesPayload;
 
 				} catch (Exception e) {
@@ -1015,11 +1013,9 @@ public class EchoServer extends AbstractServer {
 						sb.append("EMPTY");
 					} else {
 						for (entities.ActiveReservation r : active) {
-							sb.append(r.getReservationDate()).append(",")
-							.append(r.getReservationTime()).append(",")
-							.append(r.getNumOfDiners()).append(",")
-							.append(r.getConfirmationCode()).append(",")
-							.append(r.getStatus()).append(";");
+							sb.append(r.getReservationDate()).append(",").append(r.getReservationTime()).append(",")
+									.append(r.getNumOfDiners()).append(",").append(r.getConfirmationCode()).append(",")
+									.append(r.getStatus()).append(";");
 						}
 					}
 
@@ -1028,12 +1024,10 @@ public class EchoServer extends AbstractServer {
 						sb.append("EMPTY");
 					} else {
 						for (entities.VisitHistory h : history) {
-							sb.append(h.getOriginalReservationDate()).append(",")
-							.append(h.getActualArrivalTime()).append(",")
-							.append(h.getActualDepartureTime()).append(",")
-							.append(h.getTotalBill()).append(",")
-							.append(h.getDiscountApplied()).append(",")
-							.append(h.getStatus()).append(";");
+							sb.append(h.getOriginalReservationDate()).append(",").append(h.getActualArrivalTime())
+									.append(",").append(h.getActualDepartureTime()).append(",").append(h.getTotalBill())
+									.append(",").append(h.getDiscountApplied()).append(",").append(h.getStatus())
+									.append(";");
 						}
 					}
 
@@ -1067,34 +1061,42 @@ public class EchoServer extends AbstractServer {
 				break;
 			}
 			case "#ASSIGN_TABLE": {
-			    try {
-			    	// #ASSIGN_TABLE|CODE|7
-			    	if (pipeParts.length < 3) {
-			            ans = "ASSIGN_TABLE_FAIL||BAD_FORMAT|Missing parameters";
-			            break;
-			        }
+				try {
+					// #ASSIGN_TABLE|CODE|7
+					if (pipeParts.length < 3) {
+						ans = "ASSIGN_TABLE_FAIL||BAD_FORMAT|Missing parameters";
+						break;
+					}
 
-			        String code = pipeParts[1].trim();
-			        int tableNum = Integer.parseInt(pipeParts[2].trim());
+					String code = pipeParts[1].trim();
+					int tableNum = Integer.parseInt(pipeParts[2].trim());
 
-			        boolean ok = reservationDAO.assignSpecificTable(code, tableNum);
+					boolean ok = reservationDAO.assignSpecificTable(code, tableNum);
 
-			        ans = ok
-			            ? "ASSIGN_TABLE_OK|" + code + "|" + tableNum
-			            : "ASSIGN_TABLE_FAIL|" + code + "|VALIDATION|Assign failed";
+					ans = ok ? "ASSIGN_TABLE_OK|" + code + "|" + tableNum
+							: "ASSIGN_TABLE_FAIL|" + code + "|VALIDATION|Assign failed";
 
-			        if (ok) {
-			            try { client.sendToClient(getRestaurantTables()); } catch (Exception ignored) {}
-			            try { client.sendToClient(buildSeatedCustomersSnapshot()); } catch (Exception ignored) {}
-			            try { client.sendToClient(buildTodaysReservationsSnapshot()); } catch (Exception ignored) {}
-			        }
+					if (ok) {
+						try {
+							client.sendToClient(getRestaurantTables());
+						} catch (Exception ignored) {
+						}
+						try {
+							client.sendToClient(buildSeatedCustomersSnapshot());
+						} catch (Exception ignored) {
+						}
+						try {
+							client.sendToClient(buildTodaysReservationsSnapshot());
+						} catch (Exception ignored) {
+						}
+					}
 
-			    } catch (Exception e) {
-			        ans = "ASSIGN_TABLE_FAIL||EXCEPTION|" + (e.getMessage() == null ? "" : e.getMessage());
-			    }
-			    break;
+				} catch (Exception e) {
+					ans = "ASSIGN_TABLE_FAIL||EXCEPTION|" + (e.getMessage() == null ? "" : e.getMessage());
+				}
+				break;
 			}
-			
+
 			case "#UPSERT_RESTAURANT_TABLE": {
 				// Format: #UPSERT_RESTAURANT_TABLE <tableNum> <capacity>
 				if (parts.length < 3) {
@@ -1114,12 +1116,12 @@ public class EchoServer extends AbstractServer {
 				break;
 			}
 			case "#GET_TODAYS_RESERVATIONS": {
-			    try {
-			        ans = buildTodaysReservationsSnapshot();
-			    } catch (Exception e) {
-			        ans = "TODAYS_RESERVATIONS|EMPTY";
-			    }
-			    break;
+				try {
+					ans = buildTodaysReservationsSnapshot();
+				} catch (Exception e) {
+					ans = "TODAYS_RESERVATIONS|EMPTY";
+				}
+				break;
 			}
 
 			case "#DELETE_RESTAURANT_TABLE": {
@@ -1151,7 +1153,8 @@ public class EchoServer extends AbstractServer {
 			e.printStackTrace();
 			try {
 				client.sendToClient("ERROR|" + e.getMessage());
-			} catch (IOException ignored) {}
+			} catch (IOException ignored) {
+			}
 			if (uiController != null) {
 				uiController.addLog("ERROR handling message: " + e.getMessage());
 			}
@@ -1161,13 +1164,35 @@ public class EchoServer extends AbstractServer {
 	// Helpers ********************************************************
 
 	private String reservationToProtocolString(Reservation r) {
-		return "RESERVATION|" + r.getReservationId() + "|" + r.getNumberOfGuests() + "|"
-				+ r.getReservationDate() + "|" + r.getReservationTime() + "|"
-				+ r.getConfirmationCode() + "|" + r.getSubscriberId() + "|" + r.getStatus() + "|" + r.getRole();
+		return "RESERVATION|" + r.getReservationId() + "|" + r.getNumberOfGuests() + "|" + r.getReservationDate() + "|"
+				+ r.getReservationTime() + "|" + r.getConfirmationCode() + "|" + r.getSubscriberId() + "|"
+				+ r.getStatus() + "|" + r.getRole();
+	}
+
+	private void broadcastAfterExpiryUpdate() {
+		String tables = getRestaurantTables();
+		String seated = buildSeatedCustomersSnapshot();
+		String today = buildTodaysReservationsSnapshot();
+
+		for (ConnectionToClient c : connectedClients.keySet().toArray(new ConnectionToClient[0])) {
+			try {
+				c.sendToClient(tables);
+			} catch (Exception ignored) {
+			}
+			try {
+				c.sendToClient(seated);
+			} catch (Exception ignored) {
+			}
+			try {
+				c.sendToClient(today);
+			} catch (Exception ignored) {
+			}
+		}
 	}
 
 	private void callUIMethod(String methodName, Class<?>[] parameterTypes, Object[] parameters) {
-		if (uiController == null) return;
+		if (uiController == null)
+			return;
 		try {
 			java.lang.reflect.Method method = uiController.getClass().getMethod(methodName, parameterTypes);
 			method.invoke(uiController, parameters);
@@ -1177,30 +1202,36 @@ public class EchoServer extends AbstractServer {
 	}
 
 	private String encodeB64Url(String s) {
-		if (s == null) s = "";
+		if (s == null)
+			s = "";
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(s.getBytes(StandardCharsets.UTF_8));
 	}
 
 	private String decodeB64Url(String b64) {
-		if (b64 == null || b64.isEmpty()) return "";
+		if (b64 == null || b64.isEmpty())
+			return "";
 		byte[] bytes = Base64.getUrlDecoder().decode(b64);
 		return new String(bytes, StandardCharsets.UTF_8);
 	}
 
 	private Integer extractSubscriberIdFromContactInfo(String contactInfo) {
-		if (contactInfo == null || contactInfo.isBlank()) return null;
+		if (contactInfo == null || contactInfo.isBlank())
+			return null;
 		try {
 			String key = "SubscriberID=";
 			int idx = contactInfo.indexOf(key);
-			if (idx < 0) return null;
+			if (idx < 0)
+				return null;
 			int start = idx + key.length();
 			int end = start;
 			while (end < contactInfo.length()) {
 				char c = contactInfo.charAt(end);
-				if (!(c >= '0' && c <= '9')) break;
+				if (!(c >= '0' && c <= '9'))
+					break;
 				end++;
 			}
-			if (end == start) return null;
+			if (end == start)
+				return null;
 			String num = contactInfo.substring(start, end);
 			return Integer.parseInt(num);
 		} catch (Exception e) {
@@ -1210,20 +1241,23 @@ public class EchoServer extends AbstractServer {
 
 	private String buildWaitingListProtocol() throws Exception {
 		List<WaitingEntry> list = waitingListDAO.getActiveWaiting();
-		if (list == null || list.isEmpty()) return "WAITING_LIST|EMPTY";
+		if (list == null || list.isEmpty())
+			return "WAITING_LIST|EMPTY";
 
 		StringBuilder sb = new StringBuilder("WAITING_LIST|");
 		for (int i = 0; i < list.size(); i++) {
 			WaitingEntry e = list.get(i);
 			String entryTime = (e.getEntryTime() == null) ? "" : e.getEntryTime().toString();
 			Integer subscriberId = e.getSubscriberId();
-			if (subscriberId == null) subscriberId = extractSubscriberIdFromContactInfo(e.getContactInfo());
+			if (subscriberId == null)
+				subscriberId = extractSubscriberIdFromContactInfo(e.getContactInfo());
 
 			String row = e.getWaitingId() + "," + encodeB64Url(e.getContactInfo()) + "," + e.getNumOfDiners() + ","
 					+ e.getConfirmationCode() + "," + (subscriberId == null ? "" : subscriberId.toString()) + ","
 					+ e.getStatus() + "," + entryTime;
 			sb.append(row);
-			if (i < list.size() - 1) sb.append("~");
+			if (i < list.size() - 1)
+				sb.append("~");
 		}
 		return sb.toString();
 	}
@@ -1240,88 +1274,74 @@ public class EchoServer extends AbstractServer {
 				}
 			}
 		} catch (Exception e) {
-			if (uiController != null) uiController.addLog("ERROR building waiting list snapshot: " + e.getMessage());
+			if (uiController != null)
+				uiController.addLog("ERROR building waiting list snapshot: " + e.getMessage());
 		}
 	}
 
 	private String buildTodaysReservationsSnapshot() {
-	    String sql =
-	        "SELECT " +
-	        "  ar.ConfirmationCode, " +
-	        "  ar.Role, " +
-	        "  ar.SubscriberID, " +
-	        "  ar.CasualPhone, " +
-	        "  ar.CasualEmail, " +
-	        "  ar.ReservationTime, " +
-	        "  ar.NumOfDiners, " +
-	        "  ar.Status, " +
-	        "  ar.TableNumber, " +
-	        "  s.FullName " +
-	        "FROM ActiveReservations ar " +
-	        "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
-	        "WHERE ar.ReservationDate = CURDATE() " +
-	        "  AND ar.Status IN ('Confirmed','Late','Arrived') " +
-	        "ORDER BY ar.ReservationTime ASC";
+		String sql = "SELECT " + "  ar.ConfirmationCode, " + "  ar.Role, " + "  ar.SubscriberID, "
+				+ "  ar.CasualPhone, " + "  ar.CasualEmail, " + "  ar.ReservationTime, " + "  ar.NumOfDiners, "
+				+ "  ar.Status, " + "  ar.TableNumber, " + "  s.FullName " + "FROM ActiveReservations ar "
+				+ "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID "
+				+ "WHERE ar.ReservationDate = CURDATE() " + "  AND ar.Status IN ('Confirmed','Late','Arrived') "
+				+ "ORDER BY ar.ReservationTime ASC";
 
-	    try (
-	        Connection conn = mysqlConnection1.getDataSource().getConnection();
-	        PreparedStatement ps = conn.prepareStatement(sql);
-	        ResultSet rs = ps.executeQuery()
-	    ) {
-	        StringBuilder sb = new StringBuilder();
+		try (Connection conn = mysqlConnection1.getDataSource().getConnection();
+				PreparedStatement ps = conn.prepareStatement(sql);
+				ResultSet rs = ps.executeQuery()) {
+			StringBuilder sb = new StringBuilder();
 
-	        while (rs.next()) {
-	            String role = rs.getString("Role");
+			while (rs.next()) {
+				String role = rs.getString("Role");
 
-	            String customer;
-	            if ("Subscriber".equalsIgnoreCase(role)) {
-	                customer = rs.getString("FullName");
-	                if (customer == null || customer.isBlank()) {
-	                    customer = "Subscriber#" + rs.getInt("SubscriberID");
-	                }
-	            } else { // Casual
-	                customer = rs.getString("CasualPhone");
-	                if (customer == null || customer.isBlank()) {
-	                    customer = rs.getString("CasualEmail");
-	                }
-	                if (customer == null || customer.isBlank()) {
-	                    customer = "Casual";
-	                }
-	            }
+				String customer;
+				if ("Subscriber".equalsIgnoreCase(role)) {
+					customer = rs.getString("FullName");
+					if (customer == null || customer.isBlank()) {
+						customer = "Subscriber#" + rs.getInt("SubscriberID");
+					}
+				} else { // Casual
+					customer = rs.getString("CasualPhone");
+					if (customer == null || customer.isBlank()) {
+						customer = rs.getString("CasualEmail");
+					}
+					if (customer == null || customer.isBlank()) {
+						customer = "Casual";
+					}
+				}
 
-	            String customerB64 = encodeB64Url(customer);
+				String customerB64 = encodeB64Url(customer);
 
-	            int guests = rs.getInt("NumOfDiners");
-	            String time = rs.getTime("ReservationTime").toString();
-	            String status = rs.getString("Status");
-	            Integer tableNumber = (Integer) rs.getObject("TableNumber"); // may be null
-	            String tableStr = (tableNumber == null) ? "" : String.valueOf(tableNumber);
+				int guests = rs.getInt("NumOfDiners");
+				String time = rs.getTime("ReservationTime").toString();
+				String status = rs.getString("Status");
+				Integer tableNumber = (Integer) rs.getObject("TableNumber"); // may be null
+				String tableStr = (tableNumber == null) ? "" : String.valueOf(tableNumber);
 
-	            String confirmationCode = rs.getString("ConfirmationCode");
-	            if (confirmationCode == null) confirmationCode = "";
+				String confirmationCode = rs.getString("ConfirmationCode");
+				if (confirmationCode == null)
+					confirmationCode = "";
 
-	            if (sb.length() > 0) sb.append("~");
+				if (sb.length() > 0)
+					sb.append("~");
 
-	            // Format must match your client:
-	            // customerB64,guests,time,status,tableNum,confirmationCode
-	            sb.append(customerB64).append(",")
-	              .append(guests).append(",")
-	              .append(time).append(",")
-	              .append(status).append(",")
-	              .append(tableStr).append(",")
-	              .append(confirmationCode);
-	        }
+				// Format must match your client:
+				// customerB64,guests,time,status,tableNum,confirmationCode
+				sb.append(customerB64).append(",").append(guests).append(",").append(time).append(",").append(status)
+						.append(",").append(tableStr).append(",").append(confirmationCode);
+			}
 
-	        if (sb.length() == 0) {
-	            return "TODAYS_RESERVATIONS|EMPTY";
-	        }
+			if (sb.length() == 0) {
+				return "TODAYS_RESERVATIONS|EMPTY";
+			}
 
-	        return "TODAYS_RESERVATIONS|" + sb;
+			return "TODAYS_RESERVATIONS|" + sb;
 
-	    } catch (Exception e) {
-	        e.printStackTrace();
-	        return "TODAYS_RESERVATIONS|EMPTY";
-	    }
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "TODAYS_RESERVATIONS|EMPTY";
+		}
 	}
 	// Lifecycle ******************************************************
 
@@ -1334,24 +1354,67 @@ public class EchoServer extends AbstractServer {
 			waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
 			subscriberDAO = new SubscriberDAO(mysqlConnection1.getDataSource());
 			loginDAO = new LoginDAO(mysqlConnection1.getDataSource());
-			if (uiController != null) uiController.addLog("Server started + DB pool ready");
+			startExpiryScheduler();
+			
+			if (uiController != null)
+				uiController.addLog("Server started + DB pool ready");
 		} catch (Exception e) {
 			System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
-			if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
+			if (uiController != null)
+				uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
 		}
+	}
+	
+
+	private void startExpiryScheduler() {
+		if (expiryJobStarted)
+			return;
+		expiryJobStarted = true;
+
+		expiryScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+			Thread t = new Thread(r, "reservation-expiry-scheduler");
+			t.setDaemon(true);
+			return t;
+		});
+
+		expiryScheduler.scheduleWithFixedDelay(() -> {
+			try {
+				if (reservationDAO == null)
+					return; // safety
+				int expired = reservationDAO.expireOverdueReservations();
+
+				if (expired > 0) {
+					System.out.println("[EXPIRY] Expired " + expired + " reservations.");
+					broadcastAfterExpiryUpdate();
+
+					if (uiController != null)
+						uiController.addLog("[EXPIRY] Expired " + expired + " reservations.");
+				}
+			} catch (Exception e) {
+				System.err.println("[EXPIRY] Job failed: " + e.getMessage());
+				e.printStackTrace();
+			}
+		}, 10, 60, TimeUnit.SECONDS);
 	}
 
 	@Override
 	protected void serverStopped() {
 		System.out.println("Server has stopped listening.");
-		if (uiController != null) uiController.addLog("Server stopped listening.");
+		if (uiController != null)
+			uiController.addLog("Server stopped listening.");
 		try {
 			for (Object o : connectedClients.keySet().toArray()) {
-				try { ((ConnectionToClient) o).close(); } catch (Exception ignored) {}
+				try {
+					((ConnectionToClient) o).close();
+				} catch (Exception ignored) {
+				}
 			}
 			connectedClients.clear();
 		} catch (Exception e) {
 			System.err.println("Error cleaning clients: " + e.getMessage());
+		}
+		if (expiryScheduler != null) {
+			expiryScheduler.shutdownNow();
 		}
 		mysqlConnection1.shutdownPool();
 	}
@@ -1405,26 +1468,16 @@ public class EchoServer extends AbstractServer {
 
 	private String buildSeatedCustomersSnapshot() {
 
-		String sql =
-				"SELECT ar.CustomerType, " +
-						"       ar.SubscriberID, " +
-						"       ar.CasualPhone, " +
-						"       ar.CasualEmail, " +
-						"       ar.ReservationTime, " +
-						"       ar.NumOfDiners, " +
-						"       ar.Status, " +
-						"       ar.TableNumber, " +
-						"       s.FullName " +
-						"FROM ActiveReservations ar " +
-						"LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
-						"WHERE ar.TableNumber IS NOT NULL " +     // 🔥 זה כל הקסם
-						"ORDER BY ar.TableNumber ASC";
+		String sql = "SELECT ar.Role, " + "       ar.SubscriberID, " + "       ar.CasualPhone, "
+				+ "       ar.CasualEmail, " + "       ar.ReservationTime, " + "       ar.NumOfDiners, "
+				+ "       ar.Status, " + "       ar.TableNumber, " + "       s.FullName "
+				+ "FROM ActiveReservations ar " + "LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID "
+				+ "WHERE ar.TableNumber IS NOT NULL " + // 🔥 זה כל הקסם
+				"ORDER BY ar.TableNumber ASC";
 
-		try (
-				Connection conn = mysqlConnection1.getDataSource().getConnection();
+		try (Connection conn = mysqlConnection1.getDataSource().getConnection();
 				PreparedStatement ps = conn.prepareStatement(sql);
-				ResultSet rs = ps.executeQuery()
-				) {
+				ResultSet rs = ps.executeQuery()) {
 
 			StringBuilder sb = new StringBuilder();
 
@@ -1451,15 +1504,14 @@ public class EchoServer extends AbstractServer {
 				String status = rs.getString("Status");
 				int tableNumber = rs.getInt("TableNumber");
 
-				String customerB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(customer.getBytes(StandardCharsets.UTF_8));
+				String customerB64 = Base64.getUrlEncoder().withoutPadding()
+						.encodeToString(customer.getBytes(StandardCharsets.UTF_8));
 
-				if (sb.length() > 0) sb.append("~");
+				if (sb.length() > 0)
+					sb.append("~");
 
-				sb.append(customerB64).append(",")
-				.append(guests).append(",")
-				.append(time).append(",")
-				.append(status).append(",")
-				.append(tableNumber);
+				sb.append(customerB64).append(",").append(guests).append(",").append(time).append(",").append(status)
+						.append(",").append(tableNumber);
 			}
 
 			if (sb.length() == 0) {
@@ -1495,7 +1547,7 @@ public class EchoServer extends AbstractServer {
 				        COALESCE((
 				            SELECT GROUP_CONCAT(
 				                CASE
-				                    WHEN ar.CustomerType = 'Subscriber'
+				                    WHEN ar.Role = 'Subscriber'
 				                        THEN s.FullName
 				                    ELSE ar.CasualPhone
 				                END
@@ -1511,20 +1563,13 @@ public class EchoServer extends AbstractServer {
 				    ORDER BY rt.TableNumber
 				""";
 
-
-
-
-		try (
-				Connection conn = mysqlConnection1.getDataSource().getConnection();
+		try (Connection conn = mysqlConnection1.getDataSource().getConnection();
 				PreparedStatement ps = conn.prepareStatement(query);
-				ResultSet rs = ps.executeQuery()
-				) {
+				ResultSet rs = ps.executeQuery()) {
 			while (rs.next()) {
-				sb.append(rs.getInt("TableNumber")).append(",")
-				.append(rs.getInt("Capacity")).append(",")
-				.append(rs.getString("Status")).append(",")
-				.append(rs.getString("AssignedTo").replace(",", " "))
-				.append("~");
+				sb.append(rs.getInt("TableNumber")).append(",").append(rs.getInt("Capacity")).append(",")
+						.append(rs.getString("Status")).append(",").append(rs.getString("AssignedTo").replace(",", " "))
+						.append("~");
 			}
 
 		} catch (Exception e) {
@@ -1539,5 +1584,5 @@ public class EchoServer extends AbstractServer {
 		sb.deleteCharAt(sb.length() - 1);
 		return "RESTAURANT_TABLES|" + sb;
 	}
-  
+
 }

@@ -3,7 +3,6 @@ package ClientGUI.controller;
 import java.io.IOException;
 
 import ClientGUI.util.SceneUtil;
-import ClientGUI.controller.HostDashboardController;
 import ClientGUI.util.ViewLoader;
 import client.ChatClient;
 import common.ChatIF;
@@ -266,27 +265,14 @@ public class ClientUIController implements ChatIF {
                 r.onReservationsReceived(message);
                 return;
             }
-            if (message.startsWith("OPENING_HOURS|")) {
-                r.onOpeningHoursReceived(message);
-                return;
-            }
             if (message.startsWith("RESERVATION_CREATED")) {
                 r.onBookingResponse(message);
                 return;
             }
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
-                    || message.startsWith("ERROR|CANCEL_FAILED")
                     || message.startsWith("ERROR|CANCEL")) {
-
-                // send to Reservation window if open
                 r.onCancelResponse(message);
-
-                // ALSO send to host dashboard if open
-                HostDashboardController h = HostDashboardController.instance;
-                if (h != null) {
-                    h.onCancelResponse(message);
-                }
                 return;
             }
         }
@@ -302,34 +288,6 @@ public class ClientUIController implements ChatIF {
             }
         }
 
-        // 2.5) Route Host Dashboard messages
-        HostDashboardController h = HostDashboardController.instance;
-        if (h != null) {
-            if (message.startsWith("RESTAURANT_TABLES|")) {
-                h.updateTablesFromMessage(message);
-                return;
-            }
-            if (message.startsWith("SEATED_CUSTOMERS|")) {
-                h.updateSeatedCustomersFromMessage(message);
-                return;
-            }
-
-            // Optional: if you implement explicit assign-table command replies
-            if (message.startsWith("ASSIGN_TABLE_OK|") || message.startsWith("ASSIGN_TABLE_FAIL|")) {
-                h.onAssignTableResponse(message);
-                return;
-            }
-            if (message.startsWith("TODAYS_RESERVATIONS|")) {
-                h.updateTodaysReservationsFromMessage(message);
-                return;
-            }
-            if (message.startsWith("RESERVATION_CANCELED|")
-                    || message.startsWith("ERROR|CANCEL_FAILED")
-                    || message.startsWith("ERROR|CANCEL")) {
-                h.onCancelResponse(message);
-                return;
-            }
-        }
         // 3) Handle main screen messages
         handleMainScreenServerMessage(message);
     }
