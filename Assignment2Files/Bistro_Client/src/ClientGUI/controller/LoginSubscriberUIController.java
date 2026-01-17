@@ -128,11 +128,15 @@ public class LoginSubscriberUIController {
     }
 
     /**
-     * Handles the "Sign Off" button click.
-     * Clears the user session and navigates back to the main login screen.
+     * Handles the "Back" button click.
+     * Returns to the main login screen.
      *
      * @param event The event triggered by clicking the button.
      */
+    @FXML
+    void onBack(ActionEvent event) {
+        navigate(event, "UserLoginUIView.fxml");
+    }
     @FXML
     void onSignOff(ActionEvent event) {
     	try {

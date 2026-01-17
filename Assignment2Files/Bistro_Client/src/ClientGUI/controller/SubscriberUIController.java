@@ -265,7 +265,7 @@ public class SubscriberUIController implements Initializable {
             LoginSubscriberUIController controller = loader.getController();
             if (currentSubscriber != null) {
                 controller.setSubscriber(currentSubscriber);
-            } else {
+                } else {
                 controller.setSubscriberName(usernameField.getText());
             }
 

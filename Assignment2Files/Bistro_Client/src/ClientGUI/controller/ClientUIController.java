@@ -266,14 +266,22 @@ public class ClientUIController implements ChatIF {
                 r.onReservationsReceived(message);
                 return;
             }
+            
             if (message.startsWith("OPENING_HOURS|")) {
                 r.onOpeningHoursReceived(message);
                 return;
             }
+            
+            if (message.startsWith("AVAILABILITY|")) {
+                r.onAvailabilityResponse(message);
+                return;
+            }
+
             if (message.startsWith("RESERVATION_CREATED")) {
                 r.onBookingResponse(message);
                 return;
             }
+            
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL_FAILED")
