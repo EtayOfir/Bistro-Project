@@ -962,7 +962,11 @@ public class ReservationDAO {
                 conn.rollback();
                 throw ex;
             } finally {
-                conn.setAutoCommit(true);
+                try {
+                    conn.setAutoCommit(true);
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
@@ -982,7 +986,7 @@ public class ReservationDAO {
      */
     public int allocateTableForCustomer(String confirmationCode) {
         int assignedTable = -1;
-
+    
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
 
@@ -1048,13 +1052,17 @@ public class ReservationDAO {
                 return assignedTable;
 
             } catch (SQLException e) {
-                conn.rollback();
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    e.addSuppressed(ex); // Suppress rollback exception to show original error
+                }
+                e.printStackTrace(); // Log the exception
                 return -1;
-            } finally {
-                try { conn.setAutoCommit(true); } catch (Exception ignored) {}
             }
-
+    
         } catch (SQLException e) {
+            e.printStackTrace(); // Log connection acquisition exception
             return -1;
         }
     }

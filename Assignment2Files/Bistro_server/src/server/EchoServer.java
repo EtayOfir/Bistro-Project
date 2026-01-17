@@ -21,6 +21,7 @@ import ServerGUI.ServerUIController;
 import entities.Reservation;
 import entities.Subscriber;
 import entities.WaitingEntry;
+import methods.CommonMethods;
 import DBController.mysqlConnection1;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -55,11 +56,14 @@ public class EchoServer extends AbstractServer {
 	/** Managers that subscribed to live waiting-list updates. */
 	private final java.util.Set<ConnectionToClient> waitingListSubscribers = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+	/** Observers that want to be notified when reservations are cancelled. */
+	private final java.util.List<CommonMethods.CancellationObserver> cancellationObservers = new java.util.concurrent.CopyOnWriteArrayList<>();
+
 	// Constructors ****************************************************
 
 	public EchoServer(int port) {
 		super(port);
-		this.connectedClients = new HashMap<>();
+		this.connectedClients = new java.util.concurrent.ConcurrentHashMap<>();
 		this.dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 	}
 
@@ -127,10 +131,68 @@ public class EchoServer extends AbstractServer {
 		}
 	}
 
+	/**
+	 * Adds an observer that will be notified when reservations are cancelled.
+	 */
+	public void addCancellationObserver(CommonMethods.CancellationObserver observer) {
+		cancellationObservers.add(observer);
+	}
+
+	/**
+	 * Removes a cancellation observer.
+	 */
+	public void removeCancellationObserver(CommonMethods.CancellationObserver observer) {
+		cancellationObservers.remove(observer);
+	}
+
+	/**
+	 * Notifies all cancellation observers about a cancelled reservation.
+	 * Only the first eligible observer (earliest waiting list entry) will be assigned.
+	 */
+	private void notifyCancellationObservers(Reservation cancelledReservation) {
+		try {
+			WaitingEntry notifiedEntry = waitingListDAO.findAndNotifyEligibleWaitingEntry(cancelledReservation.getNumberOfGuests());
+
+			if (notifiedEntry != null) {
+				// Send SMS notification
+				StringBuilder smsMessage = new StringBuilder();
+				smsMessage.append("Great news! A table became available for ")
+						 .append(cancelledReservation.getNumberOfGuests())
+						 .append(" people at ")
+						 .append(cancelledReservation.getReservationTime() != null ? cancelledReservation.getReservationTime().toString() : "[time not available]")
+						 .append(" on ")
+						 .append(cancelledReservation.getReservationDate() != null ? cancelledReservation.getReservationDate().toString() : "[date not available]")
+						 .append(". Your confirmation code is: ")
+						 .append(notifiedEntry.getConfirmationCode())
+						 .append(". Please contact the restaurant to confirm.");
+
+				CommonMethods.sendSMSMock(smsMessage);
+			}
+		} catch (Exception e) {
+			System.err.println("Error notifying waiting list of cancellation: " + e.getMessage());
+			e.printStackTrace();
+		}
+
+		// Also notify any registered observers (for future extensibility)
+		for (CommonMethods.CancellationObserver observer : cancellationObservers) {
+			try {
+				observer.onReservationCancelled(cancelledReservation);
+			} catch (Exception e) {
+				System.err.println("Error notifying cancellation observer: " + e.getMessage());
+				e.printStackTrace();
+			}
+		}
+	}
+
 	// Message Handling ************************************************
 
 	@Override
 	public void handleMessageFromClient(Object msg, ConnectionToClient client) {
+		if (msg == null) {
+			System.err.println("ERROR: Received null message from " + client);
+			return;
+		}
+
 		if (msg instanceof String) {
 			String message = (String) msg;
 
@@ -348,9 +410,13 @@ public class EchoServer extends AbstractServer {
 			                if (!first) sb.append("~");
 			                first = false;
 
-			                String date = rs.getDate("SpecialDate").toString();
-			                String open = rs.getTime("OpenTime").toString();
-			                String close = rs.getTime("CloseTime").toString();
+			                Date specialDate = rs.getDate("SpecialDate");
+			                Time openTime = rs.getTime("OpenTime");
+			                Time closeTime = rs.getTime("CloseTime");
+
+			                String date = (specialDate == null) ? "" : specialDate.toString();
+			                String open = (openTime == null) ? "" : openTime.toString();
+			                String close = (closeTime == null) ? "" : closeTime.toString();
 			                String desc = encodeB64Url(rs.getString("Description"));
 
 			                sb.append(date).append(",").append(open).append(",").append(close).append(",").append(desc);
@@ -527,8 +593,12 @@ public class EchoServer extends AbstractServer {
 					int resId = Integer.parseInt(parts[1]);
 					Reservation r = reservationDAO.getReservationById(resId);
 					ans = (r == null) ? "RESERVATION_NOT_FOUND" : reservationToProtocolString(r);
+				} catch (NumberFormatException e) {
+					ans = "ERROR|INVALID_ID_FORMAT";
+				} catch (java.sql.SQLException e) {
+					ans = "ERROR|DB_READ_FAILED";
 				} catch (Exception e) {
-					ans = "ERROR|INVALID_ID";
+					ans = "ERROR|UNKNOWN_GET_ERROR";
 				}
 				break;
 			}
@@ -542,10 +612,12 @@ public class EchoServer extends AbstractServer {
 						StringBuilder sb = new StringBuilder("ACTIVE_RESERVATIONS|");
 						for (int i = 0; i < list.size(); i++) {
 							Reservation r = list.get(i);
+							Date reservationDate = r.getReservationDate();
+							Time reservationTime = r.getReservationTime();
 							sb.append(r.getReservationId()).append(",")
 							.append(r.getRole()).append(",")
-							.append(r.getReservationDate().toString()).append(",")
-							.append(r.getReservationTime().toString()).append(",")
+							.append(reservationDate != null ? reservationDate.toString() : "").append(",")
+							.append(reservationTime != null ? reservationTime.toString() : "").append(",")
 							.append(r.getNumberOfGuests()).append(",")
 							.append(r.getStatus());
 							if (i < list.size() - 1) sb.append("~");
@@ -559,6 +631,51 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#CREATE_RESERVATION": {
+				try {
+					System.out.println("DEBUG: CREATE_RESERVATION command received");
+					int numGuests = Integer.parseInt(parts[1]);
+					Date date = Date.valueOf(parts[2]);
+					Time time = Time.valueOf(parts[3]);
+					String confirmationCode = parts[4];
+					int subscriberId = Integer.parseInt(parts[5]);
+					String phone = parts.length > 6 ? parts[6] : "";
+					String email = parts.length > 7 ? parts[7] : "";
+					// Reservation type is derived ONLY from subscriberId (NOT staff role)
+					String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
+
+
+					System.out.println("DEBUG: subscriberId=" + subscriberId + ", cType=" + cType);
+					System.out.println("DEBUG: phone=" + phone + ", email=" + email);
+
+					Reservation newRes = new Reservation(
+							0,
+							numGuests,
+							date,
+							time,
+							confirmationCode,
+							subscriberId,
+							"Confirmed",
+							cType,
+							null // TableNumber: not assigned yet
+							);
+
+					System.out.println("DEBUG: Calling insertReservation with Role=" + newRes.getRole());
+
+					try {
+						int generatedId = reservationDAO.insertReservation(newRes, phone, email, subscriberId);
+						System.out.println("DEBUG: Generated reservation ID=" + generatedId);
+						ans = (generatedId > 0) ? "RESERVATION_CREATED|" + generatedId : "ERROR|INSERT_FAILED";
+						System.out.println("DEBUG: Sending response: " + ans);
+					} catch (java.sql.SQLException sqlEx) {
+						System.err.println("ERROR: SQL Exception during reservation insert: " + sqlEx.getMessage());
+						sqlEx.printStackTrace();
+						ans = "ERROR|DB_ERROR " + sqlEx.getMessage();
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+					ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
+				}
+				break;
 			    ans = "ERROR|UNEXPECTED"; 
 
 			    try {
@@ -642,6 +759,21 @@ public class EchoServer extends AbstractServer {
 
 
 			case "#UPDATE_RESERVATION": {
+				try {
+					int id = Integer.parseInt(parts[1]);
+					int guests = Integer.parseInt(parts[2]);
+					Date date = Date.valueOf(parts[3]);
+					Time time = Time.valueOf(parts[4]);
+					boolean updated = reservationDAO.updateReservation(id, guests, date, time);
+					ans = updated ? "RESERVATION_UPDATED" : "RESERVATION_NOT_FOUND";
+				} catch (NumberFormatException | IllegalArgumentException e) {
+					ans = "ERROR|INVALID_DATA_FORMAT";
+				} catch (java.sql.SQLException e) {
+					ans = "ERROR|DB_UPDATE_FAILED";
+				} catch (Exception e) {
+					ans = "ERROR|UNKNOWN_UPDATE_ERROR";
+				}
+				break;
 			    try {
 			        int id = Integer.parseInt(parts[1]);
 			        int guests = Integer.parseInt(parts[2]);
@@ -660,6 +792,10 @@ public class EchoServer extends AbstractServer {
 
 
 			case "#CANCEL_RESERVATION": {
+			    if (pipeParts.length < 2) {
+			        ans = "ERROR|BAD_FORMAT|CANCEL_RESERVATION";
+			        break;
+			    }
 			    try {
 			        String code = pipeParts[1].trim();
 			        boolean canceled = reservationDAO.cancelReservationByConfirmationCode(code);
@@ -668,6 +804,12 @@ public class EchoServer extends AbstractServer {
 			            ? "RESERVATION_CANCELED|" + code
 			            : "ERROR|CANCEL_FAILED|" + code;
 			        if (canceled) {
+			            // Get the cancelled reservation details for notification
+			            Reservation cancelledReservation = reservationDAO.getReservationByConfirmationCode(code);
+			            if (cancelledReservation != null) {
+			                notifyCancellationObservers(cancelledReservation);
+			            }
+
 			            client.sendToClient(getRestaurantTables());
 			            client.sendToClient(buildSeatedCustomersSnapshot());
 			            client.sendToClient(buildTodaysReservationsSnapshot());
@@ -685,9 +827,14 @@ public class EchoServer extends AbstractServer {
 					List<Reservation> list = reservationDAO.getReservationsByDate(date);
 					StringBuilder sb = new StringBuilder("RESERVATIONS_FOR_DATE|").append(parts[1]);
 					for (Reservation r : list) {
-						sb.append("|").append(r.getReservationTime().toString());
+						Time reservationTime = r.getReservationTime();
+						sb.append("|").append(reservationTime != null ? reservationTime.toString() : "");
 					}
 					ans = sb.toString();
+				} catch (IllegalArgumentException e) {
+					ans = "ERROR|INVALID_DATE_FORMAT";
+				} catch (java.sql.SQLException e) {
+					ans = "ERROR|DB_READ_FAILED";
 				} catch (Exception e) {
 					ans = "ERROR|DB_ERROR";
 				}
@@ -758,6 +905,10 @@ public class EchoServer extends AbstractServer {
 						ans = "ERROR|NO_OPENING_HOURS";
 						System.out.println("DEBUG: No opening hours found, sending error response");
 					}
+				} catch (java.time.format.DateTimeParseException e) {
+					ans = "ERROR|INVALID_DATE_FORMAT";
+				} catch (java.sql.SQLException e) {
+					ans = "ERROR|DB_READ_FAILED";
 				} catch (Exception e) {
 					ans = "ERROR|OPENING_HOURS_ERROR";
 					System.out.println("DEBUG: Exception in GET_OPENING_HOURS: " + e.getMessage());
@@ -786,6 +937,8 @@ public class EchoServer extends AbstractServer {
 				try {
 					int count = reservationDAO.deleteExpiredReservations();
 					ans = "DELETED_EXPIRED|" + count;
+				} catch (java.sql.SQLException e) {
+					ans = "ERROR|DB_DELETE_FAILED";
 				} catch (Exception e) {
 					ans = "ERROR|DELETE_FAILED";
 				}
@@ -793,6 +946,10 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#RECEIVE_TABLE": {
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT|RECEIVE_TABLE";
+					break;
+				}
 				try {
 					String code = parts[1];
 					Reservation res = reservationDAO.getReservationByConfirmationCode(code);
@@ -803,7 +960,7 @@ public class EchoServer extends AbstractServer {
 					else if ("Arrived".equalsIgnoreCase(res.getStatus())) {
 						ans = "RESERVATION_ALREADY_USED";
 					}
-					else if (!res.getReservationDate().toLocalDate().equals(java.time.LocalDate.now())) {
+					else if (res.getReservationDate() == null || !res.getReservationDate().toLocalDate().equals(java.time.LocalDate.now())) {
 					    ans = "RESERVATION_NOT_FOR_TODAY";
 					}
 					else {
@@ -825,6 +982,10 @@ public class EchoServer extends AbstractServer {
 			// --- WAITING LIST ---
 
 			case "#ADD_WAITING_LIST": {
+				if (parts.length < 4) {
+					ans = "ERROR|BAD_FORMAT|ADD_WAITING_LIST";
+					break;
+				}
 				try {
 					int diners = Integer.parseInt(parts[1]);
 					String contact = decodeB64Url(parts[2]);
@@ -872,6 +1033,10 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#UPDATE_WAITING_STATUS": {
+				if (parts.length < 3) {
+					ans = "ERROR|BAD_FORMAT|UPDATE_WAITING_STATUS";
+					break;
+				}
 				try {
 					String code = parts[1];
 					String status = parts[2];
@@ -885,6 +1050,10 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#LEAVE_WAITING_LIST": {
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT|LEAVE_WAITING_LIST";
+					break;
+				}
 				try {
 					String code = parts[1]; // Format: #LEAVE_WAITING_LIST <code>
 
@@ -904,6 +1073,10 @@ public class EchoServer extends AbstractServer {
 
 
 			case "#UPDATE_WAITING_ENTRY": {
+				if (parts.length < 5) {
+					ans = "ERROR|BAD_FORMAT|UPDATE_WAITING_ENTRY";
+					break;
+				}
 				try {
 					int id = Integer.parseInt(parts[1]);
 					int diners = Integer.parseInt(parts[2]);
@@ -919,6 +1092,10 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#DELETE_WAITING_ID": {
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT|DELETE_WAITING_ID";
+					break;
+				}
 				try {
 					int id = Integer.parseInt(parts[1]);
 					boolean deleted = waitingListDAO.deleteById(id);
@@ -931,6 +1108,10 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#DELETE_WAITING_CODE": {
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT|DELETE_WAITING_CODE";
+					break;
+				}
 				try {
 					String code = parts[1];
 					boolean deleted = waitingListDAO.deleteByConfirmationCode(code);
@@ -945,6 +1126,10 @@ public class EchoServer extends AbstractServer {
 			// --- BILLS ---
 
 			case "#GET_BILL": {
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT|GET_BILL";
+					break;
+				}
 				String code = parts[1];
 				BillPaymentDAO.BillDetails b = billPaymentDAO.getBillDetails(code);
 				if (b == null) ans = "BILL_NOT_FOUND";
@@ -955,6 +1140,10 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#PAY_BILL": {
+				if (parts.length < 3) {
+					ans = "ERROR|BAD_FORMAT|PAY_BILL";
+					break;
+				}
 				String code = parts[1];
 				String method = parts[2];
 				BillPaymentDAO.PaidResult res = billPaymentDAO.payBill(code, method);
@@ -966,92 +1155,46 @@ public class EchoServer extends AbstractServer {
 			// --- REPORTS ---
 
 			case "#GET_REPORTS_DATA": {
-			    try {
-			        // פורמט הודעה: #GET_REPORTS_DATA <Month> <Year>
-			        int month = Integer.parseInt(parts[1]);
-			        int year = Integer.parseInt(parts[2]);
+				if (parts.length < 3) {
+					ans = "ERROR|BAD_FORMAT|GET_REPORTS_DATA";
+					break;
+				}
+				try {
+					Date start = Date.valueOf(parts[1]);
+					Date end = Date.valueOf(parts[2]);
+					Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(start, end);
+					Map<Integer, Integer> timeDist = reservationDAO.getReservationTimeDistribution(start, end);
+					List<Map<String, Object>> waitData = waitingListDAO.getWaitingListByDateRange(start, end);
 
-			        // חישוב תאריכי התחלה וסוף של החודש (עבור הסטטיסטיקה הכללית)
-			        java.time.LocalDate start = java.time.LocalDate.of(year, month, 1);
-			        java.time.LocalDate end = start.with(java.time.temporal.TemporalAdjusters.lastDayOfMonth());
-			        Date sqlStart = Date.valueOf(start);
-			        Date sqlEnd = Date.valueOf(end);
+					StringBuilder sb = new StringBuilder("REPORTS_DATA|STATS:");
+					sb.append(stats.getOrDefault("total", 0)).append(",")
+					.append(stats.getOrDefault("confirmed", 0)).append(",")
+					.append(stats.getOrDefault("arrived", 0)).append(",")
+					.append(stats.getOrDefault("late", 0)).append(",")
+					.append(stats.getOrDefault("expired", 0)).append(",")
+					.append(stats.getOrDefault("totalGuests", 0)).append("|TIME_DIST:");
 
-			        // --- שליפת הנתונים מה-DAO ---
-
-			        // 1. נתונים כלליים (עבור התוויות וגרף העוגה)
-			        Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(sqlStart, sqlEnd);
-
-			        // 2. נתונים לגרף העמודות (שעות הגעה בפועל - במקום איחורים)
-			        Map<Integer, Integer> hourlyData = reservationDAO.getHourlyArrivals(month, year);
-			        Map<Integer, Integer> departureData = reservationDAO.getHourlyDepartures(month, year);
-			        // 3. נתונים לגרף הקווים (מנויים מול רשימת המתנה - יומי)
-			        Map<Integer, Integer> subDaily = reservationDAO.getDailyStats(month, year, "SUBSCRIBER");
-			        Map<Integer, Integer> waitDaily = reservationDAO.getDailyStats(month, year, "WAITING");
-
-			        // --- בניית מחרוזת התשובה ---
-			        StringBuilder sb = new StringBuilder("REPORTS_DATA");
-
-			        // חלק 1: סטטיסטיקה כללית (STATS)
-			        // Format: total,confirmed,arrived,late,expired,totalGuests
-			        sb.append("|STATS:");
-			        sb.append(stats.getOrDefault("total", 0)).append(",")
-			          .append(stats.getOrDefault("confirmed", 0)).append(",")
-			          .append(stats.getOrDefault("arrived", 0)).append(",")
-			          .append(stats.getOrDefault("late", 0)).append(",")
-			          .append(stats.getOrDefault("expired", 0)).append(",")
-			          .append(stats.getOrDefault("totalGuests", 0));
-
-			        // חלק 2: שעות עומס (HOURLY_ARRIVALS)
-			        // Format: hour,count;hour,count...
-			        sb.append("|HOURLY_ARRIVALS:");
-			        boolean first = true;
-			        for (Map.Entry<Integer, Integer> entry : hourlyData.entrySet()) {
-			            int hour = entry.getKey();
-			            int count = entry.getValue();
-			            if (count > 0) { // שולחים רק שעות שיש בהן פעילות
-			                if (!first) sb.append(";");
-			                sb.append(hour).append(",").append(count);
-			                first = false;
-			            }
-			        }
-			        sb.append("|HOURLY_DEPARTURES:");
-			        first = true;
-			        for (Map.Entry<Integer, Integer> entry : departureData.entrySet()) {
-			            int hour = entry.getKey();
-			            int count = entry.getValue();
-			            if (count > 0) {
-			                if (!first) sb.append(";");
-			                sb.append(hour).append(",").append(count);
-			                first = false;
-			            }
-			        }
-
-			        // חלק 3: סטטיסטיקה יומית (SUBSCRIBER_STATS)
-			        // Format: day,subCount,waitCount;...
-			        sb.append("|SUBSCRIBER_STATS:");
-			        first = true;
-			        int daysInMonth = start.lengthOfMonth();
-			        
-			        for (int d = 1; d <= daysInMonth; d++) {
-			            int subs = subDaily.getOrDefault(d, 0);
-			            int wait = waitDaily.getOrDefault(d, 0);
-			            
-			            // שולחים רק ימים שיש בהם פעילות כדי לחסוך מקום
-			            if (subs > 0 || wait > 0) {
-			                if (!first) sb.append(";");
-			                sb.append(d).append(",").append(subs).append(",").append(wait);
-			                first = false;
-			            }
-			        }
-
-			        ans = sb.toString();
-
-			    } catch (Exception e) {
-			        e.printStackTrace();
-			        ans = "ERROR|REPORTS_FAILED";
-			    }
-			    break;
+					boolean first = true;
+					for (Map.Entry<Integer, Integer> entry : timeDist.entrySet()) {
+						if (!first) sb.append(";");
+						sb.append(entry.getKey()).append(",").append(entry.getValue());
+						first = false;
+					}
+					sb.append("|WAITING:");
+					first = true;
+					for (Map<String, Object> row : waitData) {
+						if (!first) sb.append(";");
+						sb.append(row.get("EntryDate")).append(",")
+						.append(row.get("WaitingCount")).append(",")
+						.append(row.get("ServedCount"));
+						first = false;
+					}
+					ans = sb.toString();
+				} catch (Exception e) {
+					ans = "ERROR|REPORTS_FAILED";
+					e.printStackTrace();
+				}
+				break;
 			}
 
 			case "#GET_ALL_SUBSCRIBERS": {
@@ -1127,6 +1270,10 @@ public class EchoServer extends AbstractServer {
 
 			case "#UPDATE_SUBSCRIBER_INFO": {
 				// Format: #UPDATE_SUBSCRIBER_INFO <id> <phone> <email>
+				if (parts.length < 4) {
+					ans = "ERROR|BAD_FORMAT|UPDATE_SUBSCRIBER_INFO";
+					break;
+				}
 				try {
 					int subId = Integer.parseInt(parts[1]);
 					String phone = parts[2];
@@ -1142,6 +1289,10 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#GET_SUBSCRIBER_DATA": {
+				if (parts.length < 2) {
+					ans = "ERROR|BAD_FORMAT|GET_SUBSCRIBER_DATA";
+					break;
+				}
 				try {
 					int subId = Integer.parseInt(parts[1]);
 
@@ -1162,11 +1313,11 @@ public class EchoServer extends AbstractServer {
 						sb.append("EMPTY");
 					} else {
 						for (entities.ActiveReservation r : active) {
-							sb.append(r.getReservationDate()).append(",")
-							.append(r.getReservationTime()).append(",")
+							sb.append(r.getReservationDate() != null ? r.getReservationDate() : "").append(",")
+							.append(r.getReservationTime() != null ? r.getReservationTime() : "").append(",")
 							.append(r.getNumOfDiners()).append(",")
-							.append(r.getConfirmationCode()).append(",")
-							.append(r.getStatus()).append(";");
+							.append(r.getConfirmationCode() != null ? r.getConfirmationCode() : "").append(",")
+							.append(r.getStatus() != null ? r.getStatus() : "").append(";");
 						}
 					}
 
@@ -1175,12 +1326,12 @@ public class EchoServer extends AbstractServer {
 						sb.append("EMPTY");
 					} else {
 						for (entities.VisitHistory h : history) {
-							sb.append(h.getOriginalReservationDate()).append(",")
-							.append(h.getActualArrivalTime()).append(",")
-							.append(h.getActualDepartureTime()).append(",")
-							.append(h.getTotalBill()).append(",")
-							.append(h.getDiscountApplied()).append(",")
-							.append(h.getStatus()).append(";");
+							sb.append(h.getOriginalReservationDate() != null ? h.getOriginalReservationDate() : "").append(",")
+							.append(h.getActualArrivalTime() != null ? h.getActualArrivalTime() : "").append(",")
+							.append(h.getActualDepartureTime() != null ? h.getActualDepartureTime() : "").append(",")
+							.append(h.getTotalBill() != null ? h.getTotalBill() : "").append(",")
+							.append(h.getDiscountApplied() != null ? h.getDiscountApplied() : "").append(",")
+							.append(h.getStatus() != null ? h.getStatus() : "").append(";");
 						}
 					}
 
@@ -1440,7 +1591,8 @@ public class EchoServer extends AbstractServer {
 	            String customerB64 = encodeB64Url(customer);
 
 	            int guests = rs.getInt("NumOfDiners");
-	            String time = rs.getTime("ReservationTime").toString();
+	            Time reservationTime = rs.getTime("ReservationTime");
+	            String time = (reservationTime == null) ? "" : reservationTime.toString();
 	            String status = rs.getString("Status");
 	            Integer tableNumber = (Integer) rs.getObject("TableNumber"); // may be null
 	            String tableStr = (tableNumber == null) ? "" : String.valueOf(tableNumber);
@@ -1596,7 +1748,8 @@ public class EchoServer extends AbstractServer {
 				}
 
 				int guests = rs.getInt("NumOfDiners");
-				String time = rs.getTime("ReservationTime").toString();
+				Time reservationTime = rs.getTime("ReservationTime");
+				String time = (reservationTime == null) ? "" : reservationTime.toString();
 				String status = rs.getString("Status");
 				int tableNumber = rs.getInt("TableNumber");
 				String code = rs.getString("ConfirmationCode");
