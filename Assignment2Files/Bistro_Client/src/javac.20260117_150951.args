@@ -1,3 +1,0 @@
--cp
-.:../../Bistro_Common/src:../../Bistro_Ocsf/src
-ManagerWaitingListUI/ManagerWaitingListController.java
