@@ -1,0 +1,6 @@
+--enable-preview
+--release
+17
+-cp
+Bistro_Client/src:Bistro_Common/src:Bistro_Ocsf/src
+Bistro_Client/src/ClientGUI/controller/ClientWaitingListController.java
