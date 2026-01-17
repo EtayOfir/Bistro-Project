@@ -133,9 +133,32 @@ public class LoginSubscriberUIController {
      *
      * @param event The event triggered by clicking the button.
      */
-    @FXML
     void onBack(ActionEvent event) {
         navigate(event, "UserLoginUIView.fxml");
+    }
+
+    @FXML
+    void onSignOff(ActionEvent event) {
+    	try {
+            // Disconnect from server cleanly
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("LOGOUT");
+                ClientUI.chat.closeConnection();
+                ClientUI.chat = null;
+            }
+
+            // Return to login screen
+            FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
+            Parent root = loader.load();
+
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setTitle("Login");
+            stage.setScene(SceneUtil.createStyledScene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**

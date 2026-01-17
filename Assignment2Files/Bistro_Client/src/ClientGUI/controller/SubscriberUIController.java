@@ -181,6 +181,7 @@ public class SubscriberUIController implements Initializable {
                         if (currentSubscriber != null) {
                             currentSubscriber.setPhoneNumber(det[0]);
                             currentSubscriber.setEmail(det[1]);
+                            
                         }
                     }
                 }
@@ -264,7 +265,7 @@ public class SubscriberUIController implements Initializable {
             // העברת שם המנוי חזרה למסך הראשי כדי שהכותרת תישמר
             LoginSubscriberUIController controller = loader.getController();
             if (currentSubscriber != null) {
-                controller.setSubscriberName(currentSubscriber.getUserName());
+                controller.setSubscriber(currentSubscriber);
             } else {
                 controller.setSubscriberName(usernameField.getText());
             }

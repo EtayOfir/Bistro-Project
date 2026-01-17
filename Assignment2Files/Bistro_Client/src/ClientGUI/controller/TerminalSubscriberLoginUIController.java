@@ -13,46 +13,83 @@ import javafx.stage.Stage;
  */
 public class TerminalSubscriberLoginUIController {
 
-    @FXML private TextField usernameField;
-    @FXML private PasswordField passwordField;
-    @FXML private Label errorLabel;
+	@FXML private TextField usernameField;
+	@FXML private PasswordField passwordField;
+	@FXML private Label errorLabel;
 
-    // הפניה לקונטרולר של הטרמינל כדי שנוכל לעדכן אותו שהתחברנו
-    private RestaurantTerminalUIController parentController;
+	// הפניה לקונטרולר של הטרמינל כדי שנוכל לעדכן אותו שהתחברנו
+	private RestaurantTerminalUIController parentController;
 
-    public void setParentController(RestaurantTerminalUIController parent) {
-        this.parentController = parent;
-    }
+	public void setParentController(RestaurantTerminalUIController parent) {
+		this.parentController = parent;
+	}
 
-    @FXML
-    void onOK(ActionEvent event) {
-        String user = usernameField.getText();
-        String pass = passwordField.getText();
+	@FXML
+	void onOK(ActionEvent event) {
+		String user = usernameField.getText().trim();
+		String pass = passwordField.getText().trim();
 
-        if (user.isEmpty() || pass.isEmpty()) {
-            errorLabel.setText("Please enter all fields");
-            return;
+		if (user.isEmpty() || pass.isEmpty()) {
+			errorLabel.setText("Please enter all fields");
+			return;
+		}
+
+		// כאן תוכלי להוסיף בדיקה מול השרת (Server) אם הפרטים נכונים.
+		// כרגע נניח שההתחברות הצליחה:
+
+		try {
+			if (ClientUI.chat == null) {
+				errorLabel.setText("No connection to server");
+				return;
+			}
+			ClientUI.chat.handleMessageFromClientUI("#LOGIN " + user + " " + pass);
+            String response = ClientUI.chat.waitForMessage();
+
+            if (response != null && response.startsWith("LOGIN_SUCCESS")) {
+                // פירוק התשובה: LOGIN_SUCCESS|<Role>|<ID>|<Name>
+                String[] parts = response.split("\\|");
+                String role = (parts.length > 1) ? parts[1] : "Subscriber";
+
+                int id = (parts.length > 2) ? Integer.parseInt(parts[2]) : 0;
+                String fullName = (parts.length > 3) ? parts[3] : user;
+
+                // --- זה החלק שהיה חסר: יצירת אובייקט והעברתו ---
+                entities.Subscriber sub = new entities.Subscriber();
+                sub.setSubscriberId(id);
+                sub.setUserName(user);
+                sub.setFullName(fullName);
+                sub.setRole(role);
+
+                // 2. עדכון השרת בזהות החדשה (IDENTIFY) - מתבצע מכאן!
+                // כך אנחנו לא צריכים לשנות את הפונקציה באבא
+                ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + user + "|" + role);
+
+                // 3. עדכון ה-GUI בטרמינל (באמצעות הפונקציה המקורית שלא שינינו)
+                if (parentController != null) {
+                    parentController.setLoggedInSubscriber(sub);
+                }
+
+                closeWindow(event);
+            } else {
+                errorLabel.setText("Invalid username or password");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            errorLabel.setText("Login error");
         }
-
-        // כאן תוכלי להוסיף בדיקה מול השרת (Server) אם הפרטים נכונים.
-        // כרגע נניח שההתחברות הצליחה:
-        
-        if (parentController != null) {
-            // מעדכן את הטרמינל שהמשתמש התחבר
-            parentController.setLoggedInSubscriber(user);
-        }
-
-        // סוגר את החלונית הקופצת
-        closeWindow(event);
     }
 
-    @FXML
-    void onCancel(ActionEvent event) {
-        closeWindow(event);
-    }
 
-    private void closeWindow(ActionEvent event) {
-        Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-        stage.close();
-    }
-}
+		
+
+		@FXML
+		void onCancel(ActionEvent event) {
+			closeWindow(event);
+		}
+
+		private void closeWindow(ActionEvent event) {
+			Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
+			stage.close();
+		}
+	}
