@@ -111,7 +111,8 @@
 }
 
 /* ---------- Inputs ---------- */
-.text-field, .password-field, .text-area {
+/* Default styles for text inputs. .form-field is an alias for the same style. */
+.text-field, .password-field, .text-area, .form-field {
     -fx-background-color: #FFFFFF;
     -fx-background-radius: 10;
     -fx-border-radius: 10;
@@ -123,7 +124,7 @@
     -fx-prompt-text-fill: #9A9A9A;
 }
 
-.text-field:focused, .password-field:focused, .text-area:focused {
+.text-field:focused, .password-field:focused, .text-area:focused, .form-field:focused {
     -fx-border-color: #128D57; /* basil focus */
     -fx-border-width: 1.2;
 }
@@ -135,22 +136,6 @@
     -fx-border-color: #D7D7D7;
     -fx-border-width: 1;
     -fx-padding: 4 8;
-}
-
-/* For the Server form fields if you use styleClass="form-field" */
-.form-field {
-    -fx-background-color: #FFFFFF;
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
-    -fx-border-color: #D7D7D7;
-    -fx-border-width: 1;
-    -fx-padding: 10 12;
-    -fx-text-fill: #222222;
-    -fx-prompt-text-fill: #9A9A9A;
-}
-.form-field:focused {
-    -fx-border-color: #128D57;
-    -fx-border-width: 1.2;
 }
 
 /* ---------- Buttons ---------- */

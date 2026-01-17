@@ -292,4 +292,52 @@ public class WaitingListDAO {
     }
 
     
+
+    public WaitingEntry findAndNotifyEligibleWaitingEntry(int availableSeats) throws SQLException {
+        String findQuery = "SELECT * FROM WaitingList WHERE Status = 'Waiting' AND NumOfDiners <= ? ORDER BY EntryTime ASC LIMIT 1 FOR UPDATE";
+        String updateQuery = "UPDATE WaitingList SET Status = 'TableFound' WHERE WaitingID = ?";
+
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false); // Start transaction
+
+            try {
+                WaitingEntry entry = null;
+                try (PreparedStatement findPs = conn.prepareStatement(findQuery)) {
+                    findPs.setInt(1, availableSeats);
+
+                    try (ResultSet rs = findPs.executeQuery()) {
+                        if (rs.next()) {
+                            entry = mapRow(rs);
+                        }
+                    }
+                }
+
+                if (entry != null) {
+                    try (PreparedStatement updatePs = conn.prepareStatement(updateQuery)) {
+                        updatePs.setInt(1, entry.getWaitingId());
+                        int updatedRows = updatePs.executeUpdate();
+                        if (updatedRows > 0) {
+                            conn.commit();
+                            return entry;
+                        } else {
+                            conn.rollback();
+                            return null;
+                        }
+                    }
+                } else {
+                    conn.rollback(); // No entry found
+                    return null;
+                }
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                try {
+                    conn.setAutoCommit(true);
+                } catch (SQLException e) {
+                    e.printStackTrace(); // Log error on resetting auto-commit
+                }
+            }
+        }
+    }
 }

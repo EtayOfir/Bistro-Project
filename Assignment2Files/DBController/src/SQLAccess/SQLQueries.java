@@ -381,7 +381,63 @@ public final class SQLQueries {
 			+ "(SubscriberID, OriginalReservationDate, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status) "
 			+ "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
+  /**
+     * Report: Daily count of waiting list entries.
+     * Grouped by day of the specific month.
+     */
+    public static final String GET_WAITING_DAILY_STATS =
+        "SELECT DAY(EntryTime) as Day, COUNT(*) as Count " +
+        "FROM WaitingList " +
+        "WHERE MONTH(EntryTime) = ? AND YEAR(EntryTime) = ? " +
+        "GROUP BY Day ORDER BY Day";
+    
+    /**
+     * Report: Daily count of waiting list entries for SUBSCRIBERS ONLY.
+     * Filters by checking if ContactInfo contains 'SubscriberID='.
+     */
+    public static final String GET_WAITING_DAILY_STATS_SUBSCRIBERS_ONLY =
+        "SELECT DAY(EntryTime) as Day, COUNT(*) as Count " +
+        "FROM WaitingList " +
+        "WHERE MONTH(EntryTime) = ? AND YEAR(EntryTime) = ? " +
+        "AND ContactInfo LIKE '%SubscriberID=%' " +  
+        "GROUP BY Day ORDER BY Day";
+    
+  /**
+     * Report: Daily count of active reservations for SUBSCRIBERS only.
+     * Grouped by day of the specific month.
+     */
+    public static final String GET_SUBSCRIBER_DAILY_STATS =
+        "SELECT DAY(ReservationDate) as Day, COUNT(*) as Count " +
+        "FROM ActiveReservations " +
+        "WHERE MONTH(ReservationDate) = ? AND YEAR(ReservationDate) = ? " +
+        "AND Role = 'Subscriber' " +
+        "GROUP BY Day ORDER BY Day";
+  
+  /**
+     * Report: Hourly Analysis.
+     * Groups visits by the hour of actual arrival.
+     * Used to analyze peak hours based on history.
+     */
+    public static final String GET_HOURLY_ARRIVALS = 
+            "SELECT HOUR(ActualArrivalTime) as Hour, COUNT(*) as Count " +
+            "FROM VisitHistory " +
+            "WHERE ActualArrivalTime IS NOT NULL " +
+            "AND MONTH(ActualArrivalTime) = ? AND YEAR(ActualArrivalTime) = ? " +
+            "GROUP BY HOUR(ActualArrivalTime) " +
+            "ORDER BY Hour";
 	
+    /**
+     * Report: Hourly Departure Analysis.
+     * Groups visits by the hour of actual departure.
+     */
+    public static final String GET_HOURLY_DEPARTURES = 
+            "SELECT HOUR(ActualDepartureTime) as Hour, COUNT(*) as Count " +
+            "FROM VisitHistory " +
+            "WHERE ActualDepartureTime IS NOT NULL " +
+            "AND MONTH(ActualArrivalTime) = ? AND YEAR(ActualArrivalTime) = ? " +
+            "GROUP BY HOUR(ActualDepartureTime) " +
+            "ORDER BY Hour";
+  
 	public static final String MARK_RESERVATION_EXPIRED_BY_CODE = "UPDATE ActiveReservations SET Status='Expired' "
 			+ "WHERE ConfirmationCode=? AND Status IN ('Confirmed','Late')";
 

@@ -26,8 +26,8 @@ public class TerminalSubscriberLoginUIController {
 
     @FXML
     void onOK(ActionEvent event) {
-        String user = usernameField.getText();
-        String pass = passwordField.getText();
+    	 String user = usernameField.getText().trim();
+         String pass = passwordField.getText().trim();
 
         if (user.isEmpty() || pass.isEmpty()) {
             errorLabel.setText("Please enter all fields");
@@ -37,14 +37,50 @@ public class TerminalSubscriberLoginUIController {
         // כאן תוכלי להוסיף בדיקה מול השרת (Server) אם הפרטים נכונים.
         // כרגע נניח שההתחברות הצליחה:
         
-        if (parentController != null) {
-            // מעדכן את הטרמינל שהמשתמש התחבר
-            parentController.setLoggedInSubscriber(user);
-        }
+        try {
+            if (ClientUI.chat == null) {
+                errorLabel.setText("No connection to server");
+                return;
+            }  // 1. אימות מול השרת
+            ClientUI.chat.handleMessageFromClientUI("#LOGIN " + user + " " + pass);
+            String response = ClientUI.chat.waitForMessage();
 
-        // סוגר את החלונית הקופצת
-        closeWindow(event);
+            if (response != null && response.startsWith("LOGIN_SUCCESS")) {
+                // פירוק התשובה: LOGIN_SUCCESS|<Role>|<ID>|<Name>
+                String[] parts = response.split("\\|");
+                String role = (parts.length > 1) ? parts[1] : "Subscriber";
+
+                int id = (parts.length > 2) ? Integer.parseInt(parts[2]) : 0;
+                String fullName = (parts.length > 3) ? parts[3] : user;
+
+                // --- זה החלק שהיה חסר: יצירת אובייקט והעברתו ---
+                entities.Subscriber sub = new entities.Subscriber();
+                sub.setSubscriberId(id);
+                sub.setUserName(user);
+                sub.setFullName(fullName);
+                sub.setRole(role);
+
+                // 2. עדכון השרת בזהות החדשה (IDENTIFY) - מתבצע מכאן!
+                // כך אנחנו לא צריכים לשנות את הפונקציה באבא
+                ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + user + "|" + role);
+
+                // 3. עדכון ה-GUI בטרמינל (באמצעות הפונקציה המקורית שלא שינינו)
+                if (parentController != null) {
+                    parentController.setLoggedInSubscriber(sub);
+                }
+
+                closeWindow(event);
+            } else {
+                errorLabel.setText("Invalid username or password");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            errorLabel.setText("Login error");
+        }
     }
+
+
 
     @FXML
     void onCancel(ActionEvent event) {

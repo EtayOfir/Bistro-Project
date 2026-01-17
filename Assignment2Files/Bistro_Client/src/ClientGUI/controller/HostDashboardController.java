@@ -143,6 +143,40 @@ public class HostDashboardController {
         queueTable.refresh();
     }
 
+    public void updateTodaysReservationsFromMessage(String msg) {
+        if (msg == null || !msg.startsWith("TODAYS_RESERVATIONS|")) return;
+
+        Platform.runLater(() -> {
+            try {
+                //reservations.clear();
+
+                String payload = msg.substring("TODAYS_RESERVATIONS|".length());
+                if (payload.equals("EMPTY") || payload.isBlank()) {
+                    queueTable.refresh();
+                    return;
+                }
+
+                for (String row : payload.split("~")) {
+                    String[] parts = row.split(",", -1);
+                    if (parts.length < 6) continue;
+
+                    String customer = decodeB64Url(parts[0]);
+                    int guests = Integer.parseInt(parts[1]);
+                    String time = parts[2];
+                    String status = parts[3];
+                    String tableNum = parts[4];
+                    String code = parts[5];
+
+                    reservations.add(new ReservationRow(customer, guests, time, status, tableNum, code));
+                }
+
+                queueTable.refresh();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+    
     @FXML
     private void onCancelClicked(ActionEvent event) {
         ReservationRow selectedReservation = queueTable.getSelectionModel().getSelectedItem();

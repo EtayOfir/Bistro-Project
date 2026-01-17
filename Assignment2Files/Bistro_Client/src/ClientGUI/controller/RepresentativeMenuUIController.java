@@ -123,15 +123,11 @@ public class RepresentativeMenuUIController {
         try {
         	FXMLLoader loader = ViewLoader.fxml("HostDashboard.fxml");
             Parent root = loader.load();
-
             HostDashboardController controller = loader.getController();
             
-            // הגדרת הקשר (שם ותפקיד) לתצוגה
             controller.setUserContext(currentUserName, "Representative"); 
 
-            // --- הוספי את השורה הזו: הגדרת נתיב חזרה לנציג ---
             controller.setReturnPath("RepresentativeMenuUI.fxml", "Representative Dashboard", currentUserName, "Representative");
-            // ----------------------------------------------------
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle("Host Dashboard - Representative (" + currentUserName + ")");
@@ -144,7 +140,6 @@ public class RepresentativeMenuUIController {
         }
     }
 
-    // --- Navigation ---
 
     private void triggerExpiredReservationsCleanup() {
         try {

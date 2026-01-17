@@ -63,6 +63,168 @@ public class ReservationDAO {
         this.dataSource = dataSource;
         waitingListDAO = new WaitingListDAO(dataSource);
     }
+    
+ // ====== Table allocation for booking (±2 hours) ======
+    private static final int TABLE_RADIUS_MINUTES = 120;
+
+    
+    private int findTableForBooking(Connection conn, LocalDate date, LocalTime time, int diners) throws SQLException {
+
+    	String sql =
+    		    "SELECT rt.TableNumber " +
+    		    "FROM RestaurantTables rt " +
+    		    "WHERE rt.Capacity >= ? " +
+    		    "  AND NOT EXISTS ( " +
+    		    "      SELECT 1 FROM ActiveReservations ar " +
+    		    "      WHERE ar.TableNumber = rt.TableNumber " +
+    		    "        AND ar.ReservationDate = ? " +
+    		    "        AND ar.Status IN ('Confirmed','Arrived','Late') " +
+    		    "        AND ABS(TIMESTAMPDIFF(MINUTE, " +
+    		    "            TIMESTAMP(ar.ReservationDate, ar.ReservationTime), " +
+    		    "            TIMESTAMP(?, ?) " +
+    		    "        )) <= ? " +
+    		    "  ) " +
+    		    "ORDER BY rt.Capacity ASC, RAND() " +
+    		    "LIMIT 1";
+
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, diners);                 // rt.Capacity >= ?
+            ps.setDate(2, Date.valueOf(date));    // ar.ReservationDate = ?
+            ps.setDate(3, Date.valueOf(date));    // TIMESTAMP(?, ?)  <-- התאריך
+            ps.setTime(4, Time.valueOf(time));    // TIMESTAMP(?, ?)  <-- השעה
+            ps.setInt(5, TABLE_RADIUS_MINUTES);   // < ?
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return -1;
+                return rs.getInt(1); // TableNumber
+            }
+        }
+    }
+    private int getMaxTableCapacity(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT MAX(Capacity) AS mx FROM RestaurantTables");
+             ResultSet rs = ps.executeQuery()) {
+            if (!rs.next()) return 0;
+            return rs.getInt("mx");
+        }
+    }
+ // ====== Availability checks (server-side source of truth) ======
+
+    /** Result object for an availability check. */
+    public static class AvailabilityResult {
+        public final boolean available;
+        public final List<LocalDateTime> alternatives;
+        public final String errorCode; // null if no error
+
+        public AvailabilityResult(boolean available, List<LocalDateTime> alternatives, String errorCode) {
+            this.available = available;
+            this.alternatives = alternatives;
+            this.errorCode = errorCode;
+        }
+    }
+
+    /**
+     * Checks whether the given date/time is available for the requested party size.
+     *
+     * Uses the same table-allocation logic as booking (including ±2 hours blocking rule),
+     * but does not insert anything into the DB.
+     */
+    public AvailabilityResult checkAvailability(LocalDate date, LocalTime time, int diners) throws SQLException {
+        try (Connection conn = dataSource.getConnection()) {
+            int maxCap = getMaxTableCapacity(conn);
+            if (maxCap <= 0) {
+                return new AvailabilityResult(false, List.of(), "NO_TABLES_DEFINED");
+            }
+            if (diners > maxCap) {
+                return new AvailabilityResult(false, List.of(), "CAPACITY_TOO_LARGE|" + diners + "|" + maxCap);
+            }
+
+            int table = findTableForBooking(conn, date, time, diners);
+            if (table != -1) {
+                return new AvailabilityResult(true, List.of(), null);
+            }
+
+            List<LocalDateTime> alts = findAlternativeSlots(date, time, diners, 4);
+            return new AvailabilityResult(false, alts, null);
+        }
+    }
+
+    /**
+     * Finds up to limit alternative slots (nearest first).
+     *
+     * Strategy:
+     * - Same day within ±3 hours, step 15 minutes (prefer later first).
+     * - If still not enough, scan next 3 days from opening time in 30-minute steps.
+     */
+    private List<LocalDateTime> findAlternativeSlots(LocalDate date, LocalTime requested, int diners, int limit) throws SQLException {
+        List<LocalDateTime> out = new ArrayList<>();
+
+        // Opening hours (fallback 08:00-23:00)
+        LocalTime open = LocalTime.of(8, 0);
+        LocalTime close = LocalTime.of(23, 0);
+        try {
+            Map<String, String> hours = getOpeningHoursForDate(date);
+            if (hours != null) {
+                if (hours.get("open") != null) open = LocalTime.parse(hours.get("open"));
+                if (hours.get("close") != null) close = LocalTime.parse(hours.get("close"));
+            }
+        } catch (Exception ignore) {}
+
+        int step = 15;
+        int maxDist = 180;
+
+        try (Connection conn = dataSource.getConnection()) {
+            // Same day: ±3h
+            for (int dist = step; dist <= maxDist && out.size() < limit; dist += step) {
+                for (int sign : new int[]{+1, -1}) {
+                    LocalTime cand = requested.plusMinutes(sign * dist);
+
+                    if (cand.isBefore(open) || cand.plusMinutes(RES_DURATION_MINUTES()).isAfter(close)) {
+                        continue;
+                    }
+
+                    if (findTableForBooking(conn, date, cand, diners) != -1) {
+                        out.add(LocalDateTime.of(date, cand));
+                        if (out.size() >= limit) break;
+                    }
+                }
+            }
+
+            // Next 3 days: 30-min steps from opening
+            for (int day = 1; day <= 3 && out.size() < limit; day++) {
+                LocalDate d = date.plusDays(day);
+
+                LocalTime dOpen = open;
+                LocalTime dClose = close;
+                try {
+                    Map<String, String> hours = getOpeningHoursForDate(d);
+                    if (hours != null) {
+                        if (hours.get("open") != null) dOpen = LocalTime.parse(hours.get("open"));
+                        if (hours.get("close") != null) dClose = LocalTime.parse(hours.get("close"));
+                    }
+                } catch (Exception ignore) {}
+
+                for (LocalTime t = dOpen;
+                     !t.plusMinutes(RES_DURATION_MINUTES()).isAfter(dClose) && out.size() < limit;
+                     t = t.plusMinutes(30)) {
+
+                    if (findTableForBooking(conn, d, t, diners) != -1) {
+                        out.add(LocalDateTime.of(d, t));
+                    }
+                }
+            }
+        }
+
+        return out;
+    }
+
+    // Keep duration consistent (2 hours)
+    private int RES_DURATION_MINUTES() {
+        return 120;
+    }
+
+
+
 
     /**
      * Inserts a new casual (walk-in) reservation into the database.
@@ -80,44 +242,77 @@ public class ReservationDAO {
      * @throws SQLException if a database access error occurs
      */
     public int insertReservation(Reservation reservation, String phone, String email) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     SQLQueries.INSERT_ACTIVE_RESERVATION_CASUAL,
-                     Statement.RETURN_GENERATED_KEYS)) {
+        String insertSql =
+            "INSERT INTO ActiveReservations " +
+            "(Role, CasualPhone, CasualEmail, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status, TableNumber) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmed', ?)";
 
-//            ps.setString(1, reservation.getRole());
-//            ps.setString(2, phone == null ? "" : phone);
-//            ps.setString(3, email == null ? "" : email);
-//            ps.setDate(4, reservation.getReservationDate());
-//            ps.setTime(5, reservation.getReservationTime());
-//            ps.setInt(6, reservation.getNumberOfGuests());
-//            ps.setString(7, reservation.getConfirmationCode());
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
 
-        	ps.setString(1, "Casual");
+            try {
+                LocalDate d = reservation.getReservationDate().toLocalDate();
+                LocalTime t = reservation.getReservationTime().toLocalTime();
+                int diners = reservation.getNumberOfGuests();
+                int maxCap = getMaxTableCapacity(conn);
+                if (diners > maxCap) {
+                    conn.rollback();
+                    throw new SQLException("CAPACITY_TOO_LARGE|" + diners + "|" + maxCap);
+                }
 
-            if (phone == null || phone.isBlank()) ps.setNull(2, java.sql.Types.VARCHAR);
-            else ps.setString(2, phone);
-
-            if (email == null || email.isBlank()) ps.setNull(3, java.sql.Types.VARCHAR);
-            else ps.setString(3, email);
-
-            ps.setDate(4, reservation.getReservationDate());
-            ps.setTime(5, reservation.getReservationTime());
-            ps.setInt(6, reservation.getNumberOfGuests());
-            ps.setString(7, reservation.getConfirmationCode());
-
-            System.out.println("DEBUG inserting ActiveReservations.Role = Casual");
+                int tableNum = findTableForBooking(conn, d, t, diners);
+                if (tableNum == -1) {
+                    conn.rollback();
+                    System.out.println("DEBUG: tableNum == -1, throwing SQLException");
+                    throw new SQLException("No available table for " + diners +
+                            " diners at " + d + " " + t + ". (Capacity too small or slot blocked ±2h)");
+                }
 
 
-            if (ps.executeUpdate() != 1) {
-                return -1;
-            }
 
-            try (ResultSet rs = ps.getGeneratedKeys()) {
-                return rs.next() ? rs.getInt(1) : -1;
+                try (PreparedStatement ps = conn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setString(1, "Casual");
+
+                    if (phone == null || phone.isBlank()) ps.setNull(2, java.sql.Types.VARCHAR);
+                    else ps.setString(2, phone);
+
+                    if (email == null || email.isBlank()) ps.setNull(3, java.sql.Types.VARCHAR);
+                    else ps.setString(3, email);
+
+                    ps.setDate(4, reservation.getReservationDate());
+                    ps.setTime(5, reservation.getReservationTime());
+                    ps.setInt(6, reservation.getNumberOfGuests());
+                    ps.setString(7, reservation.getConfirmationCode());
+                    ps.setInt(8, tableNum);
+
+                    if (ps.executeUpdate() != 1) {
+                        conn.rollback();
+                        return -1;
+                    }
+                 
+
+                    try (ResultSet rs = ps.getGeneratedKeys()) {
+                        int id = (rs.next() ? rs.getInt(1) : -1);
+                        if (id == -1) {
+                            conn.rollback();
+                            return -1;
+                        }
+                        conn.commit();
+                        return id;
+                    }
+
+                    
+                }
+            } catch (SQLException ex) {
+                conn.rollback();
+
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
             }
         }
     }
+
 
     /**
      * Inserts a reservation without casual contact details.
@@ -152,33 +347,84 @@ public class ReservationDAO {
      * @throws SQLException if a database access error occurs
      */
     public int insertReservation(Reservation reservation, String phone, String email, int subscriberId) throws SQLException {
+
         if (subscriberId > 0) {
-            // Insert as subscriber/manager/representative reservation
-            try (Connection conn = dataSource.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(
-                         SQLQueries.INSERT_ACTIVE_RESERVATION_SUBSCRIBER,
-                         Statement.RETURN_GENERATED_KEYS)) {
 
-            	ps.setString(1, "Subscriber"); // DB Role is reservation type only
-                ps.setInt(2, subscriberId);
-                ps.setDate(3, reservation.getReservationDate());
-                ps.setTime(4, reservation.getReservationTime());
-                ps.setInt(5, reservation.getNumberOfGuests());
-                ps.setString(6, reservation.getConfirmationCode());
+            // Allocate table now (±2 hours) and insert as subscriber reservation
+            String insertSql =
+                    "INSERT INTO ActiveReservations " +
+                    "(Role, SubscriberID, ReservationDate, ReservationTime, NumOfDiners, ConfirmationCode, Status, TableNumber) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, 'Confirmed', ?)";
 
-                if (ps.executeUpdate() != 1) {
-                    return -1;
-                }
+            try (Connection conn = dataSource.getConnection()) {
+                conn.setAutoCommit(false);
 
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    return rs.next() ? rs.getInt(1) : -1;
+                try {
+                    LocalDate d = reservation.getReservationDate().toLocalDate();
+                    LocalTime t = reservation.getReservationTime().toLocalTime();
+                    int diners = reservation.getNumberOfGuests();
+
+                    // 0) Validate there are tables + capacity exists
+                    int maxCap = getMaxTableCapacity(conn);
+                    if (maxCap <= 0) {
+                        conn.rollback();
+                        throw new SQLException("NO_TABLES_DEFINED");
+                    }
+                    if (diners > maxCap) {
+                        conn.rollback();
+                        throw new SQLException("CAPACITY_TOO_LARGE|" + diners + "|" + maxCap);
+                    }
+
+                    // 1) Find an available table
+                    int tableNum = findTableForBooking(conn, d, t, diners);
+                    if (tableNum == -1) {
+                        conn.rollback();
+                        throw new SQLException(
+                                "No available table for " + diners +
+                                " diners at " + d + " " + t + ". (Capacity too small or slot blocked ±2h)"
+                        );
+                    }
+
+                    // 2) Insert reservation
+                    try (PreparedStatement ps = conn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
+                        ps.setString(1, "Subscriber"); // DB Role is reservation type only
+                        ps.setInt(2, subscriberId);
+                        ps.setDate(3, reservation.getReservationDate());
+                        ps.setTime(4, reservation.getReservationTime());
+                        ps.setInt(5, reservation.getNumberOfGuests());
+                        ps.setString(6, reservation.getConfirmationCode());
+                        ps.setInt(7, tableNum);
+
+                        if (ps.executeUpdate() != 1) {
+                            conn.rollback();
+                            return -1;
+                        }
+
+                        try (ResultSet rs = ps.getGeneratedKeys()) {
+                            int id = (rs.next() ? rs.getInt(1) : -1);
+                            if (id == -1) {
+                                conn.rollback();
+                                return -1;
+                            }
+                            conn.commit();
+                            return id;
+                        }
+                    }
+
+                } catch (SQLException ex) {
+                    conn.rollback();
+                    throw ex;
+                } finally {
+                    conn.setAutoCommit(true);
                 }
             }
+
         } else {
-            // Insert as casual reservation
+            // Insert as casual reservation (we will update this next)
             return insertReservation(reservation, phone, email);
         }
     }
+
 
     /**
      * Retrieves a reservation by its unique reservation ID.
@@ -339,17 +585,54 @@ public class ReservationDAO {
      * @throws SQLException if a database access error occurs
      */
     public boolean cancelReservationByConfirmationCode(String code) throws SQLException {
-        String sql =
-            "UPDATE ActiveReservations " +
-            "SET Status='Canceled', TableNumber=NULL " +
-            "WHERE ConfirmationCode=? AND Status IN ('Confirmed','Late','Arrived')";
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Integer tableNum = null;
 
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, code);
-            return ps.executeUpdate() > 0;
+                // 1) get table number (lock)
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT TableNumber FROM ActiveReservations WHERE ConfirmationCode=? FOR UPDATE")) {
+                    ps.setString(1, code);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) tableNum = rs.getObject("TableNumber", Integer.class);
+                    }
+                }
+
+                // 2) cancel reservation
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE ActiveReservations " +
+                        "SET Status='Canceled', TableNumber=NULL " +
+                        "WHERE ConfirmationCode=? AND Status IN ('Confirmed','Late','Arrived')")) {
+                    ps.setString(1, code);
+                    int updated = ps.executeUpdate();
+                    if (updated == 0) {
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                // 3) free table if we had one
+                if (tableNum != null) {
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "UPDATE RestaurantTables SET Status='Available' WHERE TableNumber=?")) {
+                        ps.setInt(1, tableNum);
+                        ps.executeUpdate();
+                    }
+                }
+
+                conn.commit();
+                return true;
+
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
         }
     }
+
 
     /**
      * Deletes a reservation from {@code ActiveReservations} by confirmation code.
@@ -574,7 +857,22 @@ public class ReservationDAO {
                 }
 
                 // already assigned? don't overwrite
-                if (existingTable != null) { conn.rollback(); return false; }
+             // already assigned? don't overwrite, BUT keep RestaurantTables synced
+                if (existingTable != null) {
+                    if ("Arrived".equalsIgnoreCase(status)) {
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE RestaurantTables SET Status='Taken' WHERE TableNumber=?")) {
+                            ps.setInt(1, existingTable);
+                            ps.executeUpdate(); 
+                        }
+                        conn.commit();
+                        return true;
+                    }
+
+                    conn.rollback();
+                    return false;
+                }
+
 
                 // allow only Confirmed/Late
                 if (!"Confirmed".equalsIgnoreCase(status) && !"Late".equalsIgnoreCase(status)) {
@@ -605,7 +903,7 @@ public class ReservationDAO {
                 if (diners > cap) { conn.rollback(); return false; }
 
                 // optional: if you maintain RestaurantTables.Status
-                if ("Taken".equalsIgnoreCase(tableStatus)) { conn.rollback(); return false; }
+//                if ("Taken".equalsIgnoreCase(tableStatus)) { conn.rollback(); return false; }
 
                 // 3) check if table already taken today
                 String q3 =
@@ -624,7 +922,7 @@ public class ReservationDAO {
 
                 System.out.println("DEBUG existingTable=" + existingTable1);
 
-                if (existingTable1) return false;
+                if (existingTable1) { conn.rollback(); return false; }
 //                try (PreparedStatement ps = conn.prepareStatement(q3)) {
 //                    ps.setInt(1, tableNum);
 //                    try (ResultSet rs = ps.executeQuery()) {
@@ -648,12 +946,16 @@ public class ReservationDAO {
                     if (!ok) { conn.rollback(); return false; }
                 }
 
-                // optional: keep RestaurantTables.Status in sync
-                // try (PreparedStatement ps = conn.prepareStatement(
-                //     "UPDATE RestaurantTables SET Status='Taken' WHERE TableNumber=?")) {
-                //     ps.setInt(1, tableNum);
-                //     ps.executeUpdate();
-                // }
+             // keep RestaurantTables.Status in sync
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE RestaurantTables SET Status='Taken' WHERE TableNumber=?")) {
+                    ps.setInt(1, tableNum);
+                    if (ps.executeUpdate() == 0) {
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
 
                 conn.commit();
                 return true;
@@ -662,7 +964,11 @@ public class ReservationDAO {
                 conn.rollback();
                 throw ex;
             } finally {
-                conn.setAutoCommit(true);
+                try {
+                    conn.setAutoCommit(true);
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
@@ -682,63 +988,83 @@ public class ReservationDAO {
      */
     public int allocateTableForCustomer(String confirmationCode) {
         int assignedTable = -1;
-
+    
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
 
-            try (PreparedStatement psRes = conn.prepareStatement(SQLQueries.GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE)) {
-                psRes.setString(1, confirmationCode);
+            try {
+                // 1) Load reservation by confirmation code (and lock it)
+                try (PreparedStatement psRes =
+                             conn.prepareStatement(SQLQueries.GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE)) {
+                    psRes.setString(1, confirmationCode);
 
-                try (ResultSet rs = psRes.executeQuery()) {
-                    if (!rs.next()) {
-                        conn.rollback();
-                        return -1;
-                    }
-
-                    int diners = rs.getInt("NumOfDiners");
-                    String status = rs.getString("Status");
-                    Date dbDate = rs.getDate("ReservationDate");
-
-                    boolean isConfirmed = "Confirmed".equalsIgnoreCase(status);
-                    boolean isToday = (dbDate != null && dbDate.toLocalDate().equals(LocalDate.now()));
-
-                    if (diners <= 0 || !isConfirmed || !isToday) {
-                        conn.rollback();
-                        return -1;
-                    }
-
-                    // Find best table
-                    try (PreparedStatement psTable = conn.prepareStatement(SQLQueries.GET_BEST_AVAILABLE_TABLE)) {
-                        psTable.setInt(1, diners);
-
-                        try (ResultSet rsTable = psTable.executeQuery()) {
-                            if (!rsTable.next()) {
-                                conn.rollback();
-                                return -1;
-                            }
-                            assignedTable = rsTable.getInt("TableNumber");
+                    try (ResultSet rs = psRes.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return -1;
                         }
-                    }
 
-                    // Update reservation: mark arrived + store assigned table
-                    try (PreparedStatement psUpdateRes =
-                             conn.prepareStatement(SQLQueries.SET_RESERVATION_ARRIVED_AND_TABLE)) {
-                        psUpdateRes.setInt(1, assignedTable);
-                        psUpdateRes.setString(2, confirmationCode);
-                        psUpdateRes.executeUpdate();
-                    }
+                        int diners = rs.getInt("NumOfDiners");
+                        String status = rs.getString("Status");
+                        Date dbDate = rs.getDate("ReservationDate");
+                        Integer existingTable = rs.getObject("TableNumber", Integer.class);
 
-                    conn.commit();
-                    return assignedTable;
+                        boolean isConfirmed = "Confirmed".equalsIgnoreCase(status);
+                        boolean isToday = (dbDate != null && dbDate.toLocalDate().equals(LocalDate.now()));
+
+                        if (diners <= 0 || !isConfirmed || !isToday) {
+                            conn.rollback();
+                            return -1;
+                        }
+
+                        // 2) Table must already be assigned at BOOK time
+                        if (existingTable == null) {
+                            conn.rollback();
+                            return -1;
+                        }
+
+                        assignedTable = existingTable;
+                    }
                 }
-            } catch (SQLException e) {
-                conn.rollback();
-                return -1;
-            } finally {
-                try { conn.setAutoCommit(true); } catch (Exception ignored) {}
-            }
 
+                // 3) Update reservation: mark arrived (do NOT change table number, just confirm it)
+                try (PreparedStatement psUpdateRes =
+                             conn.prepareStatement(SQLQueries.SET_RESERVATION_ARRIVED_AND_TABLE)) {
+                    psUpdateRes.setInt(1, assignedTable);
+                    psUpdateRes.setString(2, confirmationCode);
+
+                    if (psUpdateRes.executeUpdate() == 0) {
+                        conn.rollback();
+                        return -1;
+                    }
+                }
+
+                // 4) Update RestaurantTables status to Taken
+                try (PreparedStatement psUpdTable =
+                             conn.prepareStatement("UPDATE RestaurantTables SET Status='Taken' WHERE TableNumber=?")) {
+                    psUpdTable.setInt(1, assignedTable);
+
+                    if (psUpdTable.executeUpdate() == 0) {
+                        conn.rollback();
+                        return -1;
+                    }
+                }
+
+                conn.commit();
+                return assignedTable;
+
+            } catch (SQLException e) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    e.addSuppressed(ex); // Suppress rollback exception to show original error
+                }
+                e.printStackTrace(); // Log the exception
+                return -1;
+            }
+    
         } catch (SQLException e) {
+            e.printStackTrace(); // Log connection acquisition exception
             return -1;
         }
     }
@@ -1263,6 +1589,117 @@ public class ReservationDAO {
         }
     }
 
+    public boolean isSlotAvailable(LocalDate date, LocalTime time, int diners) throws SQLException {
+        return countAvailableTables(date, time, diners) > 0;
+    }
 
+    public int countAvailableTables(LocalDate date, LocalTime time, int diners) throws SQLException {
+        String sql =
+            "SELECT COUNT(*) AS cnt " +
+            "FROM RestaurantTables rt " +
+            "WHERE rt.Capacity >= ? " +
+            "  AND NOT EXISTS ( " +
+            "      SELECT 1 FROM ActiveReservations ar " +
+            "      WHERE ar.TableNumber = rt.TableNumber " +
+            "        AND ar.ReservationDate = ? " +
+            "        AND ar.Status IN ('Confirmed','Arrived','Late') " +
+            "        AND ABS(TIMESTAMPDIFF(MINUTE, " +
+            "            TIMESTAMP(ar.ReservationDate, ar.ReservationTime), " +
+            "            TIMESTAMP(?, ?) " +
+            "        )) <= ? " +
+            "  )";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        	ps.setInt(1, diners);                 // rt.Capacity >= ?
+        	ps.setDate(2, Date.valueOf(date));    // ar.ReservationDate = ?
+        	ps.setDate(3, Date.valueOf(date));    // TIMESTAMP(?, ?) date
+        	ps.setTime(4, Time.valueOf(time));    // TIMESTAMP(?, ?) time
+        	ps.setInt(5, TABLE_RADIUS_MINUTES);   // <= ?
+
+
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt("cnt");
+            }
+        }
+    }
+
+   
+
+
+    public Map<Integer, Integer> getHourlyArrivals(int month, int year) {
+        Map<Integer, Integer> resultMap = new HashMap<>();
+        
+        // אתחול שעות הפעילות (למשל 12 עד 23) ב-0
+        for (int h = 0; h < 24; h++) {
+            resultMap.put(h, 0);
+        }
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_HOURLY_ARRIVALS)) {
+            
+            ps.setInt(1, month);
+            ps.setInt(2, year);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int hour = rs.getInt("Hour");
+                    int count = rs.getInt("Count");
+                    resultMap.put(hour, count);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return resultMap;
+    }
     
+    public Map<Integer, Integer> getDailyStats(int month, int year, String queryType) {
+        Map<Integer, Integer> stats = new TreeMap<>(); // TreeMap שומר על סדר הימים (1, 2, 3...)
+        
+        String sql = queryType.equals("SUBSCRIBER") ? 
+                     SQLQueries.GET_SUBSCRIBER_DAILY_STATS : 
+                     SQLQueries.GET_WAITING_DAILY_STATS_SUBSCRIBERS_ONLY;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, month);
+            ps.setInt(2, year);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    stats.put(rs.getInt("Day"), rs.getInt("Count"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return stats;
+    }
+    
+    public Map<Integer, Integer> getHourlyDepartures(int month, int year) {
+        Map<Integer, Integer> resultMap = new HashMap<>();
+        
+        // אתחול שעות
+        for (int h = 0; h < 24; h++) resultMap.put(h, 0);
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_HOURLY_DEPARTURES)) {
+            
+            ps.setInt(1, month);
+            ps.setInt(2, year);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    resultMap.put(rs.getInt("Hour"), rs.getInt("Count"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return resultMap;
+    }
 }

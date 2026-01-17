@@ -18,6 +18,8 @@ public class ClientMessageRouter implements ChatIF {
         Platform.runLater(() -> route(message));
     }
 
+    
+    
     private void route(String message) {
         if (message == null) return;
 
@@ -34,19 +36,32 @@ public class ClientMessageRouter implements ChatIF {
                 System.out.println("CLIENT ROUTER: Routing OPENING_HOURS to StaffReservationUIController");
                 sr.onOpeningHoursReceived(message); 
                 return; 
+                
             }
             if (message.startsWith("RESERVATION_CREATED")) { sr.onBookingResponse(message); return; }
+            if (message.startsWith("RESERVATION_FAILED|")) { sr.onBookingResponse(message); return; }
+
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL")) { return; }
         }
-
+       
         // 2) Route to active reservation window (if exists)
         ReservationUIController r = ClientUIController.getActiveReservationController();
+        
         if (r != null) {
             if (message.startsWith("RESERVATIONS_FOR_DATE|")) { r.onReservationsReceived(message); return; }
             if (message.startsWith("OPENING_HOURS|")) { r.onOpeningHoursReceived(message); return; }
+            if (message.startsWith("AVAILABILITY|")) { r.onAvailabilityResponse(message); return; }
+
+            if (message.startsWith("AVAILABILITY|")) { 
+                r.onAvailabilityResponse(message); 
+                return; 
+            }
+
             if (message.startsWith("RESERVATION_CREATED")) { r.onBookingResponse(message); return; }
+            if (message.startsWith("RESERVATION_FAILED|")) { r.onBookingResponse(message); return; }
+
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL")) { r.onCancelResponse(message); return; }
@@ -55,10 +70,17 @@ public class ClientMessageRouter implements ChatIF {
         // 3) Route to active receive-table window (if exists)
         ReceiveTableUIController t = ClientUIController.getActiveReceiveTableController();
         if (t != null) {
-            if (message.startsWith("TABLE_ASSIGNED|")
+
+            // --- התוספת החדשה מתחילה כאן ---
+            if (message.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
+                t.onSubscriberDataReceived(message);
+                return;
+            }            if (message.startsWith("TABLE_ASSIGNED|")
                     || message.equals("NO_TABLE_AVAILABLE")
                     || message.equals("INVALID_CONFIRMATION_CODE") 
-            	|| message.equals("RESERVATION_ALREADY_USED")) {
+            	|| message.equals("RESERVATION_ALREADY_USED") 
+            	|| message.equals("RESERVATION_ALREADY_USED")
+                || message.equals("RESERVATION_NOT_FOR_TODAY")) { // הוספתי גם את המקרה של תאריך שגוי ליתר ביטחון{
                 t.onReceiveTableResponse(message);
                 return;
             }
@@ -88,6 +110,14 @@ public class ClientMessageRouter implements ChatIF {
             return;
         }
 
+     // 4) Route to Reports Screen
+        if (message.startsWith("REPORTS_DATA|") || message.startsWith("ERROR|REPORTS")) {
+            if (ClientUIController.activeReportsController != null) {
+                ClientUIController.activeReportsController.updateReportsData(message);
+            }
+            return;
+        }
+        
         // 5) Fallback: no UI loaded yet
         System.out.println("SERVER (no UI yet): " + message);
     }

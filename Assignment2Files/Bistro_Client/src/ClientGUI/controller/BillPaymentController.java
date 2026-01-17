@@ -108,6 +108,7 @@ public class BillPaymentController implements ChatIF {
 
 		try {
 			client = new ChatClient("localhost", 5555, this);
+			client.openConnection();
 			return true;
 		} catch (Exception e) {
 			client = null;
