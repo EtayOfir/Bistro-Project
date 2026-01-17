@@ -1,5 +1,0 @@
--d
-/tmp/bistro-compile-test
--sourcepath
-.
-ClientGUI/controller/ServerSettingsUIController.java
