@@ -274,7 +274,14 @@ public class EchoServer extends AbstractServer {
 			                int updated = ps.executeUpdate();
 			                System.out.println("DEBUG rowsUpdated=" + updated);
 
-			                ans = updated > 0 ? "BRANCH_DAY_UPDATED" : "DAY_NOT_FOUND";
+			                // ======= זה החלק החדש =======
+			                if (updated > 0) {
+			                    int canceled = cancelReservationsOutsideNewHoursForDay(con, day, open, close);
+			                    ans = "BRANCH_DAY_UPDATED|CANCELED=" + canceled;
+			                } else {
+			                    ans = "DAY_NOT_FOUND";
+			                }
+			                // ============================
 			            }
 			        }
 			    } catch (Exception e) {
@@ -283,13 +290,13 @@ public class EchoServer extends AbstractServer {
 			    }
 			    break;
 			}
+
 			case "#SET_BRANCH_HOURS_BY_DATE": {
-			    // #SET_BRANCH_HOURS_BY_DATE 2026-01-20 10:00 16:00 <b64desc?>
 			    if (parts.length < 4) { ans = "ERROR|BAD_FORMAT"; break; }
 
 			    try {
-			        String dateStr = parts[1].trim();          // YYYY-MM-DD
-			        String open = parts[2].trim() + ":00";     // HH:mm:00
+			        String dateStr = parts[1].trim();
+			        String open = parts[2].trim() + ":00";
 			        String close = parts[3].trim() + ":00";
 			        String desc = (parts.length >= 5) ? decodeB64Url(parts[4]) : "";
 
@@ -306,7 +313,14 @@ public class EchoServer extends AbstractServer {
 			            ps.setString(4, desc);
 
 			            int affected = ps.executeUpdate();
-			            ans = "BRANCH_DATE_SAVED|" + affected; // affected 1/2 depending on insert/update
+
+			            // ======= זה החלק החדש =======
+			            int canceled = cancelReservationsOutsideNewHoursForDate(
+			                con, java.sql.Date.valueOf(dateStr), open, close
+			            );
+			            ans = "BRANCH_DATE_SAVED|" + affected + "|CANCELED=" + canceled;
+			            // ============================
+
 			        }
 
 			    } catch (Exception ex) {
@@ -315,6 +329,7 @@ public class EchoServer extends AbstractServer {
 			    }
 			    break;
 			}
+
 			case "#GET_OPENING_HOURS_SPECIAL": {
 			    try {
 			        StringBuilder sb = new StringBuilder("OPENING_HOURS_SPECIAL|");
@@ -1623,5 +1638,98 @@ public class EchoServer extends AbstractServer {
 		sb.deleteCharAt(sb.length() - 1);
 		return "RESTAURANT_TABLES|" + sb;
 	}
+	private int cancelReservationsOutsideNewHoursForDay(Connection con, String dayOfWeek, String open, String close) throws Exception {
+
+	    java.sql.Time openT = java.sql.Time.valueOf(open);
+	    java.sql.Time closeT = java.sql.Time.valueOf(close);
+
+	    
+	    String selectSql =
+	        "SELECT ar.ConfirmationCode " +
+	        "FROM ActiveReservations ar " +
+	        "WHERE ar.ReservationDate >= CURDATE() " +
+	        "  AND ar.Status IN ('Confirmed','Late') " +
+	        "  AND DAYNAME(ar.ReservationDate) = ? " +
+	        "  AND (ar.ReservationTime < ? OR ar.ReservationTime >= ?) " +
+	        "  AND NOT EXISTS ( " +
+	        "      SELECT 1 FROM bistro.openinghours oh " +
+	        "      WHERE oh.SpecialDate = ar.ReservationDate " +
+	        "  )";
+
+	    // 2) מבטלים + משחררים שולחן (TableNumber=NULL כדי שלא יופיע ב-SEATED_CUSTOMERS אצלך)
+	    String updateSql =
+	        "UPDATE ActiveReservations " +
+	        "SET Status='Canceled', TableNumber=NULL " +
+	        "WHERE ConfirmationCode = ?";
+
+	    int canceled = 0;
+
+	    try (PreparedStatement psSel = con.prepareStatement(selectSql)) {
+	        psSel.setString(1, dayOfWeek);
+	        psSel.setTime(2, openT);
+	        psSel.setTime(3, closeT);
+
+	        try (ResultSet rs = psSel.executeQuery();
+	             PreparedStatement psUpd = con.prepareStatement(updateSql)) {
+
+	            while (rs.next()) {
+	                String code = rs.getString("ConfirmationCode");
+	                if (code == null) continue;
+
+	                psUpd.setString(1, code);
+	                int u = psUpd.executeUpdate();
+	                if (u > 0) canceled++;
+	            }
+	        }
+	    }
+
+	    System.out.println("DEBUG canceled outside hours (day=" + dayOfWeek + "): " + canceled);
+	    return canceled;
+	}
+	// מבטל הזמנות עתידיות בתאריך הזה שנופלות מחוץ לטווח השעות החדש
+	private int cancelReservationsOutsideNewHoursForDate(Connection con, java.sql.Date date, String open, String close) throws Exception {
+
+	    java.sql.Time openT = java.sql.Time.valueOf(open);
+	    java.sql.Time closeT = java.sql.Time.valueOf(close);
+
+	    String selectSql =
+	        "SELECT ar.ConfirmationCode " +
+	        "FROM ActiveReservations ar " +
+	        "WHERE ar.ReservationDate = ? " +
+	        "  AND ar.ReservationDate >= CURDATE() " +
+	        "  AND ar.Status IN ('Confirmed','Late') " +
+	        "  AND (ar.ReservationTime < ? OR ar.ReservationTime >= ?)";
+
+	    String updateSql =
+	        "UPDATE ActiveReservations " +
+	        "SET Status='Canceled', TableNumber=NULL " +
+	        "WHERE ConfirmationCode = ?";
+
+	    int canceled = 0;
+
+	    try (PreparedStatement psSel = con.prepareStatement(selectSql)) {
+	        psSel.setDate(1, date);
+	        psSel.setTime(2, openT);
+	        psSel.setTime(3, closeT);
+
+	        try (ResultSet rs = psSel.executeQuery();
+	             PreparedStatement psUpd = con.prepareStatement(updateSql)) {
+
+	            while (rs.next()) {
+	                String code = rs.getString("ConfirmationCode");
+	                if (code == null) continue;
+
+	                psUpd.setString(1, code);
+	                int u = psUpd.executeUpdate();
+	                if (u > 0) canceled++;
+	            }
+	        }
+	    }
+
+	    System.out.println("DEBUG canceled outside hours (date=" + date + "): " + canceled);
+	    return canceled;
+	}
+
+
   
 }
