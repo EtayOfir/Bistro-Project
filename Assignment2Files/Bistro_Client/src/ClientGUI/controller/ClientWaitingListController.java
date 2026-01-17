@@ -65,6 +65,7 @@ public class ClientWaitingListController implements ChatIF {
         // connect client (same as your console client style)
         try {
             client = new ChatClient("localhost", 5555, this);
+            client.openConnection();
         } catch (Exception e) {
             resultArea.setText("Failed to connect to server: " + e.getMessage());
         }

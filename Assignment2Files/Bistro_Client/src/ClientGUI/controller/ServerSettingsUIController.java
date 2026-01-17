@@ -36,7 +36,7 @@ public class ServerSettingsUIController {
 
     /**
      * Handles the Connect button click.
-     * Validates the input and attempts to connect to the server.
+     * Validates the input and stores server settings without connecting.
      */
     @FXML
     private void onConnectClicked(ActionEvent event) {
@@ -66,57 +66,37 @@ public class ServerSettingsUIController {
             return;
         }
 
-        // Try to connect
-        try {
-            statusLabel.setText("Connecting...");
-            statusLabel.setStyle("-fx-text-fill: #2563eb; -fx-font-size: 12;");
-            
-            // Initialize or reconnect the client
-            if (ClientUI.chat != null) {
-                try {
-                    ClientUI.chat.closeConnection();
-                } catch (Exception ex) {
-                    // Ignore errors closing existing connection
-                }
+        // Store the settings without connecting
+        this.host = hostInput;
+        this.port = portNum;
+        this.connected = true;
+
+        // Store settings in ClientUI for later use
+        ClientUI.serverHost = hostInput;
+        ClientUI.serverPort = portNum;
+
+        statusLabel.setText("Settings saved!");
+        statusLabel.setStyle("-fx-text-fill: #22c55e; -fx-font-size: 12;");
+
+        // Navigate to Login UI
+        Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+
+        javafx.application.Platform.runLater(() -> {
+            try {
+                FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
+                Parent root = loader.load();
+
+                stage.setTitle("Bistro – User Login");
+                stage.setScene(SceneUtil.createStyledScene(root));
+                stage.setResizable(true);
+                stage.show();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                statusLabel.setText("Failed to load Login UI: " + e.getMessage());
+                statusLabel.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12;");
             }
-            
-            ClientUI.chat = new client.ChatClient(hostInput, portNum, new ClientMessageRouter());
-            ClientUI.chat.openConnection();
-            
-            // Store the settings
-            this.host = hostInput;
-            this.port = portNum;
-            this.connected = true;
-
-            statusLabel.setText("Connected successfully!");
-            statusLabel.setStyle("-fx-text-fill: #22c55e; -fx-font-size: 12;");
-
-            // Navigate to Login UI after successful connection
-            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
-
-            javafx.application.Platform.runLater(() -> {
-                try {
-                	FXMLLoader loader = ViewLoader.fxml("UserLoginUIView.fxml");
-                    Parent root = loader.load();
-
-                    stage.setTitle("Bistro – User Login");
-                    stage.setScene(SceneUtil.createStyledScene(root));
-                    stage.setResizable(true);
-                    stage.show();
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    statusLabel.setText("Failed to load Login UI: " + e.getMessage());
-                    statusLabel.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12;");
-                }
-            });
-
-
-        } catch (Exception e) {
-            statusLabel.setText("Connection failed: " + e.getMessage());
-            statusLabel.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12;");
-            this.connected = false;
-        }
+        });
     }
 
     /**
