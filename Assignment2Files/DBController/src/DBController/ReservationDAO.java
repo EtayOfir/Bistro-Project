@@ -1549,5 +1549,78 @@ public class ReservationDAO {
 
    
 
+
+    public Map<Integer, Integer> getHourlyArrivals(int month, int year) {
+        Map<Integer, Integer> resultMap = new HashMap<>();
+        
+        // אתחול שעות הפעילות (למשל 12 עד 23) ב-0
+        for (int h = 0; h < 24; h++) {
+            resultMap.put(h, 0);
+        }
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_HOURLY_ARRIVALS)) {
+            
+            ps.setInt(1, month);
+            ps.setInt(2, year);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int hour = rs.getInt("Hour");
+                    int count = rs.getInt("Count");
+                    resultMap.put(hour, count);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return resultMap;
+    }
     
+    public Map<Integer, Integer> getDailyStats(int month, int year, String queryType) {
+        Map<Integer, Integer> stats = new TreeMap<>(); // TreeMap שומר על סדר הימים (1, 2, 3...)
+        
+        String sql = queryType.equals("SUBSCRIBER") ? 
+                     SQLQueries.GET_SUBSCRIBER_DAILY_STATS : 
+                     SQLQueries.GET_WAITING_DAILY_STATS_SUBSCRIBERS_ONLY;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, month);
+            ps.setInt(2, year);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    stats.put(rs.getInt("Day"), rs.getInt("Count"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return stats;
+    }
+    
+    public Map<Integer, Integer> getHourlyDepartures(int month, int year) {
+        Map<Integer, Integer> resultMap = new HashMap<>();
+        
+        // אתחול שעות
+        for (int h = 0; h < 24; h++) resultMap.put(h, 0);
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_HOURLY_DEPARTURES)) {
+            
+            ps.setInt(1, month);
+            ps.setInt(2, year);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    resultMap.put(rs.getInt("Hour"), rs.getInt("Count"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return resultMap;
+    }
 }

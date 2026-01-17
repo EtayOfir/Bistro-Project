@@ -966,42 +966,92 @@ public class EchoServer extends AbstractServer {
 			// --- REPORTS ---
 
 			case "#GET_REPORTS_DATA": {
-				try {
-					Date start = Date.valueOf(parts[1]);
-					Date end = Date.valueOf(parts[2]);
-					Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(start, end);
-					Map<Integer, Integer> timeDist = reservationDAO.getReservationTimeDistribution(start, end);
-					List<Map<String, Object>> waitData = waitingListDAO.getWaitingListByDateRange(start, end);
+			    try {
+			        // פורמט הודעה: #GET_REPORTS_DATA <Month> <Year>
+			        int month = Integer.parseInt(parts[1]);
+			        int year = Integer.parseInt(parts[2]);
 
-					StringBuilder sb = new StringBuilder("REPORTS_DATA|STATS:");
-					sb.append(stats.getOrDefault("total", 0)).append(",")
-					.append(stats.getOrDefault("confirmed", 0)).append(",")
-					.append(stats.getOrDefault("arrived", 0)).append(",")
-					.append(stats.getOrDefault("late", 0)).append(",")
-					.append(stats.getOrDefault("expired", 0)).append(",")
-					.append(stats.getOrDefault("totalGuests", 0)).append("|TIME_DIST:");
+			        // חישוב תאריכי התחלה וסוף של החודש (עבור הסטטיסטיקה הכללית)
+			        java.time.LocalDate start = java.time.LocalDate.of(year, month, 1);
+			        java.time.LocalDate end = start.with(java.time.temporal.TemporalAdjusters.lastDayOfMonth());
+			        Date sqlStart = Date.valueOf(start);
+			        Date sqlEnd = Date.valueOf(end);
 
-					boolean first = true;
-					for (Map.Entry<Integer, Integer> entry : timeDist.entrySet()) {
-						if (!first) sb.append(";");
-						sb.append(entry.getKey()).append(",").append(entry.getValue());
-						first = false;
-					}
-					sb.append("|WAITING:");
-					first = true;
-					for (Map<String, Object> row : waitData) {
-						if (!first) sb.append(";");
-						sb.append(row.get("EntryDate")).append(",")
-						.append(row.get("WaitingCount")).append(",")
-						.append(row.get("ServedCount"));
-						first = false;
-					}
-					ans = sb.toString();
-				} catch (Exception e) {
-					ans = "ERROR|REPORTS_FAILED";
-					e.printStackTrace();
-				}
-				break;
+			        // --- שליפת הנתונים מה-DAO ---
+
+			        // 1. נתונים כלליים (עבור התוויות וגרף העוגה)
+			        Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(sqlStart, sqlEnd);
+
+			        // 2. נתונים לגרף העמודות (שעות הגעה בפועל - במקום איחורים)
+			        Map<Integer, Integer> hourlyData = reservationDAO.getHourlyArrivals(month, year);
+			        Map<Integer, Integer> departureData = reservationDAO.getHourlyDepartures(month, year);
+			        // 3. נתונים לגרף הקווים (מנויים מול רשימת המתנה - יומי)
+			        Map<Integer, Integer> subDaily = reservationDAO.getDailyStats(month, year, "SUBSCRIBER");
+			        Map<Integer, Integer> waitDaily = reservationDAO.getDailyStats(month, year, "WAITING");
+
+			        // --- בניית מחרוזת התשובה ---
+			        StringBuilder sb = new StringBuilder("REPORTS_DATA");
+
+			        // חלק 1: סטטיסטיקה כללית (STATS)
+			        // Format: total,confirmed,arrived,late,expired,totalGuests
+			        sb.append("|STATS:");
+			        sb.append(stats.getOrDefault("total", 0)).append(",")
+			          .append(stats.getOrDefault("confirmed", 0)).append(",")
+			          .append(stats.getOrDefault("arrived", 0)).append(",")
+			          .append(stats.getOrDefault("late", 0)).append(",")
+			          .append(stats.getOrDefault("expired", 0)).append(",")
+			          .append(stats.getOrDefault("totalGuests", 0));
+
+			        // חלק 2: שעות עומס (HOURLY_ARRIVALS)
+			        // Format: hour,count;hour,count...
+			        sb.append("|HOURLY_ARRIVALS:");
+			        boolean first = true;
+			        for (Map.Entry<Integer, Integer> entry : hourlyData.entrySet()) {
+			            int hour = entry.getKey();
+			            int count = entry.getValue();
+			            if (count > 0) { // שולחים רק שעות שיש בהן פעילות
+			                if (!first) sb.append(";");
+			                sb.append(hour).append(",").append(count);
+			                first = false;
+			            }
+			        }
+			        sb.append("|HOURLY_DEPARTURES:");
+			        first = true;
+			        for (Map.Entry<Integer, Integer> entry : departureData.entrySet()) {
+			            int hour = entry.getKey();
+			            int count = entry.getValue();
+			            if (count > 0) {
+			                if (!first) sb.append(";");
+			                sb.append(hour).append(",").append(count);
+			                first = false;
+			            }
+			        }
+
+			        // חלק 3: סטטיסטיקה יומית (SUBSCRIBER_STATS)
+			        // Format: day,subCount,waitCount;...
+			        sb.append("|SUBSCRIBER_STATS:");
+			        first = true;
+			        int daysInMonth = start.lengthOfMonth();
+			        
+			        for (int d = 1; d <= daysInMonth; d++) {
+			            int subs = subDaily.getOrDefault(d, 0);
+			            int wait = waitDaily.getOrDefault(d, 0);
+			            
+			            // שולחים רק ימים שיש בהם פעילות כדי לחסוך מקום
+			            if (subs > 0 || wait > 0) {
+			                if (!first) sb.append(";");
+			                sb.append(d).append(",").append(subs).append(",").append(wait);
+			                first = false;
+			            }
+			        }
+
+			        ans = sb.toString();
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|REPORTS_FAILED";
+			    }
+			    break;
 			}
 
 			case "#GET_ALL_SUBSCRIBERS": {
@@ -1236,6 +1286,7 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
+			
 
 			default:
 				ans = "ERROR|UNKNOWN_COMMAND";
