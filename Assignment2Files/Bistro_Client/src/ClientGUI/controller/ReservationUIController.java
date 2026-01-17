@@ -1167,6 +1167,8 @@ public class ReservationUIController {
                 if (currentSubscriber != null) {
                     c.setSubscriber(currentSubscriber);
                     System.out.println("DEBUG onBack: Restoring subscriber to LoginSubscriberUIController");
+                } else {
+                c.setSubscriberName(currentUserName);
                 }
             } else if (controller instanceof LoginGuestUIController) {
                 // Usually no state to restore for guest, just navigation

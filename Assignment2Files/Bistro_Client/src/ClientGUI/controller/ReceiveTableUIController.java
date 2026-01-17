@@ -1,6 +1,10 @@
 package ClientGUI.controller;
 
 import ClientGUI.util.ViewLoader;
+import entities.Subscriber;
+
+import java.time.LocalDate;
+
 import ClientGUI.util.SceneUtil;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -10,9 +14,17 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 import javafx.scene.Node;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.application.Platform;
+import javafx.beans.property.SimpleIntegerProperty;
 
 
 
@@ -54,17 +66,157 @@ public class ReceiveTableUIController {
     @FXML
     private Button closeBtn;
 
-    /**
-     * JavaFX initialization hook.
-     *
-     * <p>Registers this controller as the currently active "Receive Table" screen so that
-     * {@link ClientUIController} can route server responses to it.</p>
-     */
+    @FXML private Label lblSelectRes;
+    @FXML private TableView<ResItem> reservationsTable;
+    @FXML private TableColumn<ResItem, String> colTime;
+    @FXML private TableColumn<ResItem, Integer> colGuests;
+    @FXML private TableColumn<ResItem, String> colStatus;
+    @FXML private TableColumn<ResItem, String> colCode;
+
+    private Subscriber currentSubscriber;
+    private ObservableList<ResItem> tableData = FXCollections.observableArrayList();
+
+    // מחלקה פנימית לייצוג שורה בטבלה
+    public static class ResItem {
+        private final SimpleStringProperty time;
+        private final SimpleIntegerProperty guests;
+        private final SimpleStringProperty status;
+        private final SimpleStringProperty code;
+
+        public ResItem(String time, int guests, String status, String code) {
+            this.time = new SimpleStringProperty(time);
+            this.guests = new SimpleIntegerProperty(guests);
+            this.status = new SimpleStringProperty(status);
+            this.code = new SimpleStringProperty(code);
+        }
+
+        public String getTime() { return time.get(); }
+        public int getGuests() { return guests.get(); }
+        public String getStatus() { return status.get(); }
+        public String getCode() { return code.get(); }
+        
+        public SimpleStringProperty timeProperty() { return time; }
+        public SimpleIntegerProperty guestsProperty() { return guests; }
+        public SimpleStringProperty statusProperty() { return status; }
+        public SimpleStringProperty codeProperty() { return code; }
+    }
+    
+    
     @FXML
     private void initialize() {
         ClientUIController.setActiveReceiveTableController(this);
+     // 1. הגדרת עמודות הטבלה
+        if (reservationsTable != null) {
+            colTime.setCellValueFactory(cell -> cell.getValue().timeProperty());
+            colGuests.setCellValueFactory(cell -> cell.getValue().guestsProperty().asObject());
+            colStatus.setCellValueFactory(cell -> cell.getValue().statusProperty());
+            colCode.setCellValueFactory(cell -> cell.getValue().codeProperty());
+            
+            reservationsTable.setItems(tableData);
+
+            // 2. הוספת מאזין לבחירה בטבלה
+            reservationsTable.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null) {
+                    // ברגע שנבחרה שורה - מעתיקים את הקוד לשדה הטקסט
+                    confirmationCodeField.setText(newVal.getCode());
+                }
+            });
+            
+            // ברירת מחדל: מוסתר
+            reservationsTable.setVisible(false);
+            reservationsTable.setManaged(false);
+            if (lblSelectRes != null) {
+                lblSelectRes.setVisible(false);
+                lblSelectRes.setManaged(false);
+            }
+        }
     }
 
+    /**
+     * נקרא מבחוץ (מהטרמינל) כשיש מנוי מחובר
+     */
+    public void setSubscriber(Subscriber sub) {
+        this.currentSubscriber = sub;
+        
+        if (sub != null) {
+            System.out.println("DEBUG: Subscriber set in ReceiveTable: " + sub.getUserName());
+            
+            // חשיפת הטבלה והכותרת
+            if (reservationsTable != null) {
+                reservationsTable.setVisible(true);
+                reservationsTable.setManaged(true);
+                lblSelectRes.setVisible(true);
+                lblSelectRes.setManaged(true);
+                reservationsTable.setPlaceholder(new Label("Loading reservations..."));
+            }
+
+            // בקשת נתונים מהשרת
+            if (ClientUI.chat != null) {
+                ClientUI.chat.handleMessageFromClientUI("#GET_SUBSCRIBER_DATA " + sub.getSubscriberId());
+            }
+        }
+    }
+    
+    /**
+     * קבלת הנתונים מהשרת ומילוי הטבלה
+     */
+    public void onSubscriberDataReceived(String msg) {
+        Platform.runLater(() -> {
+            try {
+                tableData.clear();
+
+                // Format: ...|ACTIVE:date,time,diners,code,status;...
+                String[] sections = msg.split("\\|");
+                String activeSection = "";
+                
+                for (String sec : sections) {
+                    if (sec.startsWith("ACTIVE:")) {
+                        activeSection = sec.substring(7);
+                        break;
+                    }
+                }
+
+                if (activeSection.equals("EMPTY") || activeSection.isEmpty()) {
+                    reservationsTable.setPlaceholder(new Label("No reservations for today"));
+                    return;
+                }
+
+                LocalDate today = LocalDate.now();
+
+                String[] rows = activeSection.split(";");
+                for (String row : rows) {
+                    String[] cols = row.split(",");
+                    // cols: [0]Date, [1]Time, [2]Diners, [3]Code, [4]Status
+                    if (cols.length >= 5) {
+                        LocalDate resDate = LocalDate.parse(cols[0]);
+                        String status = cols[4];
+
+                        // סינון: רק הזמנות של היום, ורק כאלו שאפשר לקבל שולחן עבורן
+                        if (resDate.equals(today) && 
+                           (status.equalsIgnoreCase("Confirmed") || status.equalsIgnoreCase("Late"))) {
+                            
+                            String time = cols[1].substring(0, 5); 
+                            int diners = Integer.parseInt(cols[2]);
+                            String code = cols[3];
+                            
+                            tableData.add(new ResItem(time, diners, status, code));
+                        }
+                    }
+                }
+
+                if (tableData.isEmpty()) {
+                    reservationsTable.setPlaceholder(new Label("No reservations for today"));
+                } else {
+                    // אופציונלי: בחירה אוטומטית של הראשון
+                    // reservationsTable.getSelectionModel().selectFirst();
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+    
     /**
      * Triggered when the user clicks "Get a table".
      *

@@ -264,7 +264,7 @@ public class SubscriberUIController implements Initializable {
             // העברת שם המנוי חזרה למסך הראשי כדי שהכותרת תישמר
             LoginSubscriberUIController controller = loader.getController();
             if (currentSubscriber != null) {
-                controller.setSubscriberName(currentSubscriber.getUserName());
+                controller.setSubscriber(currentSubscriber);
             } else {
                 controller.setSubscriberName(usernameField.getText());
             }
