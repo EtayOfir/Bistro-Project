@@ -18,6 +18,8 @@ public class ClientMessageRouter implements ChatIF {
         Platform.runLater(() -> route(message));
     }
 
+    
+    
     private void route(String message) {
         if (message == null) return;
 
