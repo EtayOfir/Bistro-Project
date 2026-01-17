@@ -235,7 +235,7 @@ public class HostDashboardController {
 
         Platform.runLater(() -> {
             try {
-                //reservations.clear();
+                reservations.clear();
 
                 String payload = msg.substring("TODAYS_RESERVATIONS|".length());
                 if (payload.equals("EMPTY") || payload.isBlank()) {

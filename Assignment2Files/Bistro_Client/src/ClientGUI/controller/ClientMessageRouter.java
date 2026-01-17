@@ -36,6 +36,8 @@ public class ClientMessageRouter implements ChatIF {
                 return; 
             }
             if (message.startsWith("RESERVATION_CREATED")) { sr.onBookingResponse(message); return; }
+            if (message.startsWith("RESERVATION_FAILED|")) { sr.onBookingResponse(message); return; }
+
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL")) { return; }
@@ -47,6 +49,8 @@ public class ClientMessageRouter implements ChatIF {
             if (message.startsWith("RESERVATIONS_FOR_DATE|")) { r.onReservationsReceived(message); return; }
             if (message.startsWith("OPENING_HOURS|")) { r.onOpeningHoursReceived(message); return; }
             if (message.startsWith("RESERVATION_CREATED")) { r.onBookingResponse(message); return; }
+            if (message.startsWith("RESERVATION_FAILED|")) { r.onBookingResponse(message); return; }
+
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
                     || message.startsWith("ERROR|CANCEL")) { r.onCancelResponse(message); return; }
@@ -54,20 +58,11 @@ public class ClientMessageRouter implements ChatIF {
 
         // 3) Route to active receive-table window (if exists)
         ReceiveTableUIController t = ClientUIController.getActiveReceiveTableController();
-if (t != null) {
-            
-            // --- התוספת החדשה מתחילה כאן ---
-            if (message.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
-                t.onSubscriberDataReceived(message);
-                return;
-            }
-            // --- התוספת החדשה מסתיימת כאן ---
-
+        if (t != null) {
             if (message.startsWith("TABLE_ASSIGNED|")
                     || message.equals("NO_TABLE_AVAILABLE")
                     || message.equals("INVALID_CONFIRMATION_CODE") 
-                    || message.equals("RESERVATION_ALREADY_USED")
-                    || message.equals("RESERVATION_NOT_FOR_TODAY")) { // הוספתי גם את המקרה של תאריך שגוי ליתר ביטחון
+            	|| message.equals("RESERVATION_ALREADY_USED")) {
                 t.onReceiveTableResponse(message);
                 return;
             }
