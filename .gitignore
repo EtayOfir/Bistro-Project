@@ -29,4 +29,8 @@
 Thumbs.db
 
 # === Logs ===
-*.logAssignment2Files/Bistro_Client/Bistro_Report_*.csv
+*.log
+Assignment2Files/Bistro_Client/Bistro_Report_*.csv
+
+# === Java compilation artifacts ===
+javac.*.args

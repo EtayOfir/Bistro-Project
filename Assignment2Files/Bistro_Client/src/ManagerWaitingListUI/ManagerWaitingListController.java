@@ -2,6 +2,7 @@ package ManagerWaitingListUI;
 
 // change to your package
 
+import ClientGUI.controller.ClientUI;
 import client.ChatClient;
 import common.ChatIF;
 import entities.WaitingEntry;
@@ -53,7 +54,7 @@ public class ManagerWaitingListController implements ChatIF {
         });
 
         try {
-            client = new ChatClient("localhost", 5555, this);
+            client = new ChatClient(ClientUI.serverHost, ClientUI.serverPort, this);
             client.openConnection();
             client.handleMessageFromClientUI("#SUBSCRIBE_WAITING_LIST"); // real-time updates
         } catch (Exception e) {
