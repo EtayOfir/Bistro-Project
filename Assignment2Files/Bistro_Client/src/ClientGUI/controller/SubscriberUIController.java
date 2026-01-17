@@ -181,6 +181,7 @@ public class SubscriberUIController implements Initializable {
                         if (currentSubscriber != null) {
                             currentSubscriber.setPhoneNumber(det[0]);
                             currentSubscriber.setEmail(det[1]);
+                            
                         }
                     }
                 }

@@ -316,10 +316,10 @@ public class RepresentativeViewDetailsUIController {
                             int diners = Integer.parseInt(cols[4]);
                             String status = cols[5];
                             Integer tableNumber = null;
-
                             if (cols.length > 6 && cols[6] != null && !cols[6].isBlank() && !"null".equalsIgnoreCase(cols[6])) {
                                 tableNumber = Integer.valueOf(cols[6]);
                             }
+
                             // יצירת אובייקט Reservation.
                             // הערה: הבנאי שלך דורש גם confirmationCode ו-subscriberId.
                             // כיוון שלא שלחנו אותם כדי לחסוך מקום (הם לא בטבלה), נשלח ערכים פיקטיביים או שתעדכני את השרת לשלוח גם אותם.

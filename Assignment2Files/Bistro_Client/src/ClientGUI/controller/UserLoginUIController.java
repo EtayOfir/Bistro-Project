@@ -284,10 +284,10 @@ public class UserLoginUIController {
                 ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
                 System.out.println("✅ Connected to server (" + host + ":" + port + ") for Terminal");
             }
-
-            // 2Identify as Guest (so server UI shows the connection)
+         // 2Identify as Guest (so server UI shows the connection)
             ClientUI.chat.handleMessageFromClientUI("IDENTIFY|Guest|GuestTerminal");
-            
+
+
             FXMLLoader loader = ViewLoader.fxml("RestaurantTerminalUI.fxml");
             Parent root = loader.load();
 

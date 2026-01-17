@@ -13,35 +13,36 @@ import javafx.stage.Stage;
  */
 public class TerminalSubscriberLoginUIController {
 
-    @FXML private TextField usernameField;
-    @FXML private PasswordField passwordField;
-    @FXML private Label errorLabel;
+	@FXML private TextField usernameField;
+	@FXML private PasswordField passwordField;
+	@FXML private Label errorLabel;
 
-    // הפניה לקונטרולר של הטרמינל כדי שנוכל לעדכן אותו שהתחברנו
-    private RestaurantTerminalUIController parentController;
+	// הפניה לקונטרולר של הטרמינל כדי שנוכל לעדכן אותו שהתחברנו
+	private RestaurantTerminalUIController parentController;
 
-    public void setParentController(RestaurantTerminalUIController parent) {
-        this.parentController = parent;
-    }
+	public void setParentController(RestaurantTerminalUIController parent) {
+		this.parentController = parent;
+	}
 
-    @FXML
-    void onOK(ActionEvent event) {
-        String user = usernameField.getText().trim();
-        String pass = passwordField.getText().trim();
+	@FXML
+	void onOK(ActionEvent event) {
+		String user = usernameField.getText().trim();
+		String pass = passwordField.getText().trim();
 
-        if (user.isEmpty() || pass.isEmpty()) {
-            errorLabel.setText("Please enter all fields");
-            return;
-        }
+		if (user.isEmpty() || pass.isEmpty()) {
+			errorLabel.setText("Please enter all fields");
+			return;
+		}
 
-        try {
-            if (ClientUI.chat == null) {
-                errorLabel.setText("No connection to server");
-                return;
-            }
+		// כאן תוכלי להוסיף בדיקה מול השרת (Server) אם הפרטים נכונים.
+		// כרגע נניח שההתחברות הצליחה:
 
-            // 1. אימות מול השרת
-            ClientUI.chat.handleMessageFromClientUI("#LOGIN " + user + " " + pass);
+		try {
+			if (ClientUI.chat == null) {
+				errorLabel.setText("No connection to server");
+				return;
+			}
+			ClientUI.chat.handleMessageFromClientUI("#LOGIN " + user + " " + pass);
             String response = ClientUI.chat.waitForMessage();
 
             if (response != null && response.startsWith("LOGIN_SUCCESS")) {
@@ -58,7 +59,7 @@ public class TerminalSubscriberLoginUIController {
                 sub.setUserName(user);
                 sub.setFullName(fullName);
                 sub.setRole(role);
-                
+
                 // 2. עדכון השרת בזהות החדשה (IDENTIFY) - מתבצע מכאן!
                 // כך אנחנו לא צריכים לשנות את הפונקציה באבא
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + user + "|" + role);
@@ -79,13 +80,16 @@ public class TerminalSubscriberLoginUIController {
         }
     }
 
-    @FXML
-    void onCancel(ActionEvent event) {
-        closeWindow(event);
-    }
 
-    private void closeWindow(ActionEvent event) {
-        Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
-        stage.close();
-    }
-}
+		
+
+		@FXML
+		void onCancel(ActionEvent event) {
+			closeWindow(event);
+		}
+
+		private void closeWindow(ActionEvent event) {
+			Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
+			stage.close();
+		}
+	}

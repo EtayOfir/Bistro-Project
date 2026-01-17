@@ -36,9 +36,7 @@ public class RestaurantTerminalUIController {
      * Optional label to display the currently logged-in subscriber's name in the terminal.
      */
     @FXML private Label statusLabel; 
-
     private entities.Subscriber loggedInSubscriber;
-    
     /**
      * Handles the "Get Table" button click.
      * Navigates to the table reception screen (ReceiveTableUI).
@@ -133,6 +131,7 @@ public class RestaurantTerminalUIController {
             e.printStackTrace();
         }
     }
+    
 
     /**
      * Handles the "Back" button click.
@@ -140,6 +139,10 @@ public class RestaurantTerminalUIController {
      *
      * @param event The event triggered by clicking the button.
      */
+    @FXML
+    void onBack(ActionEvent event) {
+        navigate(event, "UserLoginUIView.fxml");
+    }
     @FXML
     private void onSignOff(ActionEvent event) {
         try {
@@ -191,18 +194,17 @@ public class RestaurantTerminalUIController {
             statusLabel.setText("Hello, " + username);
         }
     }
-    
     public void setLoggedInSubscriber(entities.Subscriber sub) {
         this.loggedInSubscriber = sub;
-        
+
         if (sub != null) {
             System.out.println("Subscriber connected via terminal (Object): " + sub.getUserName());
-            
+
             // עדכון התווית
             if (statusLabel != null) {
                 statusLabel.setText("Hello, " + sub.getUserName());
             }
-            
+
             // עדכון השרת בזהות המלאה
             if (ClientUI.chat != null) {
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + sub.getUserName() + "|" + sub.getRole());
@@ -231,12 +233,13 @@ public class RestaurantTerminalUIController {
 
             // Set the return path based on the controller type
             switch (controller) {
-                case ReceiveTableUIController c -> {
-                    c.setReturnPath("RestaurantTerminalUI.fxml", "Restaurant Terminal", termUser, termRole);
-                    if (loggedInSubscriber != null) {
-                        c.setSubscriber(loggedInSubscriber);
-                    }
+            case ReceiveTableUIController c -> {
+                c.setReturnPath("RestaurantTerminalUI.fxml", "Restaurant Terminal", termUser, termRole);
+                if (loggedInSubscriber != null) {
+                    c.setSubscriber(loggedInSubscriber);
                 }
+            }
+
                 case ClientWaitingListController c -> 
                     c.setReturnPath("RestaurantTerminalUI.fxml", "Restaurant Terminal", termUser, termRole);
 
