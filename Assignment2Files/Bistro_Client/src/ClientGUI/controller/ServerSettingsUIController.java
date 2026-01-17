@@ -24,7 +24,7 @@ public class ServerSettingsUIController {
 
     private String host;
     private int port;
-    private boolean connected = false;
+    private boolean settingsConfigured = false;
 
     @FXML
     private void initialize() {
@@ -35,11 +35,11 @@ public class ServerSettingsUIController {
     }
 
     /**
-     * Handles the Connect button click.
+     * Handles the Continue button click.
      * Validates the input and stores server settings without connecting.
      */
     @FXML
-    private void onConnectClicked(ActionEvent event) {
+    private void onContinueClicked(ActionEvent event) {
         String hostInput = hostField.getText().trim();
         String portInput = portField.getText().trim();
 
@@ -69,13 +69,13 @@ public class ServerSettingsUIController {
         // Store the settings without connecting
         this.host = hostInput;
         this.port = portNum;
-        this.connected = true;
+        this.settingsConfigured = true;
 
         // Store settings in ClientUI for later use
         ClientUI.serverHost = hostInput;
         ClientUI.serverPort = portNum;
 
-        statusLabel.setText("Settings saved!");
+        statusLabel.setText("Settings saved. Please log in to connect.");
         statusLabel.setStyle("-fx-text-fill: #22c55e; -fx-font-size: 12;");
 
         // Navigate to Login UI
@@ -109,8 +109,8 @@ public class ServerSettingsUIController {
         System.exit(0);
     }
 
-    public boolean isConnected() {
-        return connected;
+    public boolean isSettingsConfigured() {
+        return settingsConfigured;
     }
 
     public String getHost() {
