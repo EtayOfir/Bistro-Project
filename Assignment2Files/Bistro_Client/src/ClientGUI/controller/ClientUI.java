@@ -40,6 +40,12 @@ public class ClientUI extends Application {
     public static ChatClient chat;
 
     /**
+     * Server host and port settings configured before login
+     */
+    public static String serverHost = "localhost";
+    public static int serverPort = 5555;
+
+    /**
      * Starts the JavaFX application.
      * <p>
      * Opens the Server Settings screen first, then loads the login view after connection.
