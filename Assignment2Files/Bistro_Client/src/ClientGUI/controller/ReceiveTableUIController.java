@@ -1,30 +1,28 @@
 package ClientGUI.controller;
 
 import ClientGUI.util.ViewLoader;
-import entities.Subscriber;
-
-import java.time.LocalDate;
-
 import ClientGUI.util.SceneUtil;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Alert.AlertType;
-import javafx.scene.control.Button;
+import entities.Subscriber;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
-import javafx.scene.control.TextField;
-import javafx.stage.Stage;
-import javafx.scene.Node;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleIntegerProperty;
+import java.time.LocalDate;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.Button;
+import javafx.scene.control.TextField;
+import javafx.stage.Stage;
+import javafx.scene.Node;
 
 
 
@@ -65,7 +63,7 @@ public class ReceiveTableUIController {
 
     @FXML
     private Button closeBtn;
-
+    
     @FXML private Label lblSelectRes;
     @FXML private TableView<ResItem> reservationsTable;
     @FXML private TableColumn<ResItem, String> colTime;
@@ -94,14 +92,19 @@ public class ReceiveTableUIController {
         public int getGuests() { return guests.get(); }
         public String getStatus() { return status.get(); }
         public String getCode() { return code.get(); }
-        
+
         public SimpleStringProperty timeProperty() { return time; }
         public SimpleIntegerProperty guestsProperty() { return guests; }
         public SimpleStringProperty statusProperty() { return status; }
         public SimpleStringProperty codeProperty() { return code; }
     }
     
-    
+    /**
+     * JavaFX initialization hook.
+     *
+     * <p>Registers this controller as the currently active "Receive Table" screen so that
+     * {@link ClientUIController} can route server responses to it.</p>
+     */
     @FXML
     private void initialize() {
         ClientUIController.setActiveReceiveTableController(this);
@@ -111,7 +114,7 @@ public class ReceiveTableUIController {
             colGuests.setCellValueFactory(cell -> cell.getValue().guestsProperty().asObject());
             colStatus.setCellValueFactory(cell -> cell.getValue().statusProperty());
             colCode.setCellValueFactory(cell -> cell.getValue().codeProperty());
-            
+
             reservationsTable.setItems(tableData);
 
             // 2. הוספת מאזין לבחירה בטבלה
@@ -121,7 +124,7 @@ public class ReceiveTableUIController {
                     confirmationCodeField.setText(newVal.getCode());
                 }
             });
-            
+
             // ברירת מחדל: מוסתר
             reservationsTable.setVisible(false);
             reservationsTable.setManaged(false);
@@ -131,16 +134,12 @@ public class ReceiveTableUIController {
             }
         }
     }
-
-    /**
-     * נקרא מבחוץ (מהטרמינל) כשיש מנוי מחובר
-     */
     public void setSubscriber(Subscriber sub) {
         this.currentSubscriber = sub;
-        
+
         if (sub != null) {
             System.out.println("DEBUG: Subscriber set in ReceiveTable: " + sub.getUserName());
-            
+
             // חשיפת הטבלה והכותרת
             if (reservationsTable != null) {
                 reservationsTable.setVisible(true);
@@ -156,10 +155,6 @@ public class ReceiveTableUIController {
             }
         }
     }
-    
-    /**
-     * קבלת הנתונים מהשרת ומילוי הטבלה
-     */
     public void onSubscriberDataReceived(String msg) {
         Platform.runLater(() -> {
             try {
@@ -168,7 +163,7 @@ public class ReceiveTableUIController {
                 // Format: ...|ACTIVE:date,time,diners,code,status;...
                 String[] sections = msg.split("\\|");
                 String activeSection = "";
-                
+
                 for (String sec : sections) {
                     if (sec.startsWith("ACTIVE:")) {
                         activeSection = sec.substring(7);
@@ -194,11 +189,11 @@ public class ReceiveTableUIController {
                         // סינון: רק הזמנות של היום, ורק כאלו שאפשר לקבל שולחן עבורן
                         if (resDate.equals(today) && 
                            (status.equalsIgnoreCase("Confirmed") || status.equalsIgnoreCase("Late"))) {
-                            
+
                             String time = cols[1].substring(0, 5); 
                             int diners = Integer.parseInt(cols[2]);
                             String code = cols[3];
-                            
+
                             tableData.add(new ResItem(time, diners, status, code));
                         }
                     }
@@ -216,7 +211,7 @@ public class ReceiveTableUIController {
             }
         });
     }
-    
+
     /**
      * Triggered when the user clicks "Get a table".
      *

@@ -54,6 +54,7 @@ public class ManagerWaitingListController implements ChatIF {
 
         try {
             client = new ChatClient("localhost", 5555, this);
+            client.openConnection();
             client.handleMessageFromClientUI("#SUBSCRIBE_WAITING_LIST"); // real-time updates
         } catch (Exception e) {
             lblInfo.setText("Failed to connect: " + e.getMessage());

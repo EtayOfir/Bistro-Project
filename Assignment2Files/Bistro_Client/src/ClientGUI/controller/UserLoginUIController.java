@@ -96,19 +96,13 @@ public class UserLoginUIController {
 
         // 2. Connect ONLY on Login click (if not connected yet)
         try {
-            if (ClientUI.chat == null) {
-                // Use settings from fields if available, otherwise default
-                String host = (hostField != null && !hostField.getText().isEmpty()) ? hostField.getText() : "localhost";
-                int port = 5555;
-                try {
-                    if (portField != null && !portField.getText().isEmpty()) {
-                        port = Integer.parseInt(portField.getText());
-                    }
-                } catch (NumberFormatException e) {
-                    showError("Invalid Port Number. Using 5555.");
-                }
+            if (ClientUI.chat == null || !ClientUI.chat.isConnected()) {
+                // Use settings from ClientUI (set by ServerSettingsUIController)
+                String host = ClientUI.serverHost;
+                int port = ClientUI.serverPort;
 
                 ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                ClientUI.chat.openConnection();
                 System.out.println("✅ Connected to server (" + host + ":" + port + ") on Login click");
             }
         } catch (Exception e) {
@@ -267,27 +261,16 @@ public class UserLoginUIController {
     private void onTerminal(ActionEvent event) {
         try {
             // Auto-connect if needed
-            if (ClientUI.chat == null) {
-                String host = (hostField != null && !hostField.getText().isEmpty())
-                        ? hostField.getText()
-                        : "localhost";
-
-                int port = 5555;
-                try {
-                    if (portField != null && !portField.getText().isEmpty()) {
-                        port = Integer.parseInt(portField.getText());
-                    }
-                } catch (NumberFormatException e) {
-                    showError("Invalid Port Number. Using 5555.");
-                }
+            if (ClientUI.chat == null || !ClientUI.chat.isConnected()) {
+                String host = ClientUI.serverHost;
+                int port = ClientUI.serverPort;
 
                 ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                ClientUI.chat.openConnection();
                 System.out.println("✅ Connected to server (" + host + ":" + port + ") for Terminal");
             }
 
-            // 2Identify as Guest (so server UI shows the connection)
             ClientUI.chat.handleMessageFromClientUI("IDENTIFY|Guest|GuestTerminal");
-            
             FXMLLoader loader = ViewLoader.fxml("RestaurantTerminalUI.fxml");
             Parent root = loader.load();
 
@@ -309,21 +292,12 @@ public class UserLoginUIController {
     private void onLoginGuest(ActionEvent event) {
         try {
             // Connect if not connected yet
-            if (ClientUI.chat == null) {
-                String host = (hostField != null && !hostField.getText().isEmpty())
-                        ? hostField.getText()
-                        : "localhost";
-
-                int port = 5555;
-                try {
-                    if (portField != null && !portField.getText().isEmpty()) {
-                        port = Integer.parseInt(portField.getText());
-                    }
-                } catch (NumberFormatException e) {
-                    showError("Invalid Port Number. Using 5555.");
-                }
+            if (ClientUI.chat == null || !ClientUI.chat.isConnected()) {
+                String host = ClientUI.serverHost;
+                int port = ClientUI.serverPort;
 
                 ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
+                ClientUI.chat.openConnection();
                 System.out.println("✅ Connected to server (" + host + ":" + port + ") as Guest");
             }
 

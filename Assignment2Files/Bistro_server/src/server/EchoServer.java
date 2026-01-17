@@ -225,7 +225,7 @@ public class EchoServer extends AbstractServer {
 			uiController.addLog("Message from client: " + messageStr);
 		}
 
-		String ans;
+		String ans = "ERROR|UNKNOWN_COMMAND";
 
 		try {
 			String trimmed = messageStr.trim();
@@ -243,6 +243,7 @@ public class EchoServer extends AbstractServer {
 			boolean needsReservationDao =
 			        command.equals("#GET_RESERVATION") ||
 			        command.equals("#UPDATE_RESERVATION") ||
+			        command.equals("#CHECK_AVAILABILITY") ||
 			        command.equals("#CREATE_RESERVATION") ||
 			        command.equals("#GET_RESERVATIONS_BY_DATE") ||
 			        command.equals("#GET_TODAYS_RESERVATIONS") ||
@@ -317,7 +318,6 @@ public class EchoServer extends AbstractServer {
 
 			        try (var con = mysqlConnection1.getDataSource().getConnection()) {
 
-			            // ✅ לוג: על איזה DB אנחנו יושבים
 			            try (var psDb = con.prepareStatement("SELECT DATABASE()");
 			                 var rsDb = psDb.executeQuery()) {
 			                if (rsDb.next()) System.out.println("DEBUG DB=" + rsDb.getString(1));
@@ -336,7 +336,14 @@ public class EchoServer extends AbstractServer {
 			                int updated = ps.executeUpdate();
 			                System.out.println("DEBUG rowsUpdated=" + updated);
 
-			                ans = updated > 0 ? "BRANCH_DAY_UPDATED" : "DAY_NOT_FOUND";
+			                // ======= זה החלק החדש =======
+			                if (updated > 0) {
+			                    int canceled = cancelReservationsOutsideNewHoursForDay(con, day, open, close);
+			                    ans = "BRANCH_DAY_UPDATED|CANCELED=" + canceled;
+			                } else {
+			                    ans = "DAY_NOT_FOUND";
+			                }
+			                // ============================
 			            }
 			        }
 			    } catch (Exception e) {
@@ -345,13 +352,13 @@ public class EchoServer extends AbstractServer {
 			    }
 			    break;
 			}
+
 			case "#SET_BRANCH_HOURS_BY_DATE": {
-			    // #SET_BRANCH_HOURS_BY_DATE 2026-01-20 10:00 16:00 <b64desc?>
 			    if (parts.length < 4) { ans = "ERROR|BAD_FORMAT"; break; }
 
 			    try {
-			        String dateStr = parts[1].trim();          // YYYY-MM-DD
-			        String open = parts[2].trim() + ":00";     // HH:mm:00
+			        String dateStr = parts[1].trim();
+			        String open = parts[2].trim() + ":00";
 			        String close = parts[3].trim() + ":00";
 			        String desc = (parts.length >= 5) ? decodeB64Url(parts[4]) : "";
 
@@ -368,7 +375,14 @@ public class EchoServer extends AbstractServer {
 			            ps.setString(4, desc);
 
 			            int affected = ps.executeUpdate();
-			            ans = "BRANCH_DATE_SAVED|" + affected; // affected 1/2 depending on insert/update
+
+			            // ======= זה החלק החדש =======
+			            int canceled = cancelReservationsOutsideNewHoursForDate(
+			                con, java.sql.Date.valueOf(dateStr), open, close
+			            );
+			            ans = "BRANCH_DATE_SAVED|" + affected + "|CANCELED=" + canceled;
+			            // ============================
+
 			        }
 
 			    } catch (Exception ex) {
@@ -377,6 +391,7 @@ public class EchoServer extends AbstractServer {
 			    }
 			    break;
 			}
+
 			case "#GET_OPENING_HOURS_SPECIAL": {
 			    try {
 			        StringBuilder sb = new StringBuilder("OPENING_HOURS_SPECIAL|");
@@ -661,7 +676,87 @@ public class EchoServer extends AbstractServer {
 					ans = "ERROR|DATA_PARSE_FAILURE " + e.getMessage();
 				}
 				break;
+			    ans = "ERROR|UNEXPECTED"; 
+
+			    try {
+			        System.out.println("DEBUG: CREATE_RESERVATION command received");
+
+			        int numGuests = Integer.parseInt(parts[1]);
+			        Date date = Date.valueOf(parts[2]);
+			        Time time = Time.valueOf(parts[3]);
+			        String confirmationCode = parts[4];
+			        int subscriberId = Integer.parseInt(parts[5]);
+
+			        String phone = (parts.length > 6 && !parts[6].equalsIgnoreCase("Subscriber") && !parts[6].equalsIgnoreCase("Casual"))
+			                ? parts[6] : "";
+			        String email = (parts.length > 7 && !parts[7].equalsIgnoreCase("Subscriber") && !parts[7].equalsIgnoreCase("Casual"))
+			                ? parts[7] : "";
+
+			        // Reservation type is derived ONLY from subscriberId
+			        String cType = (subscriberId > 0) ? "Subscriber" : "Casual";
+
+			        System.out.println("DEBUG: subscriberId=" + subscriberId + ", cType=" + cType);
+			        System.out.println("DEBUG: phone=" + phone + ", email=" + email);
+
+			        Reservation newRes = new Reservation(
+			                0,
+			                numGuests,
+			                date,
+			                time,
+			                confirmationCode,
+			                subscriberId,
+			                "Confirmed",
+			                cType,
+			                null // TableNumber: not assigned yet (DAO assigns)
+			        );
+
+			        System.out.println("DEBUG: Calling insertReservation with CustomerType=" + newRes.getRole());
+
+			        try {
+			            int generatedId = reservationDAO.insertReservation(newRes, phone, email, subscriberId);
+			            System.out.println("DEBUG: Generated reservation ID=" + generatedId);
+
+			            ans = (generatedId > 0)
+			                    ? ("RESERVATION_CREATED|" + generatedId)
+			                    : "RESERVATION_FAILED|INSERT_FAILED";
+
+			        } catch (java.sql.SQLException sqlEx) {
+
+			            String sqlMsg = (sqlEx.getMessage() == null) ? "" : sqlEx.getMessage();
+			            System.err.println("ERROR: SQL Exception during reservation insert: " + sqlMsg);
+			            sqlEx.printStackTrace();
+
+			            // 1) capacity too large
+			            if (sqlMsg.startsWith("CAPACITY_TOO_LARGE|")) {
+			                String[] p = sqlMsg.split("\\|", -1);
+			                ans = (p.length >= 3)
+			                        ? ("RESERVATION_FAILED|CAPACITY_TOO_LARGE|" + p[1] + "|" + p[2])
+			                        : "RESERVATION_FAILED|CAPACITY_TOO_LARGE";
+
+			            // 2) no tables configured at all
+			            } else if (sqlMsg.equalsIgnoreCase("NO_TABLES_DEFINED")) {
+			                ans = "RESERVATION_FAILED|NO_TABLES_DEFINED";
+
+			            // 3) no available table for the slot
+			            } else if (sqlMsg.contains("No available table")) {
+			                ans = "RESERVATION_FAILED|NO_AVAILABLE_TABLE|" + sqlMsg;
+
+			            // 4) fallback
+			            } else {
+			                ans = "RESERVATION_FAILED|DB_ERROR|" + sqlMsg;
+			            }
+			        }
+
+			        System.out.println("DEBUG: Sending response: " + ans);
+			        break;
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "RESERVATION_FAILED|DATA_PARSE_FAILURE|" + (e.getMessage() == null ? "" : e.getMessage());
+			        break;
+			    }
 			}
+
 
 			case "#UPDATE_RESERVATION": {
 				try {
@@ -679,7 +774,22 @@ public class EchoServer extends AbstractServer {
 					ans = "ERROR|UNKNOWN_UPDATE_ERROR";
 				}
 				break;
+			    try {
+			        int id = Integer.parseInt(parts[1]);
+			        int guests = Integer.parseInt(parts[2]);
+			        Date date = Date.valueOf(parts[3]);
+			        Time time = Time.valueOf(parts[4]);
+
+			        boolean updated = reservationDAO.updateReservation(id, guests, date, time);
+			        ans = updated ? "RESERVATION_UPDATED" : "RESERVATION_NOT_FOUND";
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|DATA_PARSE_FAILURE|" + e.getMessage();
+			    }
+			    break;
 			}
+
 
 			case "#CANCEL_RESERVATION": {
 			    if (pipeParts.length < 2) {
@@ -730,6 +840,52 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
+			case "#CHECK_AVAILABILITY": {
+			    try {
+			        if (parts.length < 4) {
+			            ans = "ERROR|INVALID_FORMAT_CHECK_AVAILABILITY";
+			            break;
+			        }
+			        java.time.LocalDate date = java.time.LocalDate.parse(parts[1]);
+			        java.time.LocalTime time = java.time.LocalTime.parse(parts[2]);
+			        int diners = Integer.parseInt(parts[3]);
+
+			        ReservationDAO.AvailabilityResult res = reservationDAO.checkAvailability(date, time, diners);
+
+			        String base = "AVAILABILITY|" + date.toString() + "|" +
+			                time.truncatedTo(java.time.temporal.ChronoUnit.MINUTES).toString();
+
+			        if (res.errorCode != null) {
+			            ans = base + "|ERROR|" + res.errorCode;
+			            break;
+			        }
+
+			        if (res.available) {
+			            ans = base + "|AVAILABLE";
+			            break;
+			        }
+
+			        StringBuilder sb = new StringBuilder(base).append("|NOT_AVAILABLE");
+			        for (java.time.LocalDateTime alt : res.alternatives) {
+			            if (alt.toLocalDate().equals(date)) {
+			                sb.append("|")
+			                  .append(alt.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+			                  .append(" (same day)");
+			            } else {
+			                sb.append("|")
+			                  .append(alt.toLocalDate().toString()).append(" ")
+			                  .append(alt.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+			            }
+			        }
+			        ans = sb.toString();
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|CHECK_AVAILABILITY_FAILED|" + (e.getMessage() == null ? "" : e.getMessage());
+			    }
+			    break;
+			}
+
 
 			case "#GET_OPENING_HOURS": {
 				// Format: #GET_OPENING_HOURS yyyy-MM-dd
@@ -1069,21 +1225,18 @@ public class EchoServer extends AbstractServer {
 					String open = "";
 					String close = "";
 
-					// ===== שעות: openinghours =====
-					// לוקח לפי אינדקסים כדי לא להיות תלוי בשם עמודה
+					
 					try (var con = mysqlConnection1.getDataSource().getConnection();
 							var ps = con.prepareStatement("SELECT * FROM openinghours LIMIT 1");
 							var rs = ps.executeQuery()) {
 
 						if (rs.next()) {
-							// הנחה רק על סדר עמודות: id ואז open ואז close
 							open  = rs.getString("OpenTime");
 							close = rs.getString("CloseTime");
 
 						}
 					}
 
-					// ===== שולחנות: restauranttables =====
 					StringBuilder tablesPayload = new StringBuilder();
 					try (var con = mysqlConnection1.getDataSource().getConnection();
 							var ps = con.prepareStatement("SELECT TableNumber, Capacity FROM restauranttables ORDER BY TableNumber");
@@ -1284,6 +1437,7 @@ public class EchoServer extends AbstractServer {
 				}
 				break;
 			}
+			
 
 			default:
 				ans = "ERROR|UNKNOWN_COMMAND";
@@ -1564,7 +1718,7 @@ public class EchoServer extends AbstractServer {
 						"       s.FullName " +
 						"FROM ActiveReservations ar " +
 						"LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
-						"WHERE ar.TableNumber IS NOT NULL " +     // 🔥 זה כל הקסם
+						"WHERE ar.TableNumber IS NOT NULL " +     
 						"ORDER BY ar.TableNumber ASC";
 
 		try (
@@ -1609,8 +1763,7 @@ public class EchoServer extends AbstractServer {
 				.append(time).append(",")
 				.append(status).append(",")
 				.append(tableNumber).append(",")   
-				  .append(code);
-			}
+				  .append(code);			}
 
 			if (sb.length() == 0) {
 				return "SEATED_CUSTOMERS|EMPTY";
@@ -1689,5 +1842,98 @@ public class EchoServer extends AbstractServer {
 		sb.deleteCharAt(sb.length() - 1);
 		return "RESTAURANT_TABLES|" + sb;
 	}
+	private int cancelReservationsOutsideNewHoursForDay(Connection con, String dayOfWeek, String open, String close) throws Exception {
+
+	    java.sql.Time openT = java.sql.Time.valueOf(open);
+	    java.sql.Time closeT = java.sql.Time.valueOf(close);
+
+	    
+	    String selectSql =
+	        "SELECT ar.ConfirmationCode " +
+	        "FROM ActiveReservations ar " +
+	        "WHERE ar.ReservationDate >= CURDATE() " +
+	        "  AND ar.Status IN ('Confirmed','Late') " +
+	        "  AND DAYNAME(ar.ReservationDate) = ? " +
+	        "  AND (ar.ReservationTime < ? OR ar.ReservationTime >= ?) " +
+	        "  AND NOT EXISTS ( " +
+	        "      SELECT 1 FROM bistro.openinghours oh " +
+	        "      WHERE oh.SpecialDate = ar.ReservationDate " +
+	        "  )";
+
+	    // 2) מבטלים + משחררים שולחן (TableNumber=NULL כדי שלא יופיע ב-SEATED_CUSTOMERS אצלך)
+	    String updateSql =
+	        "UPDATE ActiveReservations " +
+	        "SET Status='Canceled', TableNumber=NULL " +
+	        "WHERE ConfirmationCode = ?";
+
+	    int canceled = 0;
+
+	    try (PreparedStatement psSel = con.prepareStatement(selectSql)) {
+	        psSel.setString(1, dayOfWeek);
+	        psSel.setTime(2, openT);
+	        psSel.setTime(3, closeT);
+
+	        try (ResultSet rs = psSel.executeQuery();
+	             PreparedStatement psUpd = con.prepareStatement(updateSql)) {
+
+	            while (rs.next()) {
+	                String code = rs.getString("ConfirmationCode");
+	                if (code == null) continue;
+
+	                psUpd.setString(1, code);
+	                int u = psUpd.executeUpdate();
+	                if (u > 0) canceled++;
+	            }
+	        }
+	    }
+
+	    System.out.println("DEBUG canceled outside hours (day=" + dayOfWeek + "): " + canceled);
+	    return canceled;
+	}
+	// מבטל הזמנות עתידיות בתאריך הזה שנופלות מחוץ לטווח השעות החדש
+	private int cancelReservationsOutsideNewHoursForDate(Connection con, java.sql.Date date, String open, String close) throws Exception {
+
+	    java.sql.Time openT = java.sql.Time.valueOf(open);
+	    java.sql.Time closeT = java.sql.Time.valueOf(close);
+
+	    String selectSql =
+	        "SELECT ar.ConfirmationCode " +
+	        "FROM ActiveReservations ar " +
+	        "WHERE ar.ReservationDate = ? " +
+	        "  AND ar.ReservationDate >= CURDATE() " +
+	        "  AND ar.Status IN ('Confirmed','Late') " +
+	        "  AND (ar.ReservationTime < ? OR ar.ReservationTime >= ?)";
+
+	    String updateSql =
+	        "UPDATE ActiveReservations " +
+	        "SET Status='Canceled', TableNumber=NULL " +
+	        "WHERE ConfirmationCode = ?";
+
+	    int canceled = 0;
+
+	    try (PreparedStatement psSel = con.prepareStatement(selectSql)) {
+	        psSel.setDate(1, date);
+	        psSel.setTime(2, openT);
+	        psSel.setTime(3, closeT);
+
+	        try (ResultSet rs = psSel.executeQuery();
+	             PreparedStatement psUpd = con.prepareStatement(updateSql)) {
+
+	            while (rs.next()) {
+	                String code = rs.getString("ConfirmationCode");
+	                if (code == null) continue;
+
+	                psUpd.setString(1, code);
+	                int u = psUpd.executeUpdate();
+	                if (u > 0) canceled++;
+	            }
+	        }
+	    }
+
+	    System.out.println("DEBUG canceled outside hours (date=" + date + "): " + canceled);
+	    return canceled;
+	}
+
+
   
 }

@@ -26,21 +26,22 @@ public class TerminalSubscriberLoginUIController {
 
     @FXML
     void onOK(ActionEvent event) {
-        String user = usernameField.getText().trim();
-        String pass = passwordField.getText().trim();
+    	 String user = usernameField.getText().trim();
+         String pass = passwordField.getText().trim();
 
         if (user.isEmpty() || pass.isEmpty()) {
             errorLabel.setText("Please enter all fields");
             return;
         }
 
+        // כאן תוכלי להוסיף בדיקה מול השרת (Server) אם הפרטים נכונים.
+        // כרגע נניח שההתחברות הצליחה:
+        
         try {
             if (ClientUI.chat == null) {
                 errorLabel.setText("No connection to server");
                 return;
-            }
-
-            // 1. אימות מול השרת
+            }  // 1. אימות מול השרת
             ClientUI.chat.handleMessageFromClientUI("#LOGIN " + user + " " + pass);
             String response = ClientUI.chat.waitForMessage();
 
@@ -58,7 +59,7 @@ public class TerminalSubscriberLoginUIController {
                 sub.setUserName(user);
                 sub.setFullName(fullName);
                 sub.setRole(role);
-                
+
                 // 2. עדכון השרת בזהות החדשה (IDENTIFY) - מתבצע מכאן!
                 // כך אנחנו לא צריכים לשנות את הפונקציה באבא
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + user + "|" + role);
@@ -78,6 +79,8 @@ public class TerminalSubscriberLoginUIController {
             errorLabel.setText("Login error");
         }
     }
+
+
 
     @FXML
     void onCancel(ActionEvent event) {
