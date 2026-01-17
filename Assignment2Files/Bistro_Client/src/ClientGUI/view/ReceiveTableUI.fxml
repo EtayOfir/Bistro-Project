@@ -67,7 +67,6 @@
                   <Button fx:id="lostBtn" mnemonicParsing="false" onAction="#onLost" text="Lost code?" GridPane.columnIndex="2" GridPane.rowIndex="1" />
                </children>
             </GridPane>
-         </children>
       </VBox>
    </center>
    
