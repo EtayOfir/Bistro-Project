@@ -1,7 +1,16 @@
 package methods;
 
+import entities.Reservation;
+
 public class CommonMethods {
 	
+	/**
+	 * Observer interface for waiting list entries that want to be notified
+	 * when reservations become available due to cancellations.
+	 */
+	public interface CancellationObserver {
+		void onReservationCancelled(Reservation cancelledReservation);
+	}
 	
 	/**
 	 * Mock send sms method to simulate the sending of 

@@ -622,13 +622,10 @@ public class ReservationDAO {
 
                 System.out.println("DEBUG existingTable=" + existingTable1);
 
-                if (existingTable1) return false;
-//                try (PreparedStatement ps = conn.prepareStatement(q3)) {
-//                    ps.setInt(1, tableNum);
-//                    try (ResultSet rs = ps.executeQuery()) {
-//                        if (rs.next()) { conn.rollback(); return false; }
-//                    }
-//                }
+                if (existingTable1) {
+                    conn.rollback();
+                    return false;
+                }
 
                 // 4) update reservation (TODAY ONLY, no overwrite)
                 String upd =
@@ -646,13 +643,6 @@ public class ReservationDAO {
                     if (!ok) { conn.rollback(); return false; }
                 }
 
-                // optional: keep RestaurantTables.Status in sync
-                // try (PreparedStatement ps = conn.prepareStatement(
-                //     "UPDATE RestaurantTables SET Status='Taken' WHERE TableNumber=?")) {
-                //     ps.setInt(1, tableNum);
-                //     ps.executeUpdate();
-                // }
-
                 conn.commit();
                 return true;
 
@@ -660,7 +650,11 @@ public class ReservationDAO {
                 conn.rollback();
                 throw ex;
             } finally {
-                conn.setAutoCommit(true);
+                try {
+                    conn.setAutoCommit(true);
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
@@ -680,63 +674,69 @@ public class ReservationDAO {
      */
     public int allocateTableForCustomer(String confirmationCode) {
         int assignedTable = -1;
-
+    
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
-
-            try (PreparedStatement psRes = conn.prepareStatement(SQLQueries.GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE)) {
-                psRes.setString(1, confirmationCode);
-
-                try (ResultSet rs = psRes.executeQuery()) {
-                    if (!rs.next()) {
-                        conn.rollback();
-                        return -1;
-                    }
-
-                    int diners = rs.getInt("NumOfDiners");
-                    String status = rs.getString("Status");
-                    Date dbDate = rs.getDate("ReservationDate");
-
-                    boolean isConfirmed = "Confirmed".equalsIgnoreCase(status);
-                    boolean isToday = (dbDate != null && dbDate.toLocalDate().equals(LocalDate.now()));
-
-                    if (diners <= 0 || !isConfirmed || !isToday) {
-                        conn.rollback();
-                        return -1;
-                    }
-
-                    // Find best table
-                    try (PreparedStatement psTable = conn.prepareStatement(SQLQueries.GET_BEST_AVAILABLE_TABLE)) {
-                        psTable.setInt(1, diners);
-
-                        try (ResultSet rsTable = psTable.executeQuery()) {
-                            if (!rsTable.next()) {
-                                conn.rollback();
-                                return -1;
-                            }
-                            assignedTable = rsTable.getInt("TableNumber");
+    
+            try {
+                // Step 1: Validate reservation
+                int diners;
+                try (PreparedStatement psRes = conn.prepareStatement(SQLQueries.GET_ACTIVE_RESERVATION_BY_CONFIRMATION_CODE)) {
+                    psRes.setString(1, confirmationCode);
+                    try (ResultSet rs = psRes.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return -1; // Reservation not found
+                        }
+    
+                        diners = rs.getInt("NumOfDiners");
+                        String status = rs.getString("Status");
+                        Date dbDate = rs.getDate("ReservationDate");
+    
+                        boolean isConfirmed = "Confirmed".equalsIgnoreCase(status);
+                        boolean isToday = (dbDate != null && dbDate.toLocalDate().equals(LocalDate.now()));
+    
+                        if (diners <= 0 || !isConfirmed || !isToday) {
+                            conn.rollback();
+                            return -1; // Invalid reservation state
                         }
                     }
-
-                    // Update reservation: mark arrived + store assigned table
-                    try (PreparedStatement psUpdateRes =
-                             conn.prepareStatement(SQLQueries.SET_RESERVATION_ARRIVED_AND_TABLE)) {
-                        psUpdateRes.setInt(1, assignedTable);
-                        psUpdateRes.setString(2, confirmationCode);
-                        psUpdateRes.executeUpdate();
-                    }
-
-                    conn.commit();
-                    return assignedTable;
                 }
+    
+                // Step 2: Find best table
+                try (PreparedStatement psTable = conn.prepareStatement(SQLQueries.GET_BEST_AVAILABLE_TABLE)) {
+                    psTable.setInt(1, diners);
+                    try (ResultSet rsTable = psTable.executeQuery()) {
+                        if (!rsTable.next()) {
+                            conn.rollback();
+                            return -1; // No table available
+                        }
+                        assignedTable = rsTable.getInt("TableNumber");
+                    }
+                }
+    
+                // Step 3: Update reservation
+                try (PreparedStatement psUpdateRes = conn.prepareStatement(SQLQueries.SET_RESERVATION_ARRIVED_AND_TABLE)) {
+                    psUpdateRes.setInt(1, assignedTable);
+                    psUpdateRes.setString(2, confirmationCode);
+                    psUpdateRes.executeUpdate();
+                }
+    
+                conn.commit();
+                return assignedTable;
+    
             } catch (SQLException e) {
-                conn.rollback();
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    e.addSuppressed(ex); // Suppress rollback exception to show original error
+                }
+                e.printStackTrace(); // Log the exception
                 return -1;
-            } finally {
-                try { conn.setAutoCommit(true); } catch (Exception ignored) {}
             }
-
+    
         } catch (SQLException e) {
+            e.printStackTrace(); // Log connection acquisition exception
             return -1;
         }
     }

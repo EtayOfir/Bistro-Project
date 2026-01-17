@@ -1,16 +1,13 @@
 package ClientGUI.controller;
 
+import ClientGUI.util.SceneUtil;
+import ClientGUI.util.ViewLoader;
 import client.ChatClient;
 import common.ChatIF;
 import javafx.application.Application;
-import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.stage.Stage;
-
-import ClientGUI.util.SceneUtil;
-import ClientGUI.util.ViewLoader;
 
 /**
  * Main entry point for the Bistro Client JavaFX application.
