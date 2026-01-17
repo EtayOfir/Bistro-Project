@@ -30,3 +30,10 @@ Thumbs.db
 
 # === Logs ===
 *.logAssignment2Files/Bistro_Client/Bistro_Report_*.csv
+# JVM crash logs
+hs_err_pid*.log
+replay_pid*.log
+
+# Under Assignment2Files
+Assignment2Files/**/hs_err_pid*.log
+Assignment2Files/**/replay_pid*.log
