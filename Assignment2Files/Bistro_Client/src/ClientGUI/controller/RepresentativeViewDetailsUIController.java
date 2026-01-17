@@ -316,8 +316,8 @@ public class RepresentativeViewDetailsUIController {
                             int diners = Integer.parseInt(cols[4]);
                             String status = cols[5];
                             Integer tableNumber = null;
-                            if (cols[6] != null && !cols[6].isBlank() && !"null".equalsIgnoreCase(cols[6])) {
-                                tableNumber = Integer.valueOf(cols[6]);
+                            if (cols.length > 6 && cols[6] != null && !cols[6].isBlank() && !"null".equalsIgnoreCase(cols[6])) {
+                            	tableNumber = Integer.valueOf(cols[6]);
                             }
 
                             // יצירת אובייקט Reservation.

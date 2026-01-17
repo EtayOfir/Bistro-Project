@@ -285,6 +285,7 @@ public class UserLoginUIController {
                 System.out.println("✅ Connected to server (" + host + ":" + port + ") for Terminal");
             }
 
+            ClientUI.chat.handleMessageFromClientUI("IDENTIFY|Guest|GuestTerminal");
             FXMLLoader loader = ViewLoader.fxml("RestaurantTerminalUI.fxml");
             Parent root = loader.load();
 

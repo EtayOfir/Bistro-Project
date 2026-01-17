@@ -70,10 +70,17 @@ public class ClientMessageRouter implements ChatIF {
         // 3) Route to active receive-table window (if exists)
         ReceiveTableUIController t = ClientUIController.getActiveReceiveTableController();
         if (t != null) {
-            if (message.startsWith("TABLE_ASSIGNED|")
+
+            // --- התוספת החדשה מתחילה כאן ---
+            if (message.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
+                t.onSubscriberDataReceived(message);
+                return;
+            }            if (message.startsWith("TABLE_ASSIGNED|")
                     || message.equals("NO_TABLE_AVAILABLE")
                     || message.equals("INVALID_CONFIRMATION_CODE") 
-            	|| message.equals("RESERVATION_ALREADY_USED")) {
+            	|| message.equals("RESERVATION_ALREADY_USED") 
+            	|| message.equals("RESERVATION_ALREADY_USED")
+                || message.equals("RESERVATION_NOT_FOR_TODAY")) { // הוספתי גם את המקרה של תאריך שגוי ליתר ביטחון{
                 t.onReceiveTableResponse(message);
                 return;
             }
