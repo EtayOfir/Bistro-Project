@@ -256,7 +256,6 @@ public class EchoServer extends AbstractServer {
 
 			        try (var con = mysqlConnection1.getDataSource().getConnection()) {
 
-			            // ✅ לוג: על איזה DB אנחנו יושבים
 			            try (var psDb = con.prepareStatement("SELECT DATABASE()");
 			                 var rsDb = psDb.executeQuery()) {
 			                if (rsDb.next()) System.out.println("DEBUG DB=" + rsDb.getString(1));
@@ -545,7 +544,7 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#CREATE_RESERVATION": {
-			    ans = "ERROR|UNEXPECTED"; // חשוב כדי שלא יהיה "ans may not have been initialized"
+			    ans = "ERROR|UNEXPECTED"; 
 
 			    try {
 			        System.out.println("DEBUG: CREATE_RESERVATION command received");
@@ -556,7 +555,6 @@ public class EchoServer extends AbstractServer {
 			        String confirmationCode = parts[4];
 			        int subscriberId = Integer.parseInt(parts[5]);
 
-			        // אצלך לפעמים השדות 6/7 הם ריקים ואז נכנס "Subscriber"
 			        String phone = (parts.length > 6 && !parts[6].equalsIgnoreCase("Subscriber") && !parts[6].equalsIgnoreCase("Casual"))
 			                ? parts[6] : "";
 			        String email = (parts.length > 7 && !parts[7].equalsIgnoreCase("Subscriber") && !parts[7].equalsIgnoreCase("Casual"))
@@ -1019,21 +1017,18 @@ public class EchoServer extends AbstractServer {
 					String open = "";
 					String close = "";
 
-					// ===== שעות: openinghours =====
-					// לוקח לפי אינדקסים כדי לא להיות תלוי בשם עמודה
+					
 					try (var con = mysqlConnection1.getDataSource().getConnection();
 							var ps = con.prepareStatement("SELECT * FROM openinghours LIMIT 1");
 							var rs = ps.executeQuery()) {
 
 						if (rs.next()) {
-							// הנחה רק על סדר עמודות: id ואז open ואז close
 							open  = rs.getString("OpenTime");
 							close = rs.getString("CloseTime");
 
 						}
 					}
 
-					// ===== שולחנות: restauranttables =====
 					StringBuilder tablesPayload = new StringBuilder();
 					try (var con = mysqlConnection1.getDataSource().getConnection();
 							var ps = con.prepareStatement("SELECT TableNumber, Capacity FROM restauranttables ORDER BY TableNumber");
@@ -1504,7 +1499,7 @@ public class EchoServer extends AbstractServer {
 						"       s.FullName " +
 						"FROM ActiveReservations ar " +
 						"LEFT JOIN Subscribers s ON ar.SubscriberID = s.SubscriberID " +
-						"WHERE ar.TableNumber IS NOT NULL " +     // 🔥 זה כל הקסם
+						"WHERE ar.TableNumber IS NOT NULL " +     
 						"ORDER BY ar.TableNumber ASC";
 
 		try (
