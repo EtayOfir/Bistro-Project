@@ -95,6 +95,7 @@ public class ClientUIController implements ChatIF {
     /** Currently logged in role (for UI-only permissions). */
     private String loggedInRole;
 
+    public static ReportsUIController activeReportsController;
     // Active Controller Routing
     
     /** Active "New Reservation" window controller, if open. */

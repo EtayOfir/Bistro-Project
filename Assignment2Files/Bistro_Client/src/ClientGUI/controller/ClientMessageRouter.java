@@ -97,6 +97,14 @@ if (t != null) {
             return;
         }
 
+     // 4) Route to Reports Screen
+        if (message.startsWith("REPORTS_DATA|") || message.startsWith("ERROR|REPORTS")) {
+            if (ClientUIController.activeReportsController != null) {
+                ClientUIController.activeReportsController.updateReportsData(message);
+            }
+            return;
+        }
+        
         // 5) Fallback: no UI loaded yet
         System.out.println("SERVER (no UI yet): " + message);
     }
