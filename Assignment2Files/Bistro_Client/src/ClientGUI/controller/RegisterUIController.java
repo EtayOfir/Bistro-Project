@@ -18,6 +18,20 @@ import java.io.IOException;
 import ClientGUI.util.ViewLoader;
 import ClientGUI.util.SceneUtil;
 
+/**
+ * Controller for the "Register" screen.
+ *
+ * <p>This screen enables creation of new users (typically Subscribers) by an authenticated staff user
+ * such as a {@code Manager} or {@code Representative}. The controller performs client-side validation,
+ * constructs the registration command, sends it to the server, and displays status feedback.</p>
+ *
+ * <p><b>Role rules:</b>
+ * <ul>
+ *   <li>A {@code Representative} can create only {@code Subscriber} users (role is forced).</li>
+ *   <li>A {@code Manager} can create {@code Manager}, {@code Representative}, or {@code Subscriber} users.</li>
+ * </ul>
+ * </p>
+ */
 public class RegisterUIController {
 
     @FXML private TextField fullNameField;
@@ -34,6 +48,20 @@ public class RegisterUIController {
     private String returnFxml = "ManagerUI.fxml";
     private String returnTitle = "Dashboard";
 
+    /**
+     * Sets the current user context (creator identity and role) and configures the role drop-down accordingly.
+     *
+     * <p>Behavior:
+     * <ul>
+     *   <li>If creator is {@code Representative}: role list is locked to {@code Subscriber}.</li>
+     *   <li>If creator is {@code Manager}: role list allows {@code Manager}, {@code Representative}, {@code Subscriber}.</li>
+     *   <li>Otherwise: role list is locked to {@code Subscriber}.</li>
+     * </ul>
+     * </p>
+     *
+     * @param userName the creator username (may be {@code null})
+     * @param role     the creator role (may be {@code null})
+     */
     public void setUserContext(String userName, String role) {
         this.currentUserName = userName;
         this.currentUserRole = role;
@@ -53,12 +81,30 @@ public class RegisterUIController {
         }
     }
 
+    /**
+     * Sets the navigation return path (screen + title) and also applies the user context.
+     *
+     * @param returnFxml  FXML file name to return to (e.g., {@code "ManagerUI.fxml"})
+     * @param returnTitle title to set on the stage when returning
+     * @param userName    the creator username to restore on the destination screen
+     * @param role        the creator role to restore on the destination screen
+     */
     public void setReturnPath(String returnFxml, String returnTitle, String userName, String role) {
         this.returnFxml = returnFxml;
         this.returnTitle = returnTitle;
         setUserContext(userName, role);
     }
 
+    /**
+     * Handles the "Register" button click.
+     *
+     * <p>Validates all form fields, enforces role rules (Representative -> Subscriber only),
+     * builds the server command, sends it through {@code ClientUI.chat}, and updates the UI status label.</p>
+     *
+     * <p>Phone format validation is based on {@code ###-#######} (10 digits total).</p>
+     *
+     * @param event JavaFX action event
+     */
     @FXML
     void onRegister(ActionEvent event) {
         String fullName = safe(fullNameField.getText());
@@ -128,7 +174,17 @@ public class RegisterUIController {
         }
     }
 
-    // 🔧 Connect this to your client networking class
+    /**
+     * Placeholder method for sending messages to the server.
+     *
+     * <p><b>Note:</b> This method is not used by the current controller implementation because it uses
+     * {@code ClientUI.chat.handleMessageFromClientUI(msg)} directly. Keep it only if you plan to refactor
+     * the controller to inject a client/network layer.</p>
+     *
+     * @param msg the message/command to send
+     * @throws Exception if sending fails (in real implementation)
+     * @throws UnsupportedOperationException always, until connected to real networking code
+     */
     private void sendToServer(String msg) throws Exception {
         // TODO: put your real client instance here
         throw new UnsupportedOperationException(
@@ -136,6 +192,14 @@ public class RegisterUIController {
         );
     }
 
+    /**
+     * Handles the "Return" button click.
+     *
+     * <p>Loads the configured return screen, restores the creator name on the destination controller
+     * (Manager or Representative menu), and switches the current scene back.</p>
+     *
+     * @param event JavaFX action event
+     */
     @FXML
     void onReturn(ActionEvent event) {
         try {

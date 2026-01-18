@@ -30,7 +30,6 @@ public class ChatClient extends AbstractClient {
 	 */
 	ChatIF clientUI;
 
-	// בשביל לקבל תשובה מהשרת בצורה סינכרונית
 	private final Object responseLock = new Object();
 	private volatile String lastResponse = null;
 
@@ -59,13 +58,6 @@ public class ChatClient extends AbstractClient {
 	protected void connectionEstablished() {
 		System.out.println("DEBUG: ChatClient.connectionEstablished() called");
 		clientUI.display("Connected to server");
-//		try {
-//			String username = "defaultUser";
-//			String role = "Customer";
-//			sendToServer("IDENTIFY|" + username + "|" + role);
-//		} catch (IOException e) {
-//			System.err.println("Failed to send IDENTIFY message: " + e.getMessage());
-//		}
 	}
 
 	/**
@@ -116,7 +108,6 @@ public class ChatClient extends AbstractClient {
 		}
 		
 		if (s.startsWith("SUBSCRIBERS_LIST|")) {
-            // בדיקה שהמסך אכן פתוח והמשתנה אותחל
             if (RepresentativeViewDetailsUIController.instance != null) {
             	RepresentativeViewDetailsUIController.instance.updateSubscribersFromMessage(s);
             }
@@ -142,8 +133,8 @@ public class ChatClient extends AbstractClient {
             }
        }
 		if (s.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
-            // הנחת עבודה: יש משתנה סטטי instance בקונטרולר (נגדיר אותו בשלב הבא)
-            if (SubscriberUIController.instance != null) {
+
+			if (SubscriberUIController.instance != null) {
                 SubscriberUIController.instance.updateTablesFromMessage(s);
             }
         }
@@ -160,21 +151,33 @@ public class ChatClient extends AbstractClient {
 			clientUI.display(s);
 		}
 	}
-
+	
 	/**
-	 *  ממתינה עד שתתקבל תשובה מהשרת ומחזירה אותה.
+	 * Blocks the calling thread until a new server/client response message is available.
+	 *
+	 * <p>This method waits on {@code responseLock} until {@code lastResponse} is set (non-null) by another
+	 * thread (typically a network listener / message handler). Once a message arrives, it is returned
+	 * and {@code lastResponse} is reset to {@code null} so the next call will wait for a fresh message.</p>
+	 *
+	 * <p><b>Thread-safety:</b> The method is synchronized on {@code responseLock} and uses the standard
+	 * wait/notify pattern. The {@code while} loop is used to protect against spurious wakeups.</p>
+	 *
+	 * <p><b>Note:</b> If the thread is interrupted while waiting, the interruption is caught and printed,
+	 * and the method continues waiting for a message.</p>
+	 *
+	 * @return the next available response message, never {@code null}
 	 */
 	public String waitForMessage() {
 	    synchronized (responseLock) {
 	        while (lastResponse == null) {
 	            try {
-	                responseLock.wait(); // הקפאת התהליך עד שתתקבל הודעה
+	                responseLock.wait(); 
 	            } catch (InterruptedException e) {
 	                e.printStackTrace();
 	            }
 	        }
 	        String message = lastResponse;
-	        lastResponse = null; // איפוס לפעם הבאה
+	        lastResponse = null; 
 	        return message;
 	    }
 	}

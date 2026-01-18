@@ -2,6 +2,13 @@ package entities;
 
 import java.util.List;
 
+/**
+ * Represents a restaurant subscriber/user in the system.
+ * <p>
+ * A subscriber contains personal identification details (ID, name, username), contact information
+ * (phone and email), authentication/authorization fields (password and role), and optional data
+ * related to reservations and visit history.
+ */
 public class Subscriber {
 	private int subscriberId;
 	private String fullName;
@@ -16,6 +23,7 @@ public class Subscriber {
 	private List<ActiveReservation> activeReservations;
 	private List<VisitHistory> visitHistory;
 
+	//getters&setters
 	public int getSubscriberId() {
 		return subscriberId;
 	}

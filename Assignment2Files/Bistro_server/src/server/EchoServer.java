@@ -9,7 +9,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
-
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import ocsf.server.*;
 import DBController.BillPaymentDAO;
 import DBController.ReservationDAO;
@@ -32,6 +35,8 @@ import java.sql.ResultSet;
  * Handles client connections, commands, and database interactions.
  */
 public class EchoServer extends AbstractServer {
+	private ScheduledExecutorService expiredReservationsScheduler;
+	private ScheduledFuture<?> expiredReservationsTask;
 
 	// Class variables *************************************************
 
@@ -236,8 +241,10 @@ public class EchoServer extends AbstractServer {
 			// Space format
 			String[] parts = trimmed.split("\\s+");
 
-			String command = trimmed.contains("|") ? pipeParts[0] : parts[0];
-			System.out.println("DEBUG: command parsed = " + command);
+			String command = parts[0];
+			if (command.contains("|")) {
+			    command = pipeParts[0];
+			}			System.out.println("DEBUG: command parsed = " + command);
 
 			// --- Check if DB is ready for specific commands ---
 			boolean needsReservationDao =
@@ -336,7 +343,6 @@ public class EchoServer extends AbstractServer {
 			                int updated = ps.executeUpdate();
 			                System.out.println("DEBUG rowsUpdated=" + updated);
 
-			                // ======= זה החלק החדש =======
 			                if (updated > 0) {
 			                    int canceled = cancelReservationsOutsideNewHoursForDay(con, day, open, close);
 			                    ans = "BRANCH_DAY_UPDATED|CANCELED=" + canceled;
@@ -376,7 +382,6 @@ public class EchoServer extends AbstractServer {
 
 			            int affected = ps.executeUpdate();
 
-			            // ======= זה החלק החדש =======
 			            int canceled = cancelReservationsOutsideNewHoursForDate(
 			                con, java.sql.Date.valueOf(dateStr), open, close
 			            );
@@ -1059,46 +1064,81 @@ public class EchoServer extends AbstractServer {
 			// --- REPORTS ---
 
 			case "#GET_REPORTS_DATA": {
-				if (parts.length < 3) {
-					ans = "ERROR|BAD_FORMAT|GET_REPORTS_DATA";
-					break;
-				}
 				try {
-					Date start = Date.valueOf(parts[1]);
-					Date end = Date.valueOf(parts[2]);
-					Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(start, end);
-					Map<Integer, Integer> timeDist = reservationDAO.getReservationTimeDistribution(start, end);
-					List<Map<String, Object>> waitData = waitingListDAO.getWaitingListByDateRange(start, end);
+			        int month = Integer.parseInt(parts[1]);
+			        int year = Integer.parseInt(parts[2]);
 
-					StringBuilder sb = new StringBuilder("REPORTS_DATA|STATS:");
-					sb.append(stats.getOrDefault("total", 0)).append(",")
-					.append(stats.getOrDefault("confirmed", 0)).append(",")
-					.append(stats.getOrDefault("arrived", 0)).append(",")
-					.append(stats.getOrDefault("late", 0)).append(",")
-					.append(stats.getOrDefault("expired", 0)).append(",")
-					.append(stats.getOrDefault("totalGuests", 0)).append("|TIME_DIST:");
+			        java.time.LocalDate start = java.time.LocalDate.of(year, month, 1);
+			        java.time.LocalDate end = start.with(java.time.temporal.TemporalAdjusters.lastDayOfMonth());
+			        Date sqlStart = Date.valueOf(start);
+			        Date sqlEnd = Date.valueOf(end);
 
-					boolean first = true;
-					for (Map.Entry<Integer, Integer> entry : timeDist.entrySet()) {
-						if (!first) sb.append(";");
-						sb.append(entry.getKey()).append(",").append(entry.getValue());
-						first = false;
-					}
-					sb.append("|WAITING:");
-					first = true;
-					for (Map<String, Object> row : waitData) {
-						if (!first) sb.append(";");
-						sb.append(row.get("EntryDate")).append(",")
-						.append(row.get("WaitingCount")).append(",")
-						.append(row.get("ServedCount"));
-						first = false;
-					}
-					ans = sb.toString();
-				} catch (Exception e) {
-					ans = "ERROR|REPORTS_FAILED";
-					e.printStackTrace();
-				}
-				break;
+
+			        Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(sqlStart, sqlEnd);
+
+			        Map<Integer, Integer> hourlyData = reservationDAO.getHourlyArrivals(month, year);
+			        Map<Integer, Integer> departureData = reservationDAO.getHourlyDepartures(month, year);
+			        Map<Integer, Integer> subDaily = reservationDAO.getDailyStats(month, year, "SUBSCRIBER");
+			        Map<Integer, Integer> waitDaily = reservationDAO.getDailyStats(month, year, "WAITING");
+
+			        StringBuilder sb = new StringBuilder("REPORTS_DATA");
+
+			        // Format: total,confirmed,arrived,late,expired,totalGuests
+			        sb.append("|STATS:");
+			        sb.append(stats.getOrDefault("total", 0)).append(",")
+			          .append(stats.getOrDefault("confirmed", 0)).append(",")
+			          .append(stats.getOrDefault("arrived", 0)).append(",")
+			          .append(stats.getOrDefault("late", 0)).append(",")
+			          .append(stats.getOrDefault("expired", 0)).append(",")
+			          .append(stats.getOrDefault("totalGuests", 0));
+
+			        // Format: hour,count;hour,count...
+			        sb.append("|HOURLY_ARRIVALS:");
+			        boolean first = true;
+			        for (Map.Entry<Integer, Integer> entry : hourlyData.entrySet()) {
+			            int hour = entry.getKey();
+			            int count = entry.getValue();
+			            if (count > 0) { 
+			                if (!first) sb.append(";");
+			                sb.append(hour).append(",").append(count);
+			                first = false;
+			            }
+			        }
+			        sb.append("|HOURLY_DEPARTURES:");
+			        first = true;
+			        for (Map.Entry<Integer, Integer> entry : departureData.entrySet()) {
+			            int hour = entry.getKey();
+			            int count = entry.getValue();
+			            if (count > 0) {
+			                if (!first) sb.append(";");
+			                sb.append(hour).append(",").append(count);
+			                first = false;
+			            }
+			        }
+
+			        // Format: day,subCount,waitCount;...
+			        sb.append("|SUBSCRIBER_STATS:");
+			        first = true;
+			        int daysInMonth = start.lengthOfMonth();
+
+			        for (int d = 1; d <= daysInMonth; d++) {
+			            int subs = subDaily.getOrDefault(d, 0);
+			            int wait = waitDaily.getOrDefault(d, 0);
+
+			            if (subs > 0 || wait > 0) {
+			                if (!first) sb.append(";");
+			                sb.append(d).append(",").append(subs).append(",").append(wait);
+			                first = false;
+			            }
+			        }
+
+			        ans = sb.toString();
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|REPORTS_FAILED";
+			    }
+			    break;
 			}
 
 			case "#GET_ALL_SUBSCRIBERS": {
@@ -1325,22 +1365,31 @@ public class EchoServer extends AbstractServer {
 			}
 
 			case "#DELETE_RESTAURANT_TABLE": {
-				// Format: #DELETE_RESTAURANT_TABLE <tableNum>
-				if (parts.length < 2) {
-					ans = "ERROR|BRANCH_SETTINGS|BAD_FORMAT_DELETE";
-					break;
-				}
-				try {
-					int tableNum = Integer.parseInt(parts[1].trim());
+			    // Format: #DELETE_RESTAURANT_TABLE <tableNum>
+			    if (parts.length < 2) {
+			        ans = "ERROR|BRANCH_SETTINGS|BAD_FORMAT_DELETE";
+			        break;
+			    }
+			    try {
+			        int tableNum = Integer.parseInt(parts[1].trim());
 
-					boolean ok = reservationDAO.deleteRestaurantTable(tableNum);
-					ans = ok ? "TABLE_DELETED" : "ERROR|BRANCH_SETTINGS|TABLE_NOT_DELETED";
-				} catch (Exception e) {
-					e.printStackTrace();
-					ans = "ERROR|BRANCH_SETTINGS|BAD_FORMAT_DELETE";
-				}
-				break;
+			        boolean ok = reservationDAO.deleteRestaurantTable(tableNum);
+			        ans = ok ? "TABLE_DELETED" : "ERROR|BRANCH_SETTINGS|TABLE_NOT_DELETED";
+
+			        // If success - push fresh snapshots so UI updates immediately
+			        if (ok) {
+			            try { client.sendToClient(getRestaurantTables()); } catch (Exception ignored) {}
+			            try { client.sendToClient(buildSeatedCustomersSnapshot()); } catch (Exception ignored) {}
+			            try { client.sendToClient(buildTodaysReservationsSnapshot()); } catch (Exception ignored) {}
+			        }
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|BRANCH_SETTINGS|BAD_FORMAT_DELETE";
+			    }
+			    break;
 			}
+
 			
 
 			default:
@@ -1531,19 +1580,24 @@ public class EchoServer extends AbstractServer {
 
 	@Override
 	protected void serverStarted() {
-		System.out.println("Server listening on port " + getPort());
-		try {
-			reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
-			billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
-			waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
-			subscriberDAO = new SubscriberDAO(mysqlConnection1.getDataSource());
-			loginDAO = new LoginDAO(mysqlConnection1.getDataSource());
-			if (uiController != null) uiController.addLog("Server started + DB pool ready");
-		} catch (Exception e) {
-			System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
-			if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
-		}
+	    System.out.println("Server listening on port " + getPort());
+	    try {
+	        reservationDAO = new ReservationDAO(mysqlConnection1.getDataSource());
+	        billPaymentDAO = new BillPaymentDAO(mysqlConnection1.getDataSource());
+	        waitingListDAO = new WaitingListDAO(mysqlConnection1.getDataSource());
+	        subscriberDAO = new SubscriberDAO(mysqlConnection1.getDataSource());
+	        loginDAO = new LoginDAO(mysqlConnection1.getDataSource());
+
+	        // ✅ NEW: start automatic expiration job
+	        startExpiredReservationsScheduler();
+
+	        if (uiController != null) uiController.addLog("Server started + DB pool ready");
+	    } catch (Exception e) {
+	        System.err.println("Failed to init DB pool/DAO: " + e.getMessage());
+	        if (uiController != null) uiController.addLog("Failed to init DB pool/DAO: " + e.getMessage());
+	    }
 	}
+
 
 	@Override
 	protected void serverStopped() {
@@ -1557,8 +1611,52 @@ public class EchoServer extends AbstractServer {
 		} catch (Exception e) {
 			System.err.println("Error cleaning clients: " + e.getMessage());
 		}
+		stopExpiredReservationsScheduler();
+
 		mysqlConnection1.shutdownPool();
 	}
+	private void startExpiredReservationsScheduler() {
+	    // avoid double-start
+	    if (expiredReservationsScheduler != null && !expiredReservationsScheduler.isShutdown()) return;
+
+	    expiredReservationsScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+	        Thread t = new Thread(r);
+	        t.setName("ExpiredReservationsScheduler");
+	        t.setDaemon(true);
+	        return t;
+	    });
+
+	    // run every 60 seconds (first run after 10 seconds)
+	    expiredReservationsTask = expiredReservationsScheduler.scheduleAtFixedRate(() -> {
+	        try {
+	            if (reservationDAO == null) return;
+
+	            int expiredCount = reservationDAO.deleteExpiredReservations();
+	            if (expiredCount > 0) {
+	                System.out.println("DEBUG: Auto-expired reservations: " + expiredCount);
+	                if (uiController != null) {
+	                    uiController.addLog("Auto-expired reservations: " + expiredCount);
+	                }
+	            }
+	        } catch (Exception e) {
+	            System.err.println("ERROR in expiration scheduler: " + e.getMessage());
+	        }
+	    }, 10, 60, TimeUnit.SECONDS);
+	}
+
+	private void stopExpiredReservationsScheduler() {
+	    try {
+	        if (expiredReservationsTask != null) {
+	            expiredReservationsTask.cancel(false);
+	            expiredReservationsTask = null;
+	        }
+	        if (expiredReservationsScheduler != null) {
+	            expiredReservationsScheduler.shutdownNow();
+	            expiredReservationsScheduler = null;
+	        }
+	    } catch (Exception ignored) {}
+	}
+
 
 	@Override
 	synchronized protected void clientConnected(ConnectionToClient client) {
@@ -1764,7 +1862,6 @@ public class EchoServer extends AbstractServer {
 	        "      WHERE oh.SpecialDate = ar.ReservationDate " +
 	        "  )";
 
-	    // 2) מבטלים + משחררים שולחן (TableNumber=NULL כדי שלא יופיע ב-SEATED_CUSTOMERS אצלך)
 	    String updateSql =
 	        "UPDATE ActiveReservations " +
 	        "SET Status='Canceled', TableNumber=NULL " +
@@ -1794,7 +1891,6 @@ public class EchoServer extends AbstractServer {
 	    System.out.println("DEBUG canceled outside hours (day=" + dayOfWeek + "): " + canceled);
 	    return canceled;
 	}
-	// מבטל הזמנות עתידיות בתאריך הזה שנופלות מחוץ לטווח השעות החדש
 	private int cancelReservationsOutsideNewHoursForDate(Connection con, java.sql.Date date, String open, String close) throws Exception {
 
 	    java.sql.Time openT = java.sql.Time.valueOf(open);

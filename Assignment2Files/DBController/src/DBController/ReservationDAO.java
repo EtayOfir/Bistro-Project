@@ -89,8 +89,8 @@ public class ReservationDAO {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, diners);                 // rt.Capacity >= ?
             ps.setDate(2, Date.valueOf(date));    // ar.ReservationDate = ?
-            ps.setDate(3, Date.valueOf(date));    // TIMESTAMP(?, ?)  <-- התאריך
-            ps.setTime(4, Time.valueOf(time));    // TIMESTAMP(?, ?)  <-- השעה
+            ps.setDate(3, Date.valueOf(date));    // TIMESTAMP(?, ?)   
+            ps.setTime(4, Time.valueOf(time));    // TIMESTAMP(?, ?)  
             ps.setInt(5, TABLE_RADIUS_MINUTES);   // < ?
 
             try (ResultSet rs = ps.executeQuery()) {
@@ -1372,20 +1372,71 @@ public class ReservationDAO {
     }
 
     /** Deletes a table by table number. */
+    /** Deletes a table by table number.
+     *  IMPORTANT: If there are active reservations assigned to this table,
+     *  we cancel them before deleting the table (otherwise FK ON DELETE SET NULL will only null TableNumber).
+     */
     public boolean deleteRestaurantTable(int tableNum) {
-        String sql = "DELETE FROM restauranttables WHERE TableNumber = ?";
+        String cancelSql =
+            "UPDATE ActiveReservations " +
+            "SET Status='Canceled', TableNumber=NULL " +
+            "WHERE TableNumber = ? " +
+            "  AND Status IN ('Confirmed','Late','Arrived','CheckedIn')";
 
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        String deleteSql = "DELETE FROM restauranttables WHERE TableNumber = ?";
 
-            ps.setInt(1, tableNum);
-            return ps.executeUpdate() > 0;
+        try (Connection conn = dataSource.getConnection()) {
+            boolean oldAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+
+            try {
+                // 1) cancel all active reservations that currently use this table
+                try (PreparedStatement psCancel = conn.prepareStatement(cancelSql)) {
+                    psCancel.setInt(1, tableNum);
+                    psCancel.executeUpdate();
+                }
+
+                // 2) delete the table itself
+                int deletedRows;
+                try (PreparedStatement psDelete = conn.prepareStatement(deleteSql)) {
+                    psDelete.setInt(1, tableNum);
+                    deletedRows = psDelete.executeUpdate();
+                }
+
+                conn.commit();
+                return deletedRows > 0;
+
+            } catch (Exception e) {
+                try { conn.rollback(); } catch (Exception ignored) {}
+                e.printStackTrace();
+                return false;
+            } finally {
+                try { conn.setAutoCommit(oldAutoCommit); } catch (Exception ignored) {}
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
     }
+
+    /**
+     * Retrieves the restaurant's regular weekly opening hours from the database.
+     * <p>
+     * Queries the {@code openinghours} table for rows that represent regular weekly hours
+     * (i.e., {@code SpecialDate IS NULL} and {@code DayOfWeek IS NOT NULL}) and orders the
+     * results from Sunday to Saturday.
+     * <p>
+     * The returned string is formatted as:
+     * <pre>
+     * DayOfWeek,OpenTime,CloseTime~DayOfWeek,OpenTime,CloseTime~...
+     * </pre>
+     * where times are returned in {@code HH:mm:ss} format. If no rows are found, returns {@code "EMPTY"}.
+     * If an exception occurs, returns {@code "ERROR"}.
+     *
+     * @return a formatted string containing weekly opening hours, {@code "EMPTY"} if none exist,
+     *         or {@code "ERROR"} on failure
+     */
     public String getOpeningHoursWeekly() {
         StringBuilder sb = new StringBuilder();
         String query = "SELECT DayOfWeek, OpenTime, CloseTime " +
@@ -1416,6 +1467,27 @@ public class ReservationDAO {
         return sb.length() == 0 ? "EMPTY" : sb.toString();
     }
 
+    /**
+     * Updates the regular (weekly) opening hours for a specific day of the week.
+     * <p>
+     * This method updates rows in the {@code openinghours} table where {@code SpecialDate IS NULL}
+     * (i.e., regular weekly hours) and {@code DayOfWeek} matches the provided value.
+     * <p>
+     * The {@code open} and {@code close} parameters are expected in {@code HH:mm} format and are
+     * converted to {@code HH:mm:ss} by appending {@code ":00"} before being written to the database.
+     * <p>
+     * Return values:
+     * <ul>
+     *   <li>{@code "OK"} - at least one row was updated</li>
+     *   <li>{@code "NOT_FOUND"} - no matching row was found to update</li>
+     *   <li>{@code "ERROR"} - an exception occurred during the update</li>
+     * </ul>
+     *
+     * @param dayOfWeek the day of the week to update (e.g., "Sunday", "Monday")
+     * @param open      the new opening time in {@code HH:mm} format
+     * @param close     the new closing time in {@code HH:mm} format
+     * @return {@code "OK"} if updated, {@code "NOT_FOUND"} if no row matched, or {@code "ERROR"} on failure
+     */
     public String updateBranchHoursByDay(String dayOfWeek, String open, String close) {
         String query = "UPDATE openinghours SET OpenTime = ?, CloseTime = ? " +
                        "WHERE SpecialDate IS NULL AND DayOfWeek = ?";
@@ -1557,11 +1629,20 @@ public class ReservationDAO {
 
    
 
-
+    /**
+     * Retrieves the number of arrivals per hour for a given month and year.
+     * <p>
+     * The returned map contains keys from {@code 0} to {@code 23} (hours of day). All hours are
+     * initialized to {@code 0} before applying the results from the database query, so missing
+     * hours will still appear in the map with value {@code 0}.
+     *
+     * @param month the month to query (typically 1-12)
+     * @param year  the year to query (e.g., 2026)
+     * @return a map where the key is the hour (0-23) and the value is the number of arrivals
+     */
     public Map<Integer, Integer> getHourlyArrivals(int month, int year) {
         Map<Integer, Integer> resultMap = new HashMap<>();
         
-        // אתחול שעות הפעילות (למשל 12 עד 23) ב-0
         for (int h = 0; h < 24; h++) {
             resultMap.put(h, 0);
         }
@@ -1585,8 +1666,23 @@ public class ReservationDAO {
         return resultMap;
     }
     
+    /**
+     * Retrieves daily statistics (counts per day of month) for a given month and year.
+     * <p>
+     * The SQL query is selected based on {@code queryType}:
+     * <ul>
+     *   <li>If {@code queryType.equals("SUBSCRIBER")}, uses {@code SQLQueries.GET_SUBSCRIBER_DAILY_STATS}.</li>
+     *   <li>Otherwise, uses {@code SQLQueries.GET_WAITING_DAILY_STATS_SUBSCRIBERS_ONLY}.</li>
+     * </ul>
+     * Results are returned in a {@link TreeMap} to keep the days ordered (1, 2, 3, ...).
+     *
+     * @param month     the month to query (typically 1-12)
+     * @param year      the year to query (e.g., 2026)
+     * @param queryType determines which SQL query to run (e.g., "SUBSCRIBER")
+     * @return a map where the key is the day of month (1-31) and the value is the count for that day
+     */
     public Map<Integer, Integer> getDailyStats(int month, int year, String queryType) {
-        Map<Integer, Integer> stats = new TreeMap<>(); // TreeMap שומר על סדר הימים (1, 2, 3...)
+        Map<Integer, Integer> stats = new TreeMap<>(); 
         
         String sql = queryType.equals("SUBSCRIBER") ? 
                      SQLQueries.GET_SUBSCRIBER_DAILY_STATS : 
@@ -1609,10 +1705,20 @@ public class ReservationDAO {
         return stats;
     }
     
+    /**
+     * Retrieves the number of departures per hour for a given month and year.
+     * <p>
+     * The returned map contains keys from {@code 0} to {@code 23} (hours of day). All hours are
+     * initialized to {@code 0} before applying the results from the database query, so missing
+     * hours will still appear in the map with value {@code 0}.
+     *
+     * @param month the month to query (typically 1-12)
+     * @param year  the year to query (e.g., 2026)
+     * @return a map where the key is the hour (0-23) and the value is the number of departures
+     */
     public Map<Integer, Integer> getHourlyDepartures(int month, int year) {
         Map<Integer, Integer> resultMap = new HashMap<>();
         
-        // אתחול שעות
         for (int h = 0; h < 24; h++) resultMap.put(h, 0);
 
         try (Connection conn = dataSource.getConnection();

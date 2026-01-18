@@ -10,6 +10,10 @@ import javafx.stage.Stage;
 
 /**
  * Controller for the small popup login window inside the terminal.
+ * <p>
+ * Responsible for collecting username/password, validating input, performing a login request
+ * through the shared {@code ClientUI.chat} client, and notifying the parent terminal controller
+ * upon successful authentication.
  */
 public class TerminalSubscriberLoginUIController {
 
@@ -17,13 +21,32 @@ public class TerminalSubscriberLoginUIController {
     @FXML private PasswordField passwordField;
     @FXML private Label errorLabel;
 
-    // הפניה לקונטרולר של הטרמינל כדי שנוכל לעדכן אותו שהתחברנו
     private RestaurantTerminalUIController parentController;
 
+    /**
+     * Sets the parent controller that opened this login popup.
+     * <p>
+     * The parent controller will be notified upon successful login so it can update the terminal UI.
+     *
+     * @param parent the parent {@link RestaurantTerminalUIController} that owns this popup
+     */
     public void setParentController(RestaurantTerminalUIController parent) {
         this.parentController = parent;
     }
 
+    /**
+     * Handles the OK button click event.
+     * <p>
+     * Validates that username and password fields are not empty, then sends a login request to the server
+     * using the shared client connection ({@code ClientUI.chat}). If login succeeds, parses the server response,
+     * constructs a {@code Subscriber} object, identifies the client session via an {@code IDENTIFY} message,
+     * updates the parent controller with the logged-in subscriber, and closes the popup window.
+     * <p>
+     * In case of invalid credentials, missing connection, or unexpected errors, an appropriate message is shown
+     * in {@link #errorLabel}.
+     *
+     * @param event the action event triggered by clicking the OK button
+     */
     @FXML
     void onOK(ActionEvent event) {
     	 String user = usernameField.getText().trim();
@@ -34,37 +57,32 @@ public class TerminalSubscriberLoginUIController {
             return;
         }
 
-        // כאן תוכלי להוסיף בדיקה מול השרת (Server) אם הפרטים נכונים.
-        // כרגע נניח שההתחברות הצליחה:
+       
         
         try {
             if (ClientUI.chat == null) {
                 errorLabel.setText("No connection to server");
                 return;
-            }  // 1. אימות מול השרת
+            }  
             ClientUI.chat.handleMessageFromClientUI("#LOGIN " + user + " " + pass);
             String response = ClientUI.chat.waitForMessage();
 
             if (response != null && response.startsWith("LOGIN_SUCCESS")) {
-                // פירוק התשובה: LOGIN_SUCCESS|<Role>|<ID>|<Name>
                 String[] parts = response.split("\\|");
                 String role = (parts.length > 1) ? parts[1] : "Subscriber";
 
                 int id = (parts.length > 2) ? Integer.parseInt(parts[2]) : 0;
                 String fullName = (parts.length > 3) ? parts[3] : user;
 
-                // --- זה החלק שהיה חסר: יצירת אובייקט והעברתו ---
                 entities.Subscriber sub = new entities.Subscriber();
                 sub.setSubscriberId(id);
                 sub.setUserName(user);
                 sub.setFullName(fullName);
                 sub.setRole(role);
 
-                // 2. עדכון השרת בזהות החדשה (IDENTIFY) - מתבצע מכאן!
-                // כך אנחנו לא צריכים לשנות את הפונקציה באבא
+                
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + user + "|" + role);
 
-                // 3. עדכון ה-GUI בטרמינל (באמצעות הפונקציה המקורית שלא שינינו)
                 if (parentController != null) {
                     parentController.setLoggedInSubscriber(sub);
                 }
@@ -81,12 +99,21 @@ public class TerminalSubscriberLoginUIController {
     }
 
 
-
+    /**
+     * Handles the Cancel button click event by closing the login popup window.
+     *
+     * @param event the action event triggered by clicking the Cancel button
+     */
     @FXML
     void onCancel(ActionEvent event) {
         closeWindow(event);
     }
 
+    /**
+     * Closes the current popup window.
+     *
+     * @param event the action event used to locate the current {@link Stage} from the event source
+     */
     private void closeWindow(ActionEvent event) {
         Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
         stage.close();

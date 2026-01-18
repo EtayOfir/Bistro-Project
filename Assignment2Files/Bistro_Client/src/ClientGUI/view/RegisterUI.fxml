@@ -30,7 +30,7 @@
         <TextField fx:id="fullNameField" GridPane.rowIndex="0" GridPane.columnIndex="1" promptText="e.g., Yuval Levi"/>
 
         <Label text="Phone:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-        <TextField fx:id="phoneField" GridPane.rowIndex="1" GridPane.columnIndex="1" promptText="e.g., 0501234567"/>
+        <TextField fx:id="phoneField" GridPane.rowIndex="1" GridPane.columnIndex="1" promptText="e.g., 050-1234567"/>
 
         <Label text="Email:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
         <TextField fx:id="emailField" GridPane.rowIndex="2" GridPane.columnIndex="1" promptText="e.g., user@example.com"/>

@@ -13,7 +13,21 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
-
+/**
+ * JavaFX controller for the Bill Payment screen.
+ *
+ * <p>This controller lets a user:
+ * <ul>
+ *   <li>Load a bill by confirmation code ({@code #GET_BILL})</li>
+ *   <li>Pay a loaded bill with a chosen payment method ({@code #PAY_BILL})</li>
+ * </ul>
+ *
+ * <p>The controller implements {@link ChatIF} to receive server messages asynchronously via
+ * {@link #display(String)} and updates the UI on the JavaFX Application Thread.</p>
+ *
+ * <p><b>Connection strategy:</b> The {@link ChatClient} connection is created lazily only when needed
+ * (on load/pay), to avoid Scene Builder / FXML initialization issues.</p>
+ */
 public class BillPaymentController implements ChatIF {
 	@FXML
 	private TextField codeField;
@@ -34,7 +48,13 @@ public class BillPaymentController implements ChatIF {
 
 	private ChatClient client;
 	private String loadedCode = null;
-
+	
+	/**
+     * Initializes UI-only state for the screen (no network connection is created here).
+     *
+     * <p>Populates payment method options, selects the first method by default, clears
+     * the bill view labels, and resets the result text.</p>
+     */
 	@FXML
 	public void initialize() {
 		// UI only (no server connection here)
@@ -45,6 +65,13 @@ public class BillPaymentController implements ChatIF {
 		resultArea.setText("");
 	}
 
+	/**
+     * Handles "Load Bill" action.
+     *
+     * <p>Validates that the confirmation code was provided, ensures a server connection exists,
+     * and sends {@code #GET_BILL <code>} to the server. The result is later handled asynchronously
+     * inside {@link #display(String)} / {@link #handleServerMessage(String)}.</p>
+     */
 	@FXML
 	private void onLoadBill() {
 		String code = safe(codeField.getText());
@@ -62,6 +89,19 @@ public class BillPaymentController implements ChatIF {
 		resultArea.setText("OK: Loading bill...");
 	}
 
+	/**
+     * Handles "Pay" action.
+     *
+     * <p>Validates:
+     * <ul>
+     *   <li>Confirmation code exists</li>
+     *   <li>The bill for this code was already loaded</li>
+     *   <li>A server connection exists</li>
+     *   <li>A payment method is selected</li>
+     * </ul>
+     *
+     * <p>Then sends {@code #PAY_BILL <code> <method>} to the server.</p>
+     */
 	@FXML
 	private void onPay() {
 		String code = safe(codeField.getText());
@@ -91,7 +131,10 @@ public class BillPaymentController implements ChatIF {
 	
 	/**
      * Handles the Exit button click.
-     * Closes the current window.
+     *
+     * <p>Closes the current JavaFX window (Stage) that contains this controller's scene.</p>
+     *
+     * @param event the action event triggered by clicking the Exit button
      */
     @FXML
     private void onExit(ActionEvent event) {
@@ -99,9 +142,17 @@ public class BillPaymentController implements ChatIF {
         stage.close();
     }
     
-	/**
-	 * Creates the ChatClient only when needed (prevents Scene Builder errors).
-	 */
+    /**
+     * Ensures {@link #client} is connected to the server.
+     *
+     * <p>If the client already exists, returns {@code true}. Otherwise attempts to create a new
+     * {@link ChatClient} and open its connection. On failure, it writes an error message to the UI.</p>
+     *
+     * <p><b>Why lazy connect?</b> Scene Builder can instantiate controllers; avoiding network operations
+     * in {@link #initialize()} helps prevent design-time errors.</p>
+     *
+     * @return {@code true} if a connection exists or was successfully established; {@code false} otherwise
+     */
 	private boolean ensureConnected() {
 		if (client != null)
 			return true;
@@ -117,11 +168,34 @@ public class BillPaymentController implements ChatIF {
 		}
 	}
 
+	/**
+     * Receives messages from the server via the networking layer.
+     *
+     * <p>Because server callbacks may occur on a background thread, this method forwards the handling
+     * to the JavaFX Application Thread using {@link Platform#runLater(Runnable)}.</p>
+     *
+     * @param message the message received from the server
+     */
 	@Override
 	public void display(String message) {
 		Platform.runLater(() -> handleServerMessage(message));
 	}
 
+	/**
+     * Parses and handles server messages relevant to the bill payment flow and updates the UI.
+     *
+     * <p>Expected message formats:
+     * <ul>
+     *   <li>{@code ERROR|<reason>}</li>
+     *   <li>{@code BILL_NOT_FOUND}</li>
+     *   <li>{@code BILL|code|diners|subtotal|discountPercent|total|Role}</li>
+     *   <li>{@code BILL_PAID|code|total}</li>
+     * </ul>
+     *
+     * <p>Any other message is displayed as-is in {@link #resultArea}.</p>
+     *
+     * @param msg server message string (may be {@code null})
+     */
 	private void handleServerMessage(String msg) {
 		if (msg == null)
 			return;
@@ -173,6 +247,11 @@ public class BillPaymentController implements ChatIF {
 		resultArea.setText(msg);
 	}
 
+	  /**
+     * Resets the bill display labels and clears the loaded bill state.
+     *
+     * <p>This does not clear the {@link #codeField}; it only resets the bill view.</p>
+     */
 	private void clearBillView() {
 		loadedCode = null;
 		if (dinersLabel != null)

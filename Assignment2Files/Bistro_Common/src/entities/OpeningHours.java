@@ -5,7 +5,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 /**
- * Represents the opening hours for a restaurant, either regular or for a special date.
+ * Represents restaurant opening hours for either a regular day of the week or a specific special date.
+ * <p>
+ * Regular opening hours are identified by {@link #dayOfWeek} (e.g., "Sunday", "Monday"), where
+ * {@link #specialDate} is typically {@code null}. Special opening hours may use a {@link #specialDate}
+ * to indicate an override for a specific calendar date.
+ * <p>
+ * This class is {@link Serializable} for transport between client/server or persistence if needed.
  */
 public class OpeningHours implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -16,9 +22,21 @@ public class OpeningHours implements Serializable {
     private LocalTime closeTime;
     private LocalDate specialDate; // null for regular hours, specific date for special hours
 
+    /**
+     * Default constructor (required for frameworks/serialization).
+     */
     public OpeningHours() {
     }
 
+    /**
+     * Constructs an {@link OpeningHours} record with the given parameters.
+     *
+     * @param id          the record ID
+     * @param dayOfWeek   the day-of-week label (e.g., "Sunday") or a special marker
+     * @param openTime    the opening time
+     * @param closeTime   the closing time
+     * @param specialDate the specific date for special hours; {@code null} for regular weekly hours
+     */
     public OpeningHours(Integer id, String dayOfWeek, LocalTime openTime, LocalTime closeTime, LocalDate specialDate) {
         this.id = id;
         this.dayOfWeek = dayOfWeek;

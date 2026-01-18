@@ -6,6 +6,7 @@ public class RestaurantTable {
     private int capacity;
     private String status; 
 
+    //getters&setters
     public int getTableNumber() {
         return tableNumber;
     }

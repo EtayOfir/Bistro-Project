@@ -12,6 +12,14 @@ import javafx.application.Platform;
  */
 public class ClientMessageRouter implements ChatIF {
 
+	/**
+     * Receives a raw message from the server and schedules routing on the JavaFX Application Thread.
+     *
+     * <p>This method prints the received message for debugging and then delegates actual dispatching
+     * logic to {@link #route(String)} using {@link Platform#runLater(Runnable)}.</p>
+     *
+     * @param message the server message (may be {@code null})
+     */
     @Override
     public void display(String message) {
         System.out.println("ROUTER display(): " + message);
@@ -19,7 +27,25 @@ public class ClientMessageRouter implements ChatIF {
     }
 
     
-    
+    /**
+     * Routes a server message to the currently active controller (if one exists) based on message prefix/content.
+     *
+     * <p>Routing priority (top-to-bottom):
+     * <ol>
+     *   <li>{@link StaffReservationUIController} (staff reservation screen)</li>
+     *   <li>{@link ReservationUIController} (regular reservation screen)</li>
+     *   <li>{@link ReceiveTableUIController} (receive/assign table screen)</li>
+     *   <li>{@link RepresentativeViewDetailsUIController} (representative details screen)</li>
+     *   <li>{@link ClientUIController} main screen controller</li>
+     *   <li>Reports screen controller (if active)</li>
+     *   <li>Fallback to console log if no UI is ready</li>
+     * </ol>
+     *
+     * <p><b>Important:</b> This method assumes it is running on the JavaFX Application Thread
+     * (because {@link #display(String)} schedules it via {@link Platform#runLater(Runnable)}).</p>
+     *
+     * @param message the server message to route (may be {@code null})
+     */
     private void route(String message) {
         if (message == null) return;
 
@@ -39,7 +65,7 @@ public class ClientMessageRouter implements ChatIF {
                 
             }
             if (message.startsWith("RESERVATION_CREATED")) { sr.onBookingResponse(message); return; }
-            if (message.startsWith("RESERVATION_FAILED|")) { sr.onBookingResponse(message); return; }
+            if (message.startsWith("ERROR|DB_ERROR")) { sr.onBookingResponse(message); return; }
 
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
@@ -50,17 +76,18 @@ public class ClientMessageRouter implements ChatIF {
         ReservationUIController r = ClientUIController.getActiveReservationController();
         
         if (r != null) {
+        	System.out.println("DEBUG ROUTER: sr=" + (sr!=null) + ", r=" + (r!=null) + ", msg=" + message);
+
             if (message.startsWith("RESERVATIONS_FOR_DATE|")) { r.onReservationsReceived(message); return; }
             if (message.startsWith("OPENING_HOURS|")) { r.onOpeningHoursReceived(message); return; }
             if (message.startsWith("AVAILABILITY|")) { r.onAvailabilityResponse(message); return; }
-
             if (message.startsWith("AVAILABILITY|")) { 
                 r.onAvailabilityResponse(message); 
                 return; 
             }
 
             if (message.startsWith("RESERVATION_CREATED")) { r.onBookingResponse(message); return; }
-            if (message.startsWith("RESERVATION_FAILED|")) { r.onBookingResponse(message); return; }
+            if (message.startsWith("ERROR|DB_ERROR")) { r.onBookingResponse(message); return; }
 
             if (message.startsWith("RESERVATION_CANCELED")
                     || message.startsWith("ERROR|RESERVATION_NOT_FOUND")
@@ -71,7 +98,6 @@ public class ClientMessageRouter implements ChatIF {
         ReceiveTableUIController t = ClientUIController.getActiveReceiveTableController();
         if (t != null) {
 
-            // --- התוספת החדשה מתחילה כאן ---
             if (message.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
                 t.onSubscriberDataReceived(message);
                 return;
@@ -80,7 +106,7 @@ public class ClientMessageRouter implements ChatIF {
                     || message.equals("INVALID_CONFIRMATION_CODE") 
             	|| message.equals("RESERVATION_ALREADY_USED") 
             	|| message.equals("RESERVATION_ALREADY_USED")
-                || message.equals("RESERVATION_NOT_FOR_TODAY")) { // הוספתי גם את המקרה של תאריך שגוי ליתר ביטחון{
+                || message.equals("RESERVATION_NOT_FOR_TODAY")) {
                 t.onReceiveTableResponse(message);
                 return;
             }

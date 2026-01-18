@@ -3,6 +3,13 @@ package entities;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * Represents a historical record of a subscriber's visit/reservation.
+ * <p>
+ * Stores the originally reserved date, the actual arrival and departure timestamps (if available),
+ * the final bill amount, any discount applied, and the final status of the visit.
+ * This class is commonly used as a model for displaying visit history in UI tables.
+ */
 public class VisitHistory {
 	private LocalDate originalReservationDate;
 	private LocalDateTime actualArrivalTime;
@@ -11,6 +18,7 @@ public class VisitHistory {
 	private double discountApplied;
 	private String status;
 
+	//getters&setters
 	public LocalDate getOriginalReservationDate() {
 		return originalReservationDate;
 	}
@@ -59,6 +67,16 @@ public class VisitHistory {
 		this.status = status;
 	}
 
+	 /**
+     * Constructs a {@link VisitHistory} record with the provided details.
+     *
+     * @param originalReservationDate the original reservation date
+     * @param actualArrivalTime       the actual arrival date/time (may be {@code null})
+     * @param actualDepartureTime     the actual departure date/time (may be {@code null})
+     * @param totalBill               the total bill amount
+     * @param discountApplied         the discount applied
+     * @param status                  the final status of the visit/reservation
+     */
 	public VisitHistory(LocalDate originalReservationDate, LocalDateTime actualArrivalTime,
 			LocalDateTime actualDepartureTime, double totalBill, double discountApplied, String status) {
 		this.originalReservationDate = originalReservationDate;

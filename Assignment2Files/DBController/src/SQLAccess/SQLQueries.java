@@ -277,16 +277,16 @@ public final class SQLQueries {
     
     /** Get all visit history for a specific subscriber. */
     public static final String GET_SUBSCRIBER_VISIT_HISTORY =
-            "SELECT OriginalReservationDate, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status " +
+            "SELECT OriginalReservationDate, A"
+            + "ctualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status " +
             "FROM VisitHistory " +
             "WHERE SubscriberID = ? " +
             "ORDER BY ActualArrivalTime DESC";
     
     /** Insert a visit record. */
     public static final String INSERT_VISIT_HISTORY =
-        "INSERT INTO VisitHistory " +
-                    "(SubscriberID, OriginalReservationDate, OriginalReservationTime, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    	    "INSERT INTO VisitHistory (SubscriberID, OriginalReservationDate, ActualArrivalTime, ActualDepartureTime, TotalBill, DiscountApplied, Status) " +
+    	    "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
     /** Report: visits grouped by status. */
     public static final String REPORT_VISITS_BY_STATUS_IN_MONTH =

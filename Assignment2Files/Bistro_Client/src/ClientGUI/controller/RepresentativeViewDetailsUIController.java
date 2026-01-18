@@ -26,6 +26,24 @@ import entities.Subscriber;
 import entities.Reservation;
 import entities.WaitingEntry;
 
+/**
+ * Controller for the Representative "View Details" screen.
+ *
+ * <p>This screen aggregates operational data for staff:
+ * <ul>
+ *   <li>Waiting list entries</li>
+ *   <li>Active reservations</li>
+ *   <li>Subscribers list</li>
+ * </ul>
+ * </p>
+ *
+ * <p>On initialization, the controller requests all required datasets from the server
+ * (if {@code ClientUI.chat} is available) and then updates the JavaFX tables when responses arrive.</p>
+ *
+ * <p><b>Threading note:</b> Updates to JavaFX UI controls are executed using
+ * {@link javafx.application.Platform#runLater(Runnable)} because network callbacks typically run
+ * on non-JavaFX threads.</p>
+ */
 public class RepresentativeViewDetailsUIController { 
 
     // --- Waiting List Table ---
@@ -39,7 +57,7 @@ public class RepresentativeViewDetailsUIController {
     // --- Reservations Table ---
     @FXML private TableView<Reservation> reservationsTable;
     @FXML private TableColumn<Reservation, Integer> colResID;
-    @FXML private TableColumn<Reservation, String> colResType; // דורש הוספת שדה Role ל-Reservation
+    @FXML private TableColumn<Reservation, String> colResType; 
     @FXML private TableColumn<Reservation, Date> colResDate;
     @FXML private TableColumn<Reservation, Time> colResTime;
     @FXML private TableColumn<Reservation, Integer> colResDiners; 
@@ -59,12 +77,21 @@ public class RepresentativeViewDetailsUIController {
     @FXML
     private Button btnExit;
     
+    
     public static RepresentativeViewDetailsUIController instance;
     private String returnFxml;
     private String returnTitle;
     private String currentUserName;
     private String currentUserRole;
     
+    /**
+     * Sets navigation context so this screen can return to the previous screen.
+     *
+     * @param fxml     the destination FXML to load when clicking Back
+     * @param title    the window title to apply when returning
+     * @param userName the current logged-in username to restore
+     * @param role     the current logged-in role to restore
+     */
     public void setReturnPath(String fxml, String title, String userName, String role) {
         this.returnFxml = fxml;
         this.returnTitle = title;
@@ -72,6 +99,19 @@ public class RepresentativeViewDetailsUIController {
         this.currentUserRole = role;
     }
     
+    /**
+     * JavaFX initialization hook.
+     *
+     * <p>Initializes table column bindings and requests initial data from the server:
+     * <ul>
+     *   <li>{@code #GET_ALL_SUBSCRIBERS}</li>
+     *   <li>{@code #GET_WAITING_LIST}</li>
+     *   <li>{@code #GET_ACTIVE_RESERVATIONS}</li>
+     * </ul>
+     * </p>
+     *
+     * <p>Also assigns {@link #instance} to this controller to enable external message routing.</p>
+     */
     @FXML
     public void initialize() {
     	instance = this;
@@ -94,13 +134,20 @@ public class RepresentativeViewDetailsUIController {
     }
     
     /**
-     * פונקציה שמקבלת את רשימת ההמתנה מהשרת ומעדכנת את הטבלה.
-     * נקראת מ-ChatClient.
+     * Updates the waiting-list table using a raw server message.
+     *
+     * <p>Expected server format:</p>
+     * <pre>
+     * WAITING_LIST|id,contact(base64),diners,code,status,time~id,contact(base64),...
+     * </pre>
+     *
+     * <p>Each entry is decoded (Base64 URL-safe) into readable contact info before display.</p>
+     *
+     * @param message raw server message beginning with {@code WAITING_LIST|}
      */
     public void updateWaitingListFromMessage(String message) {
         javafx.application.Platform.runLater(() -> {
             try {
-                // הפורמט מהשרת: WAITING_LIST|id,contact(base64),diners,code,status,time~...
                 //String[] parts = message.split("\\|");
             	String[] parts = message.split("\\|", 2);
 
@@ -164,17 +211,28 @@ public class RepresentativeViewDetailsUIController {
         });
     }
 
-    // פונקציית עזר לפענוח Base64 (חובה להוסיף אותה למחלקת הקונטרולר)
+    /**
+     * Decodes a Base64 URL-safe encoded string into UTF-8 text.
+     *
+     * <p>If decoding fails, the original input is returned to avoid losing data
+     * (useful for debugging malformed values).</p>
+     *
+     * @param b64 Base64 URL-safe text (may be {@code null} or empty)
+     * @return decoded UTF-8 string, empty string if input is null/empty, or original string on error
+     */
     private String decodeB64Url(String b64) {
         if (b64 == null || b64.isEmpty()) return "";
         try {
             byte[] bytes = java.util.Base64.getUrlDecoder().decode(b64);
             return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
-            return b64; // במקרה של שגיאה, נחזיר את המקור
+            return b64; 
         }
     }
 
+    /**
+     * Configures waiting-list table column bindings using {@link PropertyValueFactory}.
+     */
     private void setupWaitingListColumns() {
         colWaitID.setCellValueFactory(new PropertyValueFactory<>("waitingId")); // getWaitingId
         colWaitContact.setCellValueFactory(new PropertyValueFactory<>("contactInfo"));
@@ -183,6 +241,12 @@ public class RepresentativeViewDetailsUIController {
         colWaitTime.setCellValueFactory(new PropertyValueFactory<>("entryTime"));
     }
 
+    /**
+     * Configures reservations table column bindings using {@link PropertyValueFactory}.
+     *
+     * <p>Note: {@code colResType} uses {@code "Role"} and assumes the {@link Reservation} model
+     * exposes a compatible getter/property name.</p>
+     */
     private void setupReservationsColumns() {
         colResID.setCellValueFactory(new PropertyValueFactory<>("reservationId")); // getReservationId
         colResType.setCellValueFactory(new PropertyValueFactory<>("Role")); 
@@ -192,6 +256,9 @@ public class RepresentativeViewDetailsUIController {
         colResStatus.setCellValueFactory(new PropertyValueFactory<>("status"));
     }
 
+    /**
+     * Configures subscribers table column bindings using {@link PropertyValueFactory}.
+     */
     private void setupSubscribersColumns() {
         colSubID.setCellValueFactory(new PropertyValueFactory<>("subscriberId")); // getSubscriberId
         colSubName.setCellValueFactory(new PropertyValueFactory<>("fullName"));
@@ -201,15 +268,26 @@ public class RepresentativeViewDetailsUIController {
     }
 
     /**
-     * מקבלת רשימת מנויים ומעדכנת את הטבלה במסך.
+     * Receives a list of subscribers and updates the subscribers table.
+     *
+     * @param subs list of {@link Subscriber} objects to display
      */
     public void updateSubscribersTable(List<Subscriber> subs) {
-        // המרת הרשימה ל-ObservableList שהטבלה מכירה
         ObservableList<Subscriber> data = FXCollections.observableArrayList(subs);
         subscribersTable.setItems(data);
         subscribersTable.refresh();
     }
     
+    /**
+     * Handles Back button click.
+     *
+     * <p>Loads the screen specified by {@link #returnFxml}, restores user context to the
+     * destination controller, and switches the scene.</p>
+     *
+     * <p>Also clears {@link #instance} so this screen stops receiving routed server messages.</p>
+     *
+     * @param event JavaFX action event
+     */
     @FXML
     void getBackBtn(ActionEvent event) {
         try {
@@ -248,11 +326,18 @@ public class RepresentativeViewDetailsUIController {
     }
 
     /**
-     * פונקציה שמקבלת את המחרוזת הגולמית מהשרת, מפרקת אותה ומעדכנת את הטבלה.
-     * הפונקציה הזו נקראת מתוך ChatClient.
+     * Parses a raw server message containing subscribers list and updates the subscribers table.
+     *
+     * <p>Expected format:</p>
+     * <pre>
+     * SUBSCRIBERS_LIST|id,FullName,PhoneNumber,Email,UserName~id,FullName,...
+     * </pre>
+     *
+     * <p>Runs on the JavaFX thread via {@link javafx.application.Platform#runLater(Runnable)}.</p>
+     *
+     * @param message raw server message beginning with {@code SUBSCRIBERS_LIST|}
      */
     public void updateSubscribersFromMessage(String message) {
-        // אנו עוטפים ב-Platform.runLater כי הפונקציה נקראת מתהליך (Thread) של הרשת
         javafx.application.Platform.runLater(() -> {
             try {
                 String[] parts = message.split("\\|"); 
@@ -275,7 +360,6 @@ public class RepresentativeViewDetailsUIController {
                     }
                 }
                 
-                // עדכון הטבלה
                 javafx.collections.ObservableList<entities.Subscriber> data = 
                     javafx.collections.FXCollections.observableArrayList(list);
                 subscribersTable.setItems(data);
@@ -287,13 +371,27 @@ public class RepresentativeViewDetailsUIController {
         });
     }
     
+    /**
+     * Handles Exit button click and terminates the application.
+     *
+     * @param event JavaFX action event
+     */
     @FXML
     void getExitBtn(ActionEvent event) {
         System.exit(0);
     }
     
     /**
-     * מקבלת את רשימת ההזמנות מהשרת ומעדכנת את הטבלה.
+     * Receives active reservations data from the server and updates the reservations table.
+     *
+     * <p>Expected format:</p>
+     * <pre>
+     * ACTIVE_RESERVATIONS|id,type,date,time,diners,status[,tableNumber]~id,type,date,time,...
+     * </pre>
+     *
+     * <p>Creates {@link Reservation} objects from parsed values and refreshes the UI.</p>
+     *
+     * @param message raw server message beginning with {@code ACTIVE_RESERVATIONS|}
      */
     public void updateReservationsFromMessage(String message) {
         javafx.application.Platform.runLater(() -> {
@@ -312,7 +410,7 @@ public class RepresentativeViewDetailsUIController {
                             int id = Integer.parseInt(cols[0]);
                             String type = cols[1];
                             java.sql.Date date = java.sql.Date.valueOf(cols[2]);
-                            java.sql.Time time = java.sql.Time.valueOf(cols[3]); // מוודא פורמט HH:mm:ss
+                            java.sql.Time time = java.sql.Time.valueOf(cols[3]); 
                             int diners = Integer.parseInt(cols[4]);
                             String status = cols[5];
                             Integer tableNumber = null;
@@ -320,13 +418,7 @@ public class RepresentativeViewDetailsUIController {
                             	tableNumber = Integer.valueOf(cols[6]);
                             }
 
-                            // יצירת אובייקט Reservation.
-                            // הערה: הבנאי שלך דורש גם confirmationCode ו-subscriberId.
-                            // כיוון שלא שלחנו אותם כדי לחסוך מקום (הם לא בטבלה), נשלח ערכים פיקטיביים או שתעדכני את השרת לשלוח גם אותם.
-                            // לצורך הדוגמה, אני שולח הכל מהשרת (ראי תיקון למטה) או ממלא null:
                             
-                            // תיקון: אם את רוצה להשתמש בבנאי הקיים, צריך לשלוח מהשרת גם את Code ו-SubID.
-                            // נניח כרגע שאנחנו משתמשים בבנאי המלא:
                             Reservation r = new Reservation(
                                     id,
                                     diners,
