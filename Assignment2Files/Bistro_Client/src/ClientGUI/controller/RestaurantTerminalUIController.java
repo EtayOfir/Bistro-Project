@@ -131,6 +131,16 @@ public class RestaurantTerminalUIController {
             e.printStackTrace();
         }
     }
+    
+    /**
+     * Signs off from the server and returns to the main login screen.
+     * <p>
+     * If a client connection exists ({@code ClientUI.chat}), this method sends {@code LOGOUT},
+     * closes the connection, clears the static reference, and then loads {@code UserLoginUIView.fxml}.
+     * </p>
+     *
+     * @param event the JavaFX action event triggered by clicking the button
+     */
     @FXML
     private void onSignOff(ActionEvent event) {
         try {
@@ -192,18 +202,26 @@ public class RestaurantTerminalUIController {
             statusLabel.setText("Hello, " + username);
         }
     }
+    
+    /**
+     * Callback invoked by the popup login window when a subscriber successfully logs in.
+     * <p>
+     * This overload receives only a username and updates the terminal status label accordingly.
+     * It does not store a full subscriber object.
+     * </p>
+     *
+     * @param username the username of the subscriber who logged in
+     */
     public void setLoggedInSubscriber(entities.Subscriber sub) {
         this.loggedInSubscriber = sub;
 
         if (sub != null) {
             System.out.println("Subscriber connected via terminal (Object): " + sub.getUserName());
 
-            // עדכון התווית
             if (statusLabel != null) {
                 statusLabel.setText("Hello, " + sub.getUserName());
             }
 
-            // עדכון השרת בזהות המלאה
             if (ClientUI.chat != null) {
                 ClientUI.chat.handleMessageFromClientUI("IDENTIFY|" + sub.getUserName() + "|" + sub.getRole());
             }

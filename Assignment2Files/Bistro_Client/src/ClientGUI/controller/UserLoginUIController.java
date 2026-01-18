@@ -331,6 +331,14 @@ public class UserLoginUIController {
         alert.showAndWait();
     }
     
+    /**
+     * Handles the Exit button click event.
+     * <p>
+     * Closes the current JavaFX window (stage) and then terminates the entire application
+     * using {@link System#exit(int)} with exit code {@code 0}.
+     *
+     * @param event the action event triggered by clicking the Exit button; used to locate the current {@link Stage}
+     */
     @FXML
     private void onExitClicked(ActionEvent event) {
         Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();

@@ -53,6 +53,19 @@ public class LoginDAO {
         return null;
     }
     
+    /**
+     * Authenticates a subscriber by username and password.
+     * <p>
+     * Executes the {@code SQLQueries.LOGIN_SUB} query using the provided credentials. If a matching
+     * subscriber is found, a {@link Subscriber} object is created and populated from the result set.
+     * If no match is found, this method returns {@code null}.
+     * <p>
+     * Any {@link SQLException} is caught and printed; the method will then return {@code null}.
+     *
+     * @param username the subscriber username
+     * @param password the subscriber password
+     * @return a populated {@link Subscriber} if authentication succeeds; {@code null} if login fails
+     */
     public Subscriber doLogin(String username, String password) {
         Subscriber sub = null;
 

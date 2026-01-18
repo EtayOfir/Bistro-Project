@@ -23,6 +23,17 @@ import java.util.Random;
 import ClientGUI.util.ViewLoader;
 import entities.Subscriber;
 
+/**
+ * Controller for the "Waiting List" screen.
+ *
+ * <p>Supports joining the waiting list and leaving the waiting list.
+ * When a {@link Subscriber} context is provided (via {@link #setReservationContext(LocalDate, String, String, int, Subscriber)}),
+ * the personal details pane can be hidden and the details are taken from the subscriber object.</p>
+ *
+ * <p><b>Networking:</b> This controller communicates with the server using {@link ChatClient}.
+ * Incoming server messages are handled through the {@link ChatIF} interface and rendered to the UI using
+ * {@link Platform#runLater(Runnable)} for thread safety.</p>
+ */
 public class ClientWaitingListController implements ChatIF {
 
     @FXML private DatePicker datePicker;
@@ -45,6 +56,17 @@ public class ClientWaitingListController implements ChatIF {
     private ChatClient client;
     private Subscriber currentSubscriber = null;
 
+    /**
+     * Controller for the "Waiting List" screen.
+     *
+     * <p>Supports joining the waiting list and leaving the waiting list.
+     * When a {@link Subscriber} context is provided (via {@link #setReservationContext(LocalDate, String, String, int, Subscriber)}),
+     * the personal details pane can be hidden and the details are taken from the subscriber object.</p>
+     *
+     * <p><b>Networking:</b> This controller communicates with the server using {@link ChatClient}.
+     * Incoming server messages are handled through the {@link ChatIF} interface and rendered to the UI using
+     * {@link Platform#runLater(Runnable)} for thread safety.</p>
+     */
     @FXML
     public void initialize() {
         // defaults
@@ -58,7 +80,7 @@ public class ClientWaitingListController implements ChatIF {
         guestsSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 20, 2));
         
         if (leaveButton != null) {
-            leaveButton.setDisable(true);
+            leaveButton.setDisable(false);
         }
         activeConfirmationCode = null;
         
@@ -71,6 +93,18 @@ public class ClientWaitingListController implements ChatIF {
         }
     }
 
+    /**
+     * Handles the "Join Waiting List" action.
+     *
+     * <p>Validates required fields, builds a payload describing the requested date/time/area/guests and
+     * (if no subscriber context exists) also includes name/email/phone. The payload is base64-url encoded and sent
+     * to the server using {@code #ADD_WAITING_LIST}.</p>
+     *
+     * <p>When a subscriber context exists, the subscriber ID is appended as an additional argument
+     * and manual details are not required.</p>
+     *
+     * <p>Upon sending, this method disables the leave button until a server response is received.</p>
+     */
     @FXML
     private void onJoin() {
         if (client == null) {
@@ -126,7 +160,18 @@ public class ClientWaitingListController implements ChatIF {
         client.handleMessageFromClientUI(cmd); // sends to server :contentReference[oaicite:4]{index=4}
     }
     
- //Leave Waiting List button action
+    /**
+     * Handles the "Leave Waiting List" action.
+     *
+     * <p>If the controller already has an {@link #activeConfirmationCode}, it is used directly to send
+     * {@code #LEAVE_WAITING_LIST}.</p>
+     *
+     * <p>If there is no active code and the current user role is Representative/Manager, a dialog is shown
+     * so a confirmation code can be entered manually, then sent to the server.</p>
+     *
+     * <p>After sending a leave request, the leave button is disabled to prevent duplicate requests until a
+     * response is received.</p>
+     */
     @FXML
     private void onLeave() {
         if (client == null) {
@@ -135,10 +180,39 @@ public class ClientWaitingListController implements ChatIF {
         }
 
         if (activeConfirmationCode == null || activeConfirmationCode.isBlank()) {
+
+            if ("Representative".equalsIgnoreCase(currentUserRole) || "Manager".equalsIgnoreCase(currentUserRole)) {
+
+                TextInputDialog dialog = new TextInputDialog();
+                dialog.setTitle("Leave Waiting List");
+                dialog.setHeaderText("Enter Confirmation Code");
+                dialog.setContentText("Code:");
+
+                dialog.showAndWait().ifPresent(code -> {
+                    String entered = code == null ? "" : code.trim();
+                    if (entered.isEmpty()) {
+                        resultArea.appendText("\nNo code entered.\n");
+                        return;
+                    }
+
+                    activeConfirmationCode = entered;
+                    String cmd = "#LEAVE_WAITING_LIST " + activeConfirmationCode;
+
+                    resultArea.appendText("\nSending leave request...\n" + cmd + "\n");
+                    client.handleMessageFromClientUI(cmd);
+
+                    if (leaveButton != null) leaveButton.setDisable(true);
+                });
+
+                return;
+            }
+
             resultArea.appendText("\nNo active waiting list code to cancel.\n");
             if (leaveButton != null) leaveButton.setDisable(true);
             return;
         }
+        
+
 
         String cmd = "#LEAVE_WAITING_LIST " + activeConfirmationCode;
         resultArea.appendText("\nSending leave request...\n" + cmd + "\n");
@@ -149,7 +223,12 @@ public class ClientWaitingListController implements ChatIF {
         if (leaveButton != null) leaveButton.setDisable(true);
     }
 
-
+    /**
+     * Clears user-entered personal details and the results area.
+     *
+     * <p>This does not reset server state and does not change waiting-list membership.
+     * It only clears the current UI text inputs.</p>
+     */
     @FXML
     private void onClear() {
         nameField.clear();
@@ -162,6 +241,8 @@ public class ClientWaitingListController implements ChatIF {
     /**
      * Handles the Exit button click.
      * Closes the current window.
+     *
+     * @param event the action event triggered by the Exit button
      */
     @FXML
     private void onExit(ActionEvent event) {
@@ -169,6 +250,22 @@ public class ClientWaitingListController implements ChatIF {
         stage.close();
     }
     
+    /**
+     * Receives messages from the server and updates the UI.
+     *
+     * <p>All UI updates are executed via {@link Platform#runLater(Runnable)} to ensure JavaFX thread safety.</p>
+     *
+     * <p>Recognized messages:
+     * <ul>
+     *   <li>{@code WAITING_ADDED|<code>} - stores confirmation code and prints summary.</li>
+     *   <li>{@code WAITING_LEFT|<code>} - clears confirmation code and shows removal message.</li>
+     *   <li>{@code ERROR|...} - prints server error message.</li>
+     *   <li>Any other message - displayed as-is.</li>
+     * </ul>
+     * </p>
+     *
+     * @param message raw server message
+     */
     @Override
     public void display(String message) {
         Platform.runLater(() -> {
@@ -223,22 +320,58 @@ public class ClientWaitingListController implements ChatIF {
         });
     }
 
+    /**
+     * Trims a string safely.
+     *
+     * @param s input string (may be {@code null})
+     * @return trimmed string, or empty string if {@code s} is {@code null}
+     */
     private static String safe(String s) {
         return s == null ? "" : s.trim();
     }
 
+    /**
+     * Generates a random 6-digit confirmation code (as a string).
+     *
+     * @return a 6-digit numeric string (100000-999999)
+     */
     private static String generateCode6() {
         int n = 100000 + new Random().nextInt(900000);
         return String.valueOf(n);
     }
 
+
+    /**
+     * Encodes the given text as URL-safe Base64 without padding.
+     *
+     * @param s the text to encode (may be {@code null})
+     * @return Base64-url encoded representation (never {@code null})
+     */
     private static String encodeB64Url(String s) {
         if (s == null) s = "";
         return Base64.getUrlEncoder().withoutPadding().encodeToString(s.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * Prefill the waiting-list form with a failed reservation context and optional subscriber.
+     * Prefills the waiting-list screen with reservation context.
+     *
+     * <p>Used when a waiting list request is opened as a follow-up to a failed reservation attempt.
+     * The date/time are typically locked to match the failed reservation slot.</p>
+     *
+     * <p>If a subscriber is provided:
+     * <ul>
+     *   <li>Personal detail fields are filled from the subscriber object and disabled.</li>
+     *   <li>The personal details pane may be hidden.</li>
+     *   <li>Date/time/area/guests are locked (not editable) to preserve reservation context.</li>
+     * </ul>
+     * If subscriber is {@code null}, personal details remain editable (with some fields still locked
+     * according to the reservation context rules).</p>
+     *
+     * @param date the reservation date to prefill (may be {@code null})
+     * @param time the reservation time to prefill (may be {@code null})
+     * @param area the reservation area to prefill (may be {@code null})
+     * @param guests the number of guests to prefill
+     * @param subscriber optional subscriber context (may be {@code null})
      */
     public void setReservationContext(LocalDate date, String time, String area, int guests, Subscriber subscriber) {
         if (date != null) datePicker.setValue(date);

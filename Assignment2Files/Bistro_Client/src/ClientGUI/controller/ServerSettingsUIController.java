@@ -109,14 +109,29 @@ public class ServerSettingsUIController {
         System.exit(0);
     }
 
+    /**
+     * Indicates whether the client is currently connected to the server.
+     *
+     * @return {@code true} if the connection is active; {@code false} otherwise
+     */
     public boolean isConnected() {
         return connected;
     }
 
+    /**
+     * Returns the host name (or IP address) this client is configured to connect to.
+     *
+     * @return the server host as a {@link String}
+     */
     public String getHost() {
         return host;
     }
 
+    /**
+     * Returns the TCP port this client is configured to connect to.
+     *
+     * @return the server port number
+     */
     public int getPort() {
         return port;
     }

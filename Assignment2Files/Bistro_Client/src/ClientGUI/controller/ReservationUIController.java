@@ -454,7 +454,6 @@ public class ReservationUIController {
                 bookedTimesCache.put(date, s);
             }
 
-            // אם אתה רוצה לרענן מהשרת אחרי יצירה - השאר את זה
             if (date != null) {
                 bookedTimesCache.remove(date);
                 fetchExistingReservations(date);
@@ -493,7 +492,6 @@ public class ReservationUIController {
             String[] p = response.split("\\|", -1);
             String reason = (p.length >= 2) ? p[1] : "";
 
-            // ניקוי שדות במקרה כשל
             reservationIdField.setText("");
             confirmationField.setText("");
 
@@ -513,7 +511,6 @@ public class ReservationUIController {
                             "No available table for this time.\nChoose an alternative time or join the waiting list."));
                 }).start();
 
-                // לפתוח חלון Waiting List
                 try {
                     FXMLLoader loader = ViewLoader.fxml("ClientWaitingList.fxml");
                     Parent root = loader.load();
@@ -558,7 +555,6 @@ public class ReservationUIController {
                 && response.startsWith("ERROR|DB_ERROR")
                 && response.contains("No available table")) {
 
-            // גיבוי (אם נשארו הודעות ישנות מהשרת)
             System.out.println("DEBUG: No available table - opening waiting list");
 
             reservationIdField.setText("");

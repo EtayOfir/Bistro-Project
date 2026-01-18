@@ -28,6 +28,14 @@ import entities.ReservationRow;
 
 public class HostDashboardController {
 
+	/**
+	 * Controller for the Host Dashboard screen.
+	 *
+	 * <p>Displays today's reservations in a queue table, shows table occupancy on a visual map,
+	 * and allows the host to assign tables ("check in") or cancel reservations.</p>
+	 *
+	 * <p>This controller also supports navigation back to a previous screen using a stored return path.</p>
+	 */
 	public static HostDashboardController instance;
 	// Table (queue)
     @FXML private TableView<ReservationRow> queueTable;
@@ -86,6 +94,14 @@ public class HostDashboardController {
     private String currentUserName = "";
     private String currentUserRole = "";
 
+    /**
+     * Controller for the Host Dashboard screen.
+     *
+     * <p>Displays today's reservations in a queue table, shows table occupancy on a visual map,
+     * and allows the host to assign tables ("check in") or cancel reservations.</p>
+     *
+     * <p>This controller also supports navigation back to a previous screen using a stored return path.</p>
+     */
     @FXML
     private void initialize() {
         instance = this;
@@ -127,6 +143,12 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Decodes a URL-safe Base64 string into UTF-8 text.
+     *
+     * @param b64 URL-safe Base64 string (without padding)
+     * @return decoded UTF-8 text, or empty string if decode fails
+     */
     private String decodeB64Url(String b64) {
         if (b64 == null || b64.isEmpty()) return "";
         try {
@@ -137,7 +159,12 @@ public class HostDashboardController {
         }
     }
 
-    
+    /**
+     * Decodes a URL-safe Base64 string into UTF-8 text.
+     *
+     * @param b64 URL-safe Base64 string (without padding)
+     * @return decoded UTF-8 text, or empty string if decode fails
+     */
     private void requestDashboardData() {
         if (ClientUI.chat == null) return;
 
@@ -146,6 +173,17 @@ public class HostDashboardController {
         ClientUI.chat.handleMessageFromClientUI("#GET_SEATED_CUSTOMERS");
     }
 
+    /**
+     * Requests all data required for the dashboard view from the server.
+     *
+     * <p>Sends commands for:
+     * <ul>
+     *   <li>Restaurant tables (capacity and status)</li>
+     *   <li>Today's reservations</li>
+     *   <li>Currently seated customers</li>
+     * </ul>
+     * If {@code ClientUI.chat} is not initialized, this method does nothing.</p>
+     */
     public void setUserContext(String username, String role) {
         this.currentUserName = (username == null) ? "" : username;
         this.currentUserRole = (role == null) ? "" : role;
@@ -156,6 +194,14 @@ public class HostDashboardController {
         requestDashboardData();
     }
 
+    /**
+     * Handles clicking a table button on the map.
+     *
+     * <p>Stores the selected table button, updates the selected table label,
+     * and refreshes table button styles to reflect selection.</p>
+     *
+     * @param event the action event triggered by clicking a table button
+     */
     @FXML
     private void onTableClicked(ActionEvent event) {
         if (!(event.getSource() instanceof Button btn)) return;
@@ -166,6 +212,11 @@ public class HostDashboardController {
         refreshTableColors();
     }
 
+    /**
+     * Extracts the numeric table number from the selected button text (e.g., "T3" -> 3).
+     *
+     * @return selected table number, or {@code null} if none/invalid
+     */
     private Integer selectedTableNumber() {
         if (selectedTableBtn == null) return null;
         String t = selectedTableBtn.getText(); // "T3"
@@ -173,6 +224,22 @@ public class HostDashboardController {
         try { return Integer.parseInt(t.substring(1)); } catch (Exception e) { return null; }
     }
     
+    /**
+     * Performs a "check in" (table assignment) for the selected reservation and selected table.
+     *
+     * <p>Validates:
+     * <ul>
+     *   <li>A reservation is selected</li>
+     *   <li>Status is not Arrived/Canceled/Expired</li>
+     *   <li>A table is selected</li>
+     *   <li>Table is not occupied</li>
+     *   <li>Capacity is sufficient</li>
+     *   <li>Confirmation code exists</li>
+     * </ul>
+     * If valid, sends {@code #ASSIGN_TABLE|code|tableNum} to the server.</p>
+     *
+     * @param event the action event triggered by clicking the Check-In button
+     */
     @FXML
     private void onCheckInClicked(ActionEvent event) {
         ReservationRow selectedReservation = queueTable.getSelectionModel().getSelectedItem();
@@ -230,6 +297,16 @@ public class HostDashboardController {
         ClientUI.chat.handleMessageFromClientUI(cmd);
     }
 
+    /**
+     * Updates the queue table list using a {@code TODAYS_RESERVATIONS|...} server message.
+     *
+     * <p>Message format:
+     * {@code TODAYS_RESERVATIONS|customerB64,guests,time,status,tableNum,code~...}</p>
+     *
+     * <p>Runs on the JavaFX UI thread via {@link Platform#runLater(Runnable)}.</p>
+     *
+     * @param msg server message containing today's reservations
+     */
     public void updateTodaysReservationsFromMessage(String msg) {
         if (msg == null || !msg.startsWith("TODAYS_RESERVATIONS|")) return;
 
@@ -264,6 +341,14 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Cancels the currently selected reservation.
+     *
+     * <p>Removes it from the local list immediately, refreshes the table view,
+     * and sends {@code #CANCEL_RESERVATION|code} to the server.</p>
+     *
+     * @param event the action event triggered by clicking Cancel
+     */
     @FXML
     private void onCancelClicked(ActionEvent event) {
         ReservationRow selectedReservation = queueTable.getSelectionModel().getSelectedItem();
@@ -278,6 +363,14 @@ public class HostDashboardController {
         ClientUI.chat.handleMessageFromClientUI("#CANCEL_RESERVATION|" + code);
     }
     
+    /**
+     * Closes the dashboard and exits the application.
+     *
+     * <p>Calls {@link #cleanup()} to clear the static instance, then closes the stage
+     * and terminates the JVM via {@link System#exit(int)}.</p>
+     *
+     * @param event the action event triggered by clicking Close
+     */
     @FXML
     private void onCloseClicked(ActionEvent event) {
         cleanup();
@@ -286,6 +379,12 @@ public class HostDashboardController {
         System.exit(0);
     }
 
+    /**
+     * Refreshes all map table button styles based on occupancy and selection state.
+     *
+     * <p>For each table (1-10), applies a green style if free, red if occupied,
+     * and adds a border if selected.</p>
+     */
     private void refreshTableColors() {
         for (int tableNum = 1; tableNum <= 10; tableNum++) {
             Button btn = getTableButton(tableNum);
@@ -298,6 +397,13 @@ public class HostDashboardController {
         }
     }
 
+    /**
+     * Applies CSS styling to a single table button.
+     *
+     * @param btn the table button to style
+     * @param isOccupied whether the table is currently occupied (red vs green)
+     * @param isSelected whether the table is currently selected (adds border)
+     */
     private void applyTableStyle(Button btn, boolean isOccupied, boolean isSelected) {
         if (btn == null) return;
 
@@ -315,6 +421,12 @@ public class HostDashboardController {
                 shadow);
     }
 
+    /**
+     * Returns the corresponding table button for a table number.
+     *
+     * @param tableNum the table number (1-10)
+     * @return the matching button, or {@code null} if out of range
+     */
     private Button getTableButton(int tableNum) {
         return switch (tableNum) {
             case 1 -> table1Btn;
@@ -331,6 +443,7 @@ public class HostDashboardController {
         };
     }
     
+    /** Predefined seat positions used to draw capacity circles around a table. */
     private static final double[][] SEAT_POSITIONS = {
     	    {70, 14},   // top
     	    {70, 126},  // bottom
@@ -344,6 +457,12 @@ public class HostDashboardController {
     	    {95, 14}    // extra (for 10)
     	};
 
+    /**
+     * Returns the pane used to render seats for a given table number.
+     *
+     * @param tableNum table number (1-10)
+     * @return pane for that table, or {@code null} if invalid
+     */
     	private Pane getTablePane(int tableNum) {
     	    return switch (tableNum) {
     	        case 1 -> table1Pane;
@@ -359,7 +478,16 @@ public class HostDashboardController {
     	        default -> null;
     	    };
     	}
-
+    	
+    	 /**
+         * Renders seat circles on the table pane based on its capacity.
+         *
+         * <p>Removes previously drawn seats (nodes with userData = "seat") and then draws up to
+         * {@code min(capacity, SEAT_POSITIONS.length)} circles.</p>
+         *
+         * @param tableNum the table number to render seats for
+         * @param capacity number of seats for the table
+         */
     	private void renderSeatsForTable(int tableNum, int capacity) {
     	    Pane pane = getTablePane(tableNum);
     	    if (pane == null) return;
@@ -379,6 +507,18 @@ public class HostDashboardController {
     	    }
     	}
 
+    	/**
+         * Handles server responses for an assign-table request.
+         *
+         * <p>Recognized messages:
+         * <ul>
+         *   <li>{@code ASSIGN_TABLE_OK|...} - triggers refresh via {@link #requestDashboardData()}.</li>
+         *   <li>{@code ASSIGN_TABLE_FAIL|code|reason|message} - displays a warning dialog.</li>
+         * </ul>
+         * Runs on the JavaFX UI thread.</p>
+         *
+         * @param msg server message for assignment outcome
+         */
     public void onAssignTableResponse(String msg) {
     	System.out.println("DEBUG onAssignTableResponse called with: " + msg);
     	Platform.runLater(() -> {
@@ -402,6 +542,17 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Updates table occupancy and capacity based on a {@code RESTAURANT_TABLES|...} server message.
+     *
+     * <p>Message format:
+     * {@code RESTAURANT_TABLES|tableNum,capacity,status,assignedTo~...}</p>
+     *
+     * <p>Resets occupancy map and capacity map, draws seats according to capacity,
+     * and refreshes table colors to reflect current states.</p>
+     *
+     * @param msg server message containing restaurant tables data
+     */
     public void updateTablesFromMessage(String msg) {
         // Expected format:
         // RESTAURANT_TABLES|tableNum,capacity,status,assignedTo~tableNum,capacity,status,assignedTo...
@@ -445,6 +596,13 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Handles server response for a cancel reservation request.
+     *
+     * <p>If cancellation succeeded, refreshes dashboard data. Otherwise shows an alert with the raw message.</p>
+     *
+     * @param msg server message indicating cancel outcome
+     */
     public void onCancelResponse(String msg) {
         Platform.runLater(() -> {
             if (msg.startsWith("RESERVATION_CANCELED|")) {
@@ -455,6 +613,16 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Updates the queue table list using a {@code SEATED_CUSTOMERS|...} server message.
+     *
+     * <p>Message format:
+     * {@code SEATED_CUSTOMERS|customerB64,guests,time,status,tableNum,confirmationCode~...}</p>
+     *
+     * <p>Clears existing list and replaces it with the parsed seated customers list.</p>
+     *
+     * @param msg server message containing seated customers data
+     */
     public void updateSeatedCustomersFromMessage(String msg) {
         // Expected format: SEATED_CUSTOMERS|customerB64,guests,time,status,tableNum~...
         if (msg == null || !msg.startsWith("SEATED_CUSTOMERS|")) return;
@@ -493,12 +661,22 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Clears the static {@link #instance} reference if it currently points to this controller.
+     *
+     * <p>Use this when leaving/closing the dashboard to avoid holding stale references.</p>
+     */
     public void cleanup() {
         if (instance == this) {
             instance = null;
         }
     }
     
+    /**
+     * Shows a warning alert with the given message.
+     *
+     * @param message the warning message to display
+     */
     private void showAlert(String message) {
         javafx.scene.control.Alert alert =
                 new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
@@ -510,9 +688,16 @@ public class HostDashboardController {
         alert.showAndWait();
     }
 
-    // ==========================
-    // Navigation Logic (Back)
-    // ==========================
+    /**
+     * Sets the navigation parameters required to return to the previous screen.
+     *
+     * <p>Null/blank values are replaced with safe defaults.</p>
+     *
+     * @param fxml FXML file name to load when Back is pressed
+     * @param title window title to set after navigation
+     * @param user username to restore in the destination controller
+     * @param role role to restore in the destination controller
+     */
     public void setReturnPath(String fxml, String title, String user, String role) {
         this.returnScreenFXML = (fxml == null || fxml.isBlank()) ? "UserLoginUIView.fxml" : fxml;
         this.returnTitle = (title == null || title.isBlank()) ? "Login" : title;
@@ -520,6 +705,14 @@ public class HostDashboardController {
         this.currentUserRole = (role == null) ? "" : role;
     }
 
+    /**
+     * Navigates back to the previously configured screen.
+     *
+     * <p>Loads {@link #returnScreenFXML}, restores basic user context on the destination controller (when supported),
+     * and restores the current stage maximized state.</p>
+     *
+     * @param event the action event triggered by clicking Back
+     */
     @FXML
     private void onBack(ActionEvent event) {
         cleanup();

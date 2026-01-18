@@ -8,17 +8,31 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Data Access Object (DAO) for managing waiting list entries.
+ * <p>
+ * Provides CRUD operations for {@link WaitingEntry} records, plus helper mapping logic and
+ * additional report/statistics queries. Also includes a transactional method to find an eligible
+ * waiting entry for available seats and mark it accordingly.
+ */
 public class WaitingListDAO {
 
     private final DataSource dataSource;
 
+    /**
+     * Constructs a {@link WaitingListDAO} using the given {@link DataSource}.
+     *
+     * @param dataSource the data source to use for database connections
+     */
     public WaitingListDAO(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
-    // -------------------------
-    // CREATE
-    // -------------------------
+    /**
+     * Constructs a {@link WaitingListDAO} using the given {@link DataSource}.
+     *
+     * @param dataSource the data source to use for database connections
+     */
     public boolean insert(String contactInfo,int numOfDiners, String confirmationCode, String status) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_WAITING)) {
@@ -27,23 +41,21 @@ public class WaitingListDAO {
             ps.setInt(2, numOfDiners);
             ps.setString(3, confirmationCode);
             ps.setString(4, status);
-
-               // ps.setNull(2, Types.INTEGER);
-            //} else {
-             //   ps.setInt(2, subscriberId);
-           // }
-            //ps.setInt(3, numOfDiners);
-            //ps.setString(4, confirmationCode);
-            //ps.setString(5, status);
-
             return ps.executeUpdate() == 1;
         }
         
     }
 
-    // -------------------------
-    // READ (single)
-    // -------------------------
+
+    /**
+     * Retrieves a waiting list entry by its waiting ID.
+     * <p>
+     * Uses {@code SQLQueries.GET_WAITING_BY_ID}. If no record is found, returns {@code null}.
+     *
+     * @param waitingId the waiting entry ID
+     * @return the matching {@link WaitingEntry}, or {@code null} if not found
+     * @throws SQLException if a database error occurs while querying
+     */
     public WaitingEntry getById(int waitingId) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_WAITING_BY_ID)) {
@@ -57,6 +69,15 @@ public class WaitingListDAO {
         }
     }
 
+    /**
+     * Retrieves a waiting list entry by its confirmation code.
+     * <p>
+     * Uses {@code SQLQueries.GET_WAITING_BY_CODE}. If no record is found, returns {@code null}.
+     *
+     * @param confirmationCode the confirmation code to search by
+     * @return the matching {@link WaitingEntry}, or {@code null} if not found
+     * @throws SQLException if a database error occurs while querying
+     */
     public WaitingEntry getByConfirmationCode(String confirmationCode) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_WAITING_BY_CODE)) {
@@ -70,9 +91,14 @@ public class WaitingListDAO {
         }
     }
 
-    // -------------------------
-    // READ (list)  "SHOW"
-    // -------------------------
+    /**
+     * Retrieves all waiting list entries.
+     * <p>
+     * Uses {@code SQLQueries.GET_ALL_WAITING} and maps each row into {@link WaitingEntry}.
+     *
+     * @return a list of all waiting entries (may be empty)
+     * @throws SQLException if a database error occurs while querying
+     */
     public List<WaitingEntry> getAll() throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_ALL_WAITING);
@@ -84,6 +110,15 @@ public class WaitingListDAO {
         }
     }
 
+    /**
+     * Retrieves all active waiting list entries.
+     * <p>
+     * Uses {@code SQLQueries.GET_ACTIVE_WAITING}. "Active" is determined by the SQL query
+     * (typically statuses like "Waiting", excluding "Paid"/"Cancelled"/etc.).
+     *
+     * @return a list of active waiting entries (may be empty)
+     * @throws SQLException if a database error occurs while querying
+     */
     public List<WaitingEntry> getActiveWaiting() throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_ACTIVE_WAITING);
@@ -95,9 +130,18 @@ public class WaitingListDAO {
         }
     }
 
-    // -------------------------
-    // UPDATE
-    // -------------------------
+    /**
+     * Updates a waiting entry by its waiting ID.
+     * <p>
+     * Uses {@code SQLQueries.UPDATE_WAITING_BY_ID} to update contact info, number of diners, and status.
+     *
+     * @param waitingId   the waiting entry ID to update
+     * @param contactInfo the new contact info value
+     * @param numOfDiners the new number of diners
+     * @param status      the new status value
+     * @return {@code true} if exactly one row was updated; {@code false} otherwise
+     * @throws SQLException if a database error occurs during update
+     */
     public boolean updateById(int waitingId, String contactInfo, int numOfDiners, String status) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.UPDATE_WAITING_BY_ID)) {
@@ -111,6 +155,16 @@ public class WaitingListDAO {
         }
     }
 
+    /**
+     * Updates the status of a waiting entry by its confirmation code.
+     * <p>
+     * Uses {@code SQLQueries.UPDATE_WAITING_STATUS_BY_CODE}.
+     *
+     * @param confirmationCode the confirmation code identifying the waiting entry
+     * @param status           the new status value
+     * @return {@code true} if exactly one row was updated; {@code false} otherwise
+     * @throws SQLException if a database error occurs during update
+     */
     public boolean updateStatusByCode(String confirmationCode, String status) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.UPDATE_WAITING_STATUS_BY_CODE)) {
@@ -122,9 +176,15 @@ public class WaitingListDAO {
         }
     }
 
-    // -------------------------
-    // DELETE (hard delete)
-    // -------------------------
+    /**
+     * Deletes a waiting entry by its waiting ID (hard delete).
+     * <p>
+     * Uses {@code SQLQueries.DELETE_WAITING_BY_ID}.
+     *
+     * @param waitingId the waiting entry ID to delete
+     * @return {@code true} if exactly one row was deleted; {@code false} otherwise
+     * @throws SQLException if a database error occurs during delete
+     */
     public boolean deleteById(int waitingId) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.DELETE_WAITING_BY_ID)) {
@@ -134,6 +194,15 @@ public class WaitingListDAO {
         }
     }
 
+    /**
+     * Deletes a waiting entry by its confirmation code (hard delete).
+     * <p>
+     * Uses {@code SQLQueries.DELETE_WAITING_BY_CODE}.
+     *
+     * @param confirmationCode the confirmation code identifying the waiting entry
+     * @return {@code true} if exactly one row was deleted; {@code false} otherwise
+     * @throws SQLException if a database error occurs during delete
+     */
     public boolean deleteByConfirmationCode(String confirmationCode) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.DELETE_WAITING_BY_CODE)) {
@@ -143,9 +212,16 @@ public class WaitingListDAO {
         }
     }
 
-    // -------------------------
-    // Helper: map ResultSet row -> WaitingEntry
-    // -------------------------
+    /**
+     * Maps a single {@link ResultSet} row into a {@link WaitingEntry} object.
+     * <p>
+     * Attempts to read {@code SubscriberID} if present in the schema; if the column does not exist
+     * (older schema) or the value is {@code null}, the subscriber ID is left {@code null}.
+     *
+     * @param rs the result set positioned on a valid row
+     * @return a mapped {@link WaitingEntry} instance
+     * @throws SQLException if a database access error occurs while reading row fields
+     */
     private WaitingEntry mapRow(ResultSet rs) throws SQLException {
         Integer subscriberId = null;
         try {
@@ -199,7 +275,25 @@ public class WaitingListDAO {
 
         return result;
     }
-
+    
+    /**
+     * Finds the earliest eligible waiting entry that can fit into the given number of available seats,
+     * updates its status to {@code "TableFound"}, and returns it.
+     * <p>
+     * This method runs inside a transaction and uses row-level locking:
+     * <ul>
+     *   <li>Selects the first entry with {@code Status='Waiting'} and {@code NumOfDiners <= availableSeats}</li>
+     *   <li>Orders by {@code EntryTime ASC} (FIFO behavior)</li>
+     *   <li>Locks the selected row using {@code FOR UPDATE}</li>
+     *   <li>Updates that entry's status to {@code "TableFound"}</li>
+     * </ul>
+     * If no eligible entry is found, the method returns {@code null}.
+     * If the update fails, the transaction is rolled back and {@code null} is returned.
+     *
+     * @param availableSeats the number of seats currently available
+     * @return the eligible {@link WaitingEntry} whose status was updated, or {@code null} if none found/updated
+     * @throws SQLException if a database error occurs during the transaction
+     */
     public WaitingEntry findAndNotifyEligibleWaitingEntry(int availableSeats) throws SQLException {
         String findQuery = "SELECT * FROM WaitingList WHERE Status = 'Waiting' AND NumOfDiners <= ? ORDER BY EntryTime ASC LIMIT 1 FOR UPDATE";
         String updateQuery = "UPDATE WaitingList SET Status = 'TableFound' WHERE WaitingID = ?";

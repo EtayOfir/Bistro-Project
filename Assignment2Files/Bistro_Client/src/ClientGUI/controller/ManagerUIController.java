@@ -47,64 +47,124 @@ public class ManagerUIController {
         updateWelcomeLabel();
     }
 
-    // --- Basic Actions ---
-
+    /**
+     * JavaFX initialization hook.
+     *
+     * <p>Called automatically after the FXML is loaded. Ensures the welcome label is updated
+     * with any existing user context.</p>
+     */
     @FXML
     public void initialize() {
         updateWelcomeLabel();
     }
 
+    /**
+     * Updates the welcome label text if the label and username are available.
+     *
+     * <p>Sets: {@code "Welcome <username>"}.</p>
+     */
     private void updateWelcomeLabel() {
         if (welcomeLabel != null && currentUserName != null && !currentUserName.isBlank()) {
             welcomeLabel.setText("Welcome " + currentUserName);
         }
     }
     
+    /**
+     * Navigates to the standard reservation creation screen.
+     *
+     * <p>Triggers an expired reservations cleanup request before navigation.</p>
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onMakeReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
     }
 
+    /**
+     * Navigates to the staff reservation screen (creating reservations on behalf of customers).
+     *
+     * <p>Does not trigger deletion cleanup here (per comment), as expired logic is handled elsewhere.</p>
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onMakeCustomerReservation(ActionEvent event) {
         // Don't delete expired - just mark as expired (ReservationUI logic)
         navigate(event, "StaffReservationUI.fxml");
     }
 
+    /**
+     * Navigates to the cancel reservation screen.
+     *
+     * <p>Triggers an expired reservations cleanup request before navigation.</p>
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onCancelReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
         navigate(event, "ClientUIView.fxml");
     }
 
+    /**
+     * Navigates to the waiting list screen (enter waiting list flow).
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onEnterWaitingList(ActionEvent event) {
         navigate(event, "ClientWaitingList.fxml");
     }
 
+    /**
+     * Navigates to the waiting list screen (leave waiting list flow).
+     *
+     * <p>Both Enter/Leave actions go to the same screen and the screen determines the operation.</p>
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onLeaveWaitingList(ActionEvent event) {
         navigate(event, "ClientWaitingList.fxml");
     }
 
+    /**
+     * Navigates to the receive-table screen where staff can assign tables / check in guests.
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onGetTable(ActionEvent event) {
         navigate(event, "ReceiveTableUI.fxml");
     }
+    
+    /**
+     * Navigates to the registration screen.
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onRegister(ActionEvent event) {
         navigate(event, "RegisterUI.fxml");
     }
 
-
+    /**
+     * Navigates to the bill payment screen.
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onPayBill(ActionEvent event) {
         navigate(event, "BillPayment.fxml");
     }
 
-    // --- Management Actions ---
-
+    /**
+     * Navigates to the details view screen (representative view details).
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onViewDetails(ActionEvent event) {
     	navigate(event, "RepresentativeViewDetails.fxml");
@@ -120,6 +180,12 @@ public class ManagerUIController {
     void onViewReports(ActionEvent event) {
         navigate(event, "ReportsUI.fxml");
     }
+    
+    /**
+     * Navigates to the branch settings screen.
+     *
+     * @param event the UI action event
+     */
     @FXML
     void onBranchSettings(ActionEvent event) {
         navigate(event, "BranchSettingsUI.fxml");
@@ -137,12 +203,9 @@ public class ManagerUIController {
 
             HostDashboardController controller = loader.getController();
             
-            // הגדרת הקשר (שם ותפקיד) לתצוגה
             controller.setUserContext(currentUserName, "Manager"); 
 
-            // --- הוספי את השורה הזו: הגדרת נתיב חזרה למנהל ---
             controller.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-            // ----------------------------------------------------
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle("Host Dashboard - Manager (" + currentUserName + ")");
@@ -155,8 +218,16 @@ public class ManagerUIController {
         }
     }
 
-    // --- Navigation ---
 
+    
+    /**
+     * Handles "Sign Off" by logging out and returning to the login screen.
+     *
+     * <p>If a client connection exists, sends {@code LOGOUT}, closes the connection,
+     * clears {@code ClientUI.chat}, and loads {@code UserLoginUIView.fxml}.</p>
+     *
+     * @param event the UI action event
+     */
     @FXML
     private void onSignOff(ActionEvent event) {
         try {
