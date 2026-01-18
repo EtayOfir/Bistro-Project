@@ -30,8 +30,22 @@ public class ChatClient extends AbstractClient {
 	 */
 	ChatIF clientUI;
 
-	// בשביל לקבל תשובה מהשרת בצורה סינכרונית
+	/**
+     * A dedicated lock object used to guard access to the {@link #lastResponse} field.
+     * <p>
+     * Using a dedicated private object ensures that synchronization is encapsulated 
+     * within this class and prevents external code from interfering by locking on 
+     * the instance (`this`) itself.
+     */
 	private final Object responseLock = new Object();
+	/**
+     * Caches the most recent response string received.
+     * <p>
+     * This field is marked {@code volatile} to guarantee immediate visibility of 
+     * changes to all threads. Note that while reads may be atomic, compound 
+     * operations (like check-then-update) must still be synchronized using 
+     * {@link #responseLock} to ensure thread safety.
+     */
 	private volatile String lastResponse = null;
 
 	// Constructors ****************************************************
@@ -59,13 +73,6 @@ public class ChatClient extends AbstractClient {
 	protected void connectionEstablished() {
 		System.out.println("DEBUG: ChatClient.connectionEstablished() called");
 		clientUI.display("Connected to server");
-//		try {
-//			String username = "defaultUser";
-//			String role = "Customer";
-//			sendToServer("IDENTIFY|" + username + "|" + role);
-//		} catch (IOException e) {
-//			System.err.println("Failed to send IDENTIFY message: " + e.getMessage());
-//		}
 	}
 
 	/**
@@ -116,7 +123,6 @@ public class ChatClient extends AbstractClient {
 		}
 		
 		if (s.startsWith("SUBSCRIBERS_LIST|")) {
-            // בדיקה שהמסך אכן פתוח והמשתנה אותחל
             if (RepresentativeViewDetailsUIController.instance != null) {
             	RepresentativeViewDetailsUIController.instance.updateSubscribersFromMessage(s);
             }
@@ -142,7 +148,6 @@ public class ChatClient extends AbstractClient {
             }
        }
 		if (s.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
-            // הנחת עבודה: יש משתנה סטטי instance בקונטרולר (נגדיר אותו בשלב הבא)
             if (SubscriberUIController.instance != null) {
                 SubscriberUIController.instance.updateTablesFromMessage(s);
             }
@@ -155,26 +160,33 @@ public class ChatClient extends AbstractClient {
         }
 		
 		if (clientUI != null) {
-			// Display message to UI via ClientMessageRouter
-			// ClientMessageRouter.display() already wraps in Platform.runLater() for JavaFX safety
 			clientUI.display(s);
 		}
 	}
 
 	/**
-	 *  ממתינה עד שתתקבל תשובה מהשרת ומחזירה אותה.
-	 */
+     * Waits for a new message to arrive, retrieves it, and resets the state.
+     * <p>
+     * This method blocks the calling thread within a synchronized block on 
+     * {@link #responseLock} until {@link #lastResponse} becomes non-null.
+     * <p>
+     * Once a message is received, it is returned and the internal field is 
+     * immediately reset to {@code null}. This ensures that the same message 
+     * is not processed more than once (consume-on-read behavior).
+     *
+     * @return The message string received.
+     */
 	public String waitForMessage() {
 	    synchronized (responseLock) {
 	        while (lastResponse == null) {
 	            try {
-	                responseLock.wait(); // הקפאת התהליך עד שתתקבל הודעה
+	                responseLock.wait(); 
 	            } catch (InterruptedException e) {
 	                e.printStackTrace();
 	            }
 	        }
 	        String message = lastResponse;
-	        lastResponse = null; // איפוס לפעם הבאה
+	        lastResponse = null; 
 	        return message;
 	    }
 	}

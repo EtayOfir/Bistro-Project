@@ -18,6 +18,18 @@ import java.io.IOException;
 import ClientGUI.util.ViewLoader;
 import ClientGUI.util.SceneUtil;
 
+/**
+ * Controller for the User Registration screen.
+ * <p>
+ * This controller allows authorized users (Managers and Representatives) to register
+ * new entities in the system.
+ * <p>
+ * <b>Role-Based Behavior:</b>
+ * <ul>
+ * <li><b>Manager:</b> Can register Managers, Representatives, and Subscribers.</li>
+ * <li><b>Representative:</b> Can <i>only</i> register new Subscribers. The role selection is locked.</li>
+ * </ul>
+ */
 public class RegisterUIController {
 
     @FXML private TextField fullNameField;
@@ -34,6 +46,18 @@ public class RegisterUIController {
     private String returnFxml = "ManagerUI.fxml";
     private String returnTitle = "Dashboard";
 
+    /**
+     * Initializes the controller with the current user's context and adjusts UI permissions.
+     * <p>
+     * This method dynamically configures the "Role" combo box:
+     * <ul>
+     * <li>If the user is a <b>Representative</b>, the list is restricted to "Subscriber" and disabled.</li>
+     * <li>If the user is a <b>Manager</b>, all roles are available and the list is enabled.</li>
+     * </ul>
+     *
+     * @param userName The username of the person performing the registration.
+     * @param role     The role of the person performing the registration.
+     */
     public void setUserContext(String userName, String role) {
         this.currentUserName = userName;
         this.currentUserRole = role;
@@ -53,12 +77,38 @@ public class RegisterUIController {
         }
     }
 
+    /**
+     * Sets the navigation return path and initializes the user context.
+     * <p>
+     * Allows this screen to be reused from different origin screens (e.g., Manager Dashboard
+     * or Representative Menu) by storing the FXML path to return to.
+     *
+     * @param returnFxml  The filename of the previous screen.
+     * @param returnTitle The window title for the previous screen.
+     * @param userName    The active username.
+     * @param role        The active user role.
+     */
     public void setReturnPath(String returnFxml, String returnTitle, String userName, String role) {
         this.returnFxml = returnFxml;
         this.returnTitle = returnTitle;
         setUserContext(userName, role);
     }
 
+    /**
+     * Handles the "Register" button click.
+     * <p>
+     * <b>Validation Sequence:</b>
+     * <ol>
+     * <li>Checks that all mandatory fields are not empty.</li>
+     * <li>Validates the phone number format (must match {@code XXX-XXXXXXX}).</li>
+     * </ol>
+     * <p>
+     * <b>Protocol Construction:</b>
+     * Sends a command to the server in the following pipe-delimited format:
+     * <br>{@code #REGISTER <CreatorRole>|<FullName>|<Phone>|<Email>|<UserName>|<Password>|<TargetRole>}
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onRegister(ActionEvent event) {
         String fullName = safe(fullNameField.getText());
@@ -121,7 +171,7 @@ public class RegisterUIController {
         	ClientUI.chat.handleMessageFromClientUI(msg);
 
 
-            statusLabel.setText("Register request sent. Waiting for server response...");
+            statusLabel.setText("Register completed");
         } catch (Exception e) {
             e.printStackTrace();
             statusLabel.setText("Failed to send register request.");
@@ -136,6 +186,15 @@ public class RegisterUIController {
         );
     }
 
+    /**
+     * Handles the navigation back to the previous screen.
+     * <p>
+     * Uses the stored {@link #returnFxml} path to load the scene.
+     * It identifies the type of the target controller (Manager vs Representative)
+     * via {@code instanceof} checks to correctly restore the user session/name.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onReturn(ActionEvent event) {
         try {
@@ -159,6 +218,12 @@ public class RegisterUIController {
         }
     }
 
+    /**
+     * Utility method to safely trim strings.
+     *
+     * @param s The input string.
+     * @return The trimmed string, or an empty string if input is null.
+     */
     private String safe(String s) {
         return s == null ? "" : s.trim();
     }

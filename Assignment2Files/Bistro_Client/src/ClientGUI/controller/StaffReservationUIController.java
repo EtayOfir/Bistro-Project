@@ -18,13 +18,19 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.stage.Stage;
 
 /**
- * Controller for Staff Reservation UI (Manager/Representative creating reservations for customers).
- * 
- * Similar to ReservationUIController but:
- * - Creates reservations for customers (guests or subscribers)
- * - Not for themselves
- * - Has customer type selector (Guest/Subscriber)
- * - Phone and email are for the customer, not the staff member
+ * Controller for the Staff Reservation UI.
+ * <p>
+ * This interface allows Managers and Representatives to book tables on behalf of customers.
+ * Unlike the self-service {@code ReservationUIController}, this controller handles two distinct personas:
+ * <ul>
+ * <li><b>Casual Customer:</b> Requires manual entry of Phone and Email.</li>
+ * <li><b>Subscriber:</b> Requires a valid Subscriber ID; personal details are fetched automatically.</li>
+ * </ul>
+ * <p>
+ * <b>Caching Strategy:</b>
+ * To provide instant feedback on time slot validity, this controller caches opening hours 
+ * ({@link #openingHoursCache}) and existing reservations ({@link #bookedTimesForDate}) locally 
+ * for the selected date.
  */
 public class StaffReservationUIController {
 
@@ -52,7 +58,19 @@ public class StaffReservationUIController {
     // Instance state
     private String currentConfirmationCode = "";
     private int currentReservationId = -1;
+    
+    /**
+     * Local cache of all booked time slots for the currently selected date.
+     * Used to determine conflicts in {@link #isAvailable(LocalDateTime, LocalDateTime)}.
+     */
     private Set<LocalTime> bookedTimesForDate = new HashSet<>();
+    
+    /**
+     * Cache for restaurant opening hours, indexed by Date.
+     * <p>
+     * Used by {@link #validateWindow(LocalDateTime)} to perform synchronous checks 
+     * without waiting for a server round-trip on every spinner change.
+     */
     private final Map<LocalDate, Map<String, LocalTime>> openingHoursCache = new java.util.HashMap<>();
 
     // Navigation context
@@ -62,8 +80,16 @@ public class StaffReservationUIController {
     private String currentUserRole = "";
 
     /**
-     * Initializes the controller.
-     * Sets up spinners, date picker, and customer type combo box.
+     * Initializes the controller and sets up dynamic UI behavior.
+     * <p>
+     * <b>Key Setup:</b>
+     * <ul>
+     * <li>Registers this instance with {@link ClientUIController} for message routing.</li>
+     * <li>Configures listeners on the {@code datePicker} to fetch fresh data (Hours/Reservations) on date change.</li>
+     * <li><b>Dynamic Form:</b> Sets up a listener on {@code customerTypeCombo}. 
+     * When switched to "Subscriber", it disables Phone/Email fields and enables the ID field. 
+     * When switched to "Casual", it forces manual contact entry.</li>
+     * </ul>
      */
     @FXML
     public void initialize() {
@@ -210,7 +236,19 @@ public class StaffReservationUIController {
     }
 
     /**
-     * Handler for booking a reservation.
+     * Handles the "Book Reservation" action.
+     * <p>
+     * <b>Process Flow:</b>
+     * <ol>
+     * <li><b>Input Sanitization:</b> Trims inputs and strips non-numeric characters from phone numbers (for Casuals).</li>
+     * <li><b>Validation:</b> Checks mandatory fields based on Customer Type (ID vs Phone/Email).</li>
+     * <li><b>Regex Checks:</b> Validates Phone (10 digits) and Email formats.</li>
+     * <li><b>Time Window Check:</b> Calls {@link #validateWindow(LocalDateTime)} to ensure compliance with store hours.</li>
+     * <li><b>Availability Check:</b> Calls {@link #isAvailable(LocalDateTime, LocalDateTime)} against the local cache.</li>
+     * <li><b>Protocol Construction:</b> Sends {@code #CREATE_RESERVATION} with the generated confirmation code.</li>
+     * </ol>
+     *
+     * @param event The button click event.
      */
     @FXML
     private void onBook(ActionEvent event) {
@@ -343,11 +381,17 @@ public class StaffReservationUIController {
     }
 
     /**
-     * Validates that the requested booking time is within allowed window constraints.
-     * Checks opening hours, minimum notice, and max days ahead.
+     * Validates that the requested booking falls within operational constraints.
+     * <p>
+     * <b>Constraints Checked:</b>
+     * <ul>
+     * <li><b>Minimum Notice:</b> Must be at least {@value #MIN_NOTICE_MIN} minutes from now.</li>
+     * <li><b>Future Limit:</b> Cannot be more than {@value #MAX_DAYS_AHEAD} days in advance.</li>
+     * <li><b>Opening Hours:</b> The 90-minute slot must fall entirely within the open/close times cached for that date.</li>
+     * </ul>
      *
-     * @param start requested start time
-     * @return true if valid; false otherwise (and shows an alert)
+     * @param start The requested start time of the reservation.
+     * @return {@code true} if the time window is valid, {@code false} otherwise.
      */
     private boolean validateWindow(LocalDateTime start) {
         LocalDateTime now = LocalDateTime.now();
@@ -419,7 +463,12 @@ public class StaffReservationUIController {
     }
 
     /**
-     * Callback when server responds to reservation creation.
+     * Processes the server's response to a booking attempt.
+     * <p>
+     * If successful ({@code RESERVATION_CREATED}), it displays the new Reservation ID 
+     * and Confirmation Code to the staff member and clears the form for the next customer.
+     *
+     * @param response The raw server response.
      */
     public void onBookingResponse(String response) {
         System.out.println("DEBUG: onBookingResponse called with: " + response);
@@ -518,7 +567,14 @@ public class StaffReservationUIController {
     }
 
     /**
-     * Handler for opening hours received from server.
+     * Processes incoming opening hours data from the server.
+     * <p>
+     * <b>Protocol:</b> {@code OPENING_HOURS|YYYY-MM-DD|HH:mm:ss|HH:mm:ss}
+     * <p>
+     * Parses the times and stores them in {@link #openingHoursCache}. 
+     * This allows the {@link #validateWindow(LocalDateTime)} method to function instantaneously.
+     *
+     * @param message The raw server message.
      */
     public void onOpeningHoursReceived(String message) {
         System.out.println("DEBUG onOpeningHoursReceived: Received message: " + message);

@@ -137,6 +137,23 @@ public class LoginSubscriberUIController {
     void onBack(ActionEvent event) {
         navigate(event, "UserLoginUIView.fxml");
     }
+    
+    /**
+     * Handles the user sign-off process.
+     * <p>
+     * This method performs a graceful logout sequence to ensure data integrity:
+     * <ol>
+     * <li><b>Server Disconnection:</b> Sends a {@code "LOGOUT"} protocol command to the server. 
+     * This allows the server to update the database (mark user as logged out) before 
+     * the socket is physically closed.</li>
+     * <li><b>Resource Cleanup:</b> Closes the network connection and nullifies the 
+     * static {@code ClientUI.chat} reference.</li>
+     * <li><b>Navigation:</b> Loads the Login screen ({@code UserLoginUIView.fxml}) 
+     * and resets the stage to its initial state.</li>
+     * </ol>
+     *
+     * @param event The event triggered by clicking the Sign Off button.
+     */
     @FXML
     void onSignOff(ActionEvent event) {
     	try {

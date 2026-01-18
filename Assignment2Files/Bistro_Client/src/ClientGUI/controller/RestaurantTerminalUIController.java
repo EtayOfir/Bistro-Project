@@ -131,6 +131,22 @@ public class RestaurantTerminalUIController {
             e.printStackTrace();
         }
     }
+    
+    /**
+     * Handles the secure sign-off process.
+     * <p>
+     * This method performs a graceful session termination sequence:
+     * <ol>
+     * <li><b>Server Notification:</b> Sends a {@code "LOGOUT"} protocol command. This is crucial so the server 
+     * can update the database and mark the user as "Offline".</li>
+     * <li><b>Resource Cleanup:</b> Closes the active socket connection via {@link ChatClient#closeConnection()} 
+     * and nullifies the static reference.</li>
+     * <li><b>Navigation:</b> Loads the {@code UserLoginUIView.fxml} scene, returning the application 
+     * to its initial state for the next user.</li>
+     * </ol>
+     *
+     * @param event The action event triggered by the "Sign Off" button.
+     */
     @FXML
     private void onSignOff(ActionEvent event) {
         try {
@@ -192,6 +208,21 @@ public class RestaurantTerminalUIController {
             statusLabel.setText("Hello, " + username);
         }
     }
+    
+    /**
+     * Sets the currently logged-in subscriber context for this controller.
+     * <p>
+     * This method performs three key actions:
+     * <ol>
+     * <li><b>State Update:</b> Stores the subscriber object locally for future logic.</li>
+     * <li><b>UI Feedback:</b> Updates the {@code statusLabel} to greet the user (e.g., "Hello, John").</li>
+     * <li><b>Server Synchronization:</b> Sends an {@code IDENTIFY} protocol message to the server. 
+     * This is critical for mapping the active network connection (Socket) to the specific 
+     * user ID and role, ensuring subsequent requests are authorized correctly.</li>
+     * </ol>
+     *
+     * @param sub The subscriber entity representing the logged-in user.
+     */
     public void setLoggedInSubscriber(entities.Subscriber sub) {
         this.loggedInSubscriber = sub;
 

@@ -23,6 +23,15 @@ import java.util.Random;
 import ClientGUI.util.ViewLoader;
 import entities.Subscriber;
 
+/**
+ * Controller for the Waiting List registration screen.
+ * <p>
+ * This screen is typically invoked when a reservation attempt fails due to lack of availability.
+ * It allows users (both anonymous guests and registered subscribers) to sign up for a
+ * priority queue based on their requested date, time, and area.
+ * <p>
+ * Implements {@link ChatIF} to handle asynchronous server responses regarding the list status.
+ */
 public class ClientWaitingListController implements ChatIF {
 
     @FXML private DatePicker datePicker;
@@ -45,6 +54,17 @@ public class ClientWaitingListController implements ChatIF {
     private ChatClient client;
     private Subscriber currentSubscriber = null;
 
+    /**
+     * Initializes the controller class.
+     * <p>
+     * Sets up default values for UI components:
+     * <ul>
+     * <li>Date: defaults to today.</li>
+     * <li>Time/Area: populates combo boxes.</li>
+     * <li>Guests: sets spinner range (1-20).</li>
+     * </ul>
+     * Also establishes a fresh connection to the server using {@link ChatClient}.
+     */
     @FXML
     public void initialize() {
         // defaults
@@ -71,6 +91,17 @@ public class ClientWaitingListController implements ChatIF {
         }
     }
 
+    /**
+     * Handles the "Join Waiting List" request.
+     * <p>
+     * <b>Logic Flow:</b>
+     * <ol>
+     * <li>Validates input fields (Name/Email/Phone are mandatory for guests, optional for subscribers).</li>
+     * <li>Generates a local 6-digit confirmation code.</li>
+     * <li>Constructs a contact info string (key=value format) and encodes it to Base64 (to pass as a single protocol argument).</li>
+     * <li>Sends command: {@code #ADD_WAITING_LIST <guests> <encodedInfo> <code> [subscriberId]}</li>
+     * </ol>
+     */
     @FXML
     private void onJoin() {
         if (client == null) {
@@ -127,6 +158,14 @@ public class ClientWaitingListController implements ChatIF {
     }
     
  //Leave Waiting List button action
+    /**
+     * Handles the "Leave Waiting List" request.
+     * <p>
+     * This action is only available after a user has successfully joined the list within the current session
+     * (i.e., {@link #activeConfirmationCode} is not null).
+     * <p>
+     * Sends command: {@code #LEAVE_WAITING_LIST <code>}
+     */
     @FXML
     private void onLeave() {
         if (client == null) {
@@ -150,6 +189,11 @@ public class ClientWaitingListController implements ChatIF {
     }
 
 
+    /**
+     * Clears all input fields in the personal details form.
+     * <p>
+     * Resets the Name, Email, Phone, and Result text areas to allow for a new entry.
+     */
     @FXML
     private void onClear() {
         nameField.clear();
@@ -161,7 +205,9 @@ public class ClientWaitingListController implements ChatIF {
     
     /**
      * Handles the Exit button click.
-     * Closes the current window.
+     * Closes the current stage (window) and returns the user to the previous context if applicable.
+     *
+     * @param event The action event used to retrieve the current window.
      */
     @FXML
     private void onExit(ActionEvent event) {
@@ -169,6 +215,31 @@ public class ClientWaitingListController implements ChatIF {
         stage.close();
     }
     
+    /**
+     * Processes server responses regarding the waiting list status.
+     * <p>
+     * This method runs on the JavaFX Application Thread to update the UI safely.
+     * Supported Protocol Messages:
+     * <ul>
+     * <li>{@code WAITING_ADDED|code} - Indicates successful registration.
+     * <ul>
+     * <li>Stores the active confirmation code.</li>
+     * <li>Enables the "Leave Waiting List" button.</li>
+     * <li>Displays a detailed success summary including the code and sent notifications (Email/SMS).</li>
+     * </ul>
+     * </li>
+     * <li>{@code WAITING_LEFT|code} - Indicates successful removal from the list.
+     * <ul>
+     * <li>Clears the active confirmation code.</li>
+     * <li>Disables the "Leave Waiting List" button.</li>
+     * <li>Displays a confirmation message.</li>
+     * </ul>
+     * </li>
+     * <li>{@code ERROR|<msg>} - Displays an error message received from the server.</li>
+     * </ul>
+     *
+     * @param message The raw protocol string received from the server.
+     */
     @Override
     public void display(String message) {
         Platform.runLater(() -> {
@@ -223,22 +294,58 @@ public class ClientWaitingListController implements ChatIF {
         });
     }
 
+    /**
+     * Utility method to safely trim strings and handle nulls.
+     *
+     * @param s The input string.
+     * @return A trimmed version of the string, or an empty string if input was null.
+     */
     private static String safe(String s) {
         return s == null ? "" : s.trim();
     }
 
+    /**
+     * Generates a random 6-digit numeric string.
+     * <p>
+     * Used to create a temporary confirmation code for the waiting list entry locally
+     * before sending it to the server.
+     *
+     * @return A string representing a number between 100,000 and 999,999.
+     */
     private static String generateCode6() {
         int n = 100000 + new Random().nextInt(900000);
         return String.valueOf(n);
     }
 
+    /**
+     * Encodes a string into a URL-safe Base64 format.
+     * <p>
+     * This is used to encapsulate complex strings (like contact info containing spaces,
+     * colons, or special characters) into a single protocol argument, ensuring
+     * the server parses the command parameters correctly.
+     *
+     * @param s The raw string to encode.
+     * @return The Base64 encoded string without padding.
+     */
     private static String encodeB64Url(String s) {
         if (s == null) s = "";
         return Base64.getUrlEncoder().withoutPadding().encodeToString(s.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * Prefill the waiting-list form with a failed reservation context and optional subscriber.
+     * Pre-fills the waiting list form based on the failed reservation attempt.
+     * <p>
+     * This method transfers the context from the previous screen so the user doesn't have to re-enter data.
+     * <p>
+     * <b>Behavior for Subscribers:</b>
+     * If a {@link Subscriber} object is provided, personal detail fields (Name, Email, Phone) 
+     * are populated and <b>disabled</b> (read-only) to ensure data consistency with the registered account.
+     *
+     * @param date       The requested reservation date.
+     * @param time       The requested time slot.
+     * @param area       The requested restaurant area.
+     * @param guests     The number of guests.
+     * @param subscriber The subscriber object (null if the user is a guest).
      */
     public void setReservationContext(LocalDate date, String time, String area, int guests, Subscriber subscriber) {
         if (date != null) datePicker.setValue(date);

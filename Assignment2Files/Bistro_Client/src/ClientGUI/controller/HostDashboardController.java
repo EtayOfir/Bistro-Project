@@ -26,6 +26,21 @@ import java.util.Map;
 import ClientGUI.util.ViewLoader;
 import entities.ReservationRow;
 
+/**
+ * The main controller for the Host/Maitre D' station dashboard.
+ * <p>
+ * This controller manages the visual floor plan of the restaurant and the current 
+ * queue of reservations. Key responsibilities include:
+ * <ul>
+ * <li><b>Floor Plan Visualization:</b> Dynamically rendering tables, their occupancy status (Red/Green), 
+ * and the specific arrangement of seats based on capacity.</li>
+ * <li><b>Queue Management:</b> Displaying today's reservations and waiting list.</li>
+ * <li><b>Check-In Logic:</b> Validating and assigning specific tables to arriving guests.</li>
+ * </ul>
+ * <p>
+ * The class uses the Singleton pattern (via {@link #instance}) to allow external 
+ * network handlers to update the UI state.
+ */
 public class HostDashboardController {
 
 	public static HostDashboardController instance;
@@ -69,11 +84,29 @@ public class HostDashboardController {
     
     private final ObservableList<ReservationRow> reservations = FXCollections.observableArrayList();
 
+    /**
+     * Maps table numbers (1-10) to their current occupancy status.
+     * {@code true} indicates the table is taken/reserved, {@code false} indicates available.
+     */
     private final Map<Integer, Boolean> occupied = new HashMap<>(); // tableNum -> occupied
+    /**
+     * Maps table numbers to their physical seating capacity.
+     * Used to validate that a selected group fits the chosen table.
+     */
     private final Map<Integer, Integer> tableCapacity = new HashMap<>();
 
+    /**
+     * Tracks the currently selected table button in the UI, used as the target 
+     * for the "Check-In" action.
+     */
     private Button selectedTableBtn = null;
 
+    /**
+     * Common CSS styling for all table buttons.
+     * <p>
+     * Defines a circular shape (`-fx-background-radius:999`), white text, 
+     * and a hand cursor to indicate interactivity.
+     */
     private static final String BASE_TABLE_STYLE =
             "-fx-background-radius:999;" +
             "-fx-text-fill:white;" +
@@ -86,6 +119,19 @@ public class HostDashboardController {
     private String currentUserName = "";
     private String currentUserRole = "";
 
+    /**
+     * Initializes the controller, sets up the UI components, and establishes the singleton instance.
+     * <p>
+     * <b>Key Actions:</b>
+     * <ul>
+     * <li>Sets {@code instance = this} to allow the {@link ClientMessageRouter} to deliver messages.</li>
+     * <li>Configures the {@link #queueTable} columns with property bindings.</li>
+     * <li>Sets a constrained resize policy to ensure the table occupies the full width.</li>
+     * <li>Initializes the {@link #occupied} map to all-false (empty) by default.</li>
+     * <li>Triggers an immediate data fetch from the server.</li>
+     * </ul>
+     * Finally, it attempts to maximize the window for better visibility of the floor plan.
+     */
     @FXML
     private void initialize() {
         instance = this;
@@ -127,6 +173,15 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Decodes a Base64-URL-encoded string back to UTF-8.
+     * <p>
+     * Used to decode customer names and sensitive data received from the server 
+     * that were encoded to ensure safe transmission over the text-based protocol.
+     *
+     * @param b64 The Base64 encoded string.
+     * @return The decoded string, or an empty string if decoding fails.
+     */
     private String decodeB64Url(String b64) {
         if (b64 == null || b64.isEmpty()) return "";
         try {
@@ -137,7 +192,16 @@ public class HostDashboardController {
         }
     }
 
-    
+    /**
+     * Sends a batch of requests to the server to populate the dashboard.
+     * <p>
+     * Requested Data:
+     * <ul>
+     * <li>{@code #GET_RESTAURANT_TABLES} - Physical layout and status.</li>
+     * <li>{@code #GET_TODAYS_RESERVATIONS} - The queue of expected guests.</li>
+     * <li>{@code #GET_SEATED_CUSTOMERS} - Currently active dining sessions.</li>
+     * </ul>
+     */
     private void requestDashboardData() {
         if (ClientUI.chat == null) return;
 
@@ -146,6 +210,15 @@ public class HostDashboardController {
         ClientUI.chat.handleMessageFromClientUI("#GET_SEATED_CUSTOMERS");
     }
 
+    /**
+     * Sets the user context and initiates the data loading process.
+     * <p>
+     * This method is called by the previous screen controller to pass the logged-in 
+     * user's credentials. It updates the UI label and triggers {@link #requestDashboardData()}.
+     *
+     * @param username The name of the logged-in host.
+     * @param role     The role of the user (e.g., "Host").
+     */
     public void setUserContext(String username, String role) {
         this.currentUserName = (username == null) ? "" : username;
         this.currentUserRole = (role == null) ? "" : role;
@@ -156,6 +229,14 @@ public class HostDashboardController {
         requestDashboardData();
     }
 
+    /**
+     * Handles click events on the restaurant map table buttons.
+     * <p>
+     * Updates the currently selected table reference ({@link #selectedTableBtn}) 
+     * and triggers a visual refresh to highlight the selection (borders/shadows).
+     *
+     * @param event The action event triggered by clicking a button.
+     */
     @FXML
     private void onTableClicked(ActionEvent event) {
         if (!(event.getSource() instanceof Button btn)) return;
@@ -166,6 +247,13 @@ public class HostDashboardController {
         refreshTableColors();
     }
 
+    /**
+     * Parses the numeric table ID from the currently selected button's text.
+     * <p>
+     * Assumes the button text format is "T<number>" (e.g., "T3").
+     *
+     * @return The integer table number, or {@code null} if no table is selected or parsing fails.
+     */
     private Integer selectedTableNumber() {
         if (selectedTableBtn == null) return null;
         String t = selectedTableBtn.getText(); // "T3"
@@ -173,6 +261,21 @@ public class HostDashboardController {
         try { return Integer.parseInt(t.substring(1)); } catch (Exception e) { return null; }
     }
     
+    /**
+     * Handles the "Check-In" action to assign a table to a waiting customer.
+     * <p>
+     * Performs a strict validation sequence before contacting the server:
+     * <ol>
+     * <li><b>Selection Check:</b> Ensures a reservation is selected from the list.</li>
+     * <li><b>Status Check:</b> Prevents checking in reservations that are already 'Arrived', 'Canceled', or 'Expired'.</li>
+     * <li><b>Table Selection:</b> Ensures a target table is selected on the map.</li>
+     * <li><b>Occupancy Check:</b> Verifies the table is not already taken (Double-booking prevention).</li>
+     * <li><b>Capacity Check:</b> Verifies the table size is sufficient for the number of guests.</li>
+     * </ol>
+     * If valid, sends the {@code #ASSIGN_TABLE} command to the server.
+     *
+     * @param event The button click event.
+     */
     @FXML
     private void onCheckInClicked(ActionEvent event) {
         ReservationRow selectedReservation = queueTable.getSelectionModel().getSelectedItem();
@@ -230,6 +333,20 @@ public class HostDashboardController {
         ClientUI.chat.handleMessageFromClientUI(cmd);
     }
 
+    /**
+     * Parses and displays the list of today's reservations received from the server.
+     * <p>
+     * <b>Protocol Format:</b>
+     * {@code TODAYS_RESERVATIONS|row1~row2~...}
+     * <p>
+     * Each row is comma-separated:
+     * {@code CustomerName(Base64), Guests, Time, Status, TableNum, ConfirmationCode}
+     * <p>
+     * The method decodes the customer name from Base64-URL and populates the 
+     * {@link #reservations} observable list, which updates the {@code queueTable}.
+     *
+     * @param msg The raw protocol message string.
+     */
     public void updateTodaysReservationsFromMessage(String msg) {
         if (msg == null || !msg.startsWith("TODAYS_RESERVATIONS|")) return;
 
@@ -264,6 +381,20 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Handles the cancellation of a selected reservation.
+     * <p>
+     * Actions performed:
+     * <ol>
+     * <li>Validates that a row is selected in the table.</li>
+     * <li><b>Optimistic UI Update:</b> Immediately removes the item from the local list 
+     * so the user sees instant feedback.</li>
+     * <li>Sends the command {@code #CANCEL_RESERVATION|<code>} to the server to 
+     * update the database.</li>
+     * </ol>
+     *
+     * @param event The button click event.
+     */
     @FXML
     private void onCancelClicked(ActionEvent event) {
         ReservationRow selectedReservation = queueTable.getSelectionModel().getSelectedItem();
@@ -278,6 +409,14 @@ public class HostDashboardController {
         ClientUI.chat.handleMessageFromClientUI("#CANCEL_RESERVATION|" + code);
     }
     
+    /**
+     * Handles the "Exit" or "Close" button action.
+     * <p>
+     * Performs a graceful cleanup of the controller reference and terminates the 
+     * Java Virtual Machine using {@link System#exit(int)}.
+     *
+     * @param event The button click event.
+     */
     @FXML
     private void onCloseClicked(ActionEvent event) {
         cleanup();
@@ -286,6 +425,16 @@ public class HostDashboardController {
         System.exit(0);
     }
 
+    /**
+     * Updates the visual style of all table buttons based on their state.
+     * <p>
+     * Applies CSS styles for:
+     * <ul>
+     * <li><b>Background Color:</b> Red (#ef4444) for occupied, Green (#22c55e) for available.</li>
+     * <li><b>Selection Border:</b> A thick dark border indicates the currently selected table.</li>
+     * <li><b>Shadows:</b> For depth and UI aesthetics.</li>
+     * </ul>
+     */
     private void refreshTableColors() {
         for (int tableNum = 1; tableNum <= 10; tableNum++) {
             Button btn = getTableButton(tableNum);
@@ -298,6 +447,26 @@ public class HostDashboardController {
         }
     }
 
+    /**
+     * Dynamically updates the visual style of a table button using inline CSS.
+     * <p>
+     * This method applies a composite style string based on the table's state:
+     * <ul>
+     * <li><b>Occupancy Color:</b>
+     * <ul>
+     * <li>{@code #ef4444} (Red) - Indicates the table is Occupied or Reserved.</li>
+     * <li>{@code #22c55e} (Green) - Indicates the table is Available.</li>
+     * </ul>
+     * </li>
+     * <li><b>Selection State:</b> A thick dark border (3px) is added if the table is currently selected 
+     * by the host, acting as the target for the next check-in operation.</li>
+     * <li><b>Effects:</b> Applies a drop shadow to create depth.</li>
+     * </ul>
+     *
+     * @param btn        The JavaFX button to style.
+     * @param isOccupied {@code true} to render as occupied (red), {@code false} for available (green).
+     * @param isSelected {@code true} to draw a selection border around the button.
+     */
     private void applyTableStyle(Button btn, boolean isOccupied, boolean isSelected) {
         if (btn == null) return;
 
@@ -315,6 +484,15 @@ public class HostDashboardController {
                 shadow);
     }
 
+    /**
+     * Maps a numeric table identifier to its corresponding JavaFX Button instance.
+     * <p>
+     * This lookup method acts as a bridge between the logical model (table ID integers 1-10)
+     * and the specific UI components defined in the FXML file.
+     *
+     * @param tableNum The integer ID of the table (expected range: 1-10).
+     * @return The corresponding {@link Button} object, or {@code null} if the ID is invalid.
+     */
     private Button getTableButton(int tableNum) {
         return switch (tableNum) {
             case 1 -> table1Btn;
@@ -331,6 +509,12 @@ public class HostDashboardController {
         };
     }
     
+    /**
+     * Pre-defined X,Y coordinates for rendering seats (circles) around a table pane.
+     * <p>
+     * The logic in {@link #renderSeatsForTable} uses these coordinates to draw 
+     * up to 10 seats dynamically based on the table's capacity received from the server.
+     */
     private static final double[][] SEAT_POSITIONS = {
     	    {70, 14},   // top
     	    {70, 126},  // bottom
@@ -360,6 +544,15 @@ public class HostDashboardController {
     	    };
     	}
 
+    	/**
+         * Dynamically draws seat indicators (circles) onto the specific table's Pane.
+         * <p>
+         * This method clears existing seat nodes and re-draws them to match the 
+         * current configuration sent by the server.
+         *
+         * @param tableNum The table identifier.
+         * @param capacity The number of seats to draw.
+         */
     	private void renderSeatsForTable(int tableNum, int capacity) {
     	    Pane pane = getTablePane(tableNum);
     	    if (pane == null) return;
@@ -379,6 +572,14 @@ public class HostDashboardController {
     	    }
     	}
 
+    	/**
+         * Handles the server's response to an assignment attempt.
+         * <p>
+         * If successful ({@code ASSIGN_TABLE_OK}), it triggers a full dashboard refresh 
+         * to reflect the new state. If failed, it displays an alert with the reason.
+         *
+         * @param msg The response message (OK or FAIL).
+         */
     public void onAssignTableResponse(String msg) {
     	System.out.println("DEBUG onAssignTableResponse called with: " + msg);
     	Platform.runLater(() -> {
@@ -402,6 +603,20 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Processes the list of all restaurant tables received from the server.
+     * <p>
+     * Protocol: {@code RESTAURANT_TABLES|tableNum,capacity,status...}
+     * <p>
+     * Actions taken:
+     * <ul>
+     * <li>Updates the {@link #occupied} and {@link #tableCapacity} maps.</li>
+     * <li>Triggers {@link #renderSeatsForTable} to update the physical layout visual.</li>
+     * <li>Triggers {@link #refreshTableColors} to update status indicators.</li>
+     * </ul>
+     *
+     * @param msg The raw protocol message.
+     */
     public void updateTablesFromMessage(String msg) {
         // Expected format:
         // RESTAURANT_TABLES|tableNum,capacity,status,assignedTo~tableNum,capacity,status,assignedTo...
@@ -445,6 +660,18 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Handles the server's response regarding a reservation cancellation request.
+     * <p>
+     * <b>Logic Flow:</b>
+     * <ul>
+     * <li>If the response starts with {@code RESERVATION_CANCELED|}, the operation was successful. 
+     * The method triggers {@link #requestDashboardData()} to refresh the entire dashboard view.</li>
+     * <li>Otherwise, it assumes an error occurred and displays an alert with the message content.</li>
+     * </ul>
+     *
+     * @param msg The raw response string from the server.
+     */
     public void onCancelResponse(String msg) {
         Platform.runLater(() -> {
             if (msg.startsWith("RESERVATION_CANCELED|")) {
@@ -455,6 +682,20 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Updates the dashboard table with the list of currently seated customers.
+     * <p>
+     * <b>Protocol Format:</b>
+     * {@code SEATED_CUSTOMERS|row1~row2~...}
+     * <p>
+     * Each row contains:
+     * {@code CustomerName(Base64), Guests, Time, Status, TableNum, ConfirmationCode}
+     * <p>
+     * This method clears the current {@link #reservations} list and repopulates it 
+     * with the active dining sessions received from the server.
+     *
+     * @param msg The raw protocol message string.
+     */
     public void updateSeatedCustomersFromMessage(String msg) {
         // Expected format: SEATED_CUSTOMERS|customerB64,guests,time,status,tableNum~...
         if (msg == null || !msg.startsWith("SEATED_CUSTOMERS|")) return;
@@ -493,12 +734,26 @@ public class HostDashboardController {
         });
     }
     
+    /**
+     * Nullifies the static instance reference of this controller.
+     * <p>
+     * This is crucial for preventing memory leaks and ensuring that the {@link ClientMessageRouter} 
+     * does not attempt to send network messages to a closed or inactive controller.
+     */
     public void cleanup() {
         if (instance == this) {
             instance = null;
         }
     }
     
+    /**
+     * Displays a modal warning alert to the user.
+     * <p>
+     * Used primarily for validation errors (e.g., trying to check in without selecting a table).
+     * This method blocks the UI thread until the user dismisses the alert.
+     *
+     * @param message The text content to display in the alert body.
+     */
     private void showAlert(String message) {
         javafx.scene.control.Alert alert =
                 new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
@@ -513,6 +768,17 @@ public class HostDashboardController {
     // ==========================
     // Navigation Logic (Back)
     // ==========================
+    /**
+     * Configures the return path parameters for the "Back" button.
+     * <p>
+     * Stores the FXML path and user context (username/role) to allow restoring the 
+     * session state when navigating back to the previous screen.
+     *
+     * @param fxml  The FXML filename to load (default: "UserLoginUIView.fxml").
+     * @param title The window title to set (default: "Login").
+     * @param user  The current username.
+     * @param role  The current user role.
+     */
     public void setReturnPath(String fxml, String title, String user, String role) {
         this.returnScreenFXML = (fxml == null || fxml.isBlank()) ? "UserLoginUIView.fxml" : fxml;
         this.returnTitle = (title == null || title.isBlank()) ? "Login" : title;
@@ -520,6 +786,20 @@ public class HostDashboardController {
         this.currentUserRole = (role == null) ? "" : role;
     }
 
+    /**
+     * Handles the navigation back to the previous screen.
+     * <p>
+     * <b>Key Features:</b>
+     * <ul>
+     * <li>Calls {@link #cleanup()} to detach the current controller.</li>
+     * <li>Preserves the window's "Maximized" state across scene changes.</li>
+     * <li><b>Context Restoration:</b> Uses Java Pattern Matching for `switch` to identify 
+     * the target controller type (Manager, Representative, etc.) and reinject the 
+     * user's session data (Name/Role).</li>
+     * </ul>
+     *
+     * @param event The action event used to access the current Stage.
+     */
     @FXML
     private void onBack(ActionEvent event) {
         cleanup();

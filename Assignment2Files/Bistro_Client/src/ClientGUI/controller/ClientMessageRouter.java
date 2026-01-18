@@ -5,13 +5,29 @@ import javafx.application.Platform;
 
 
 /**
- * Central router for all server messages.
- *
- * <p>This class contains no FXML fields and never touches UI nodes directly.
- * It dispatches messages to active controllers when available.</p>
+ * A centralized message dispatcher responsible for routing server responses 
+ * to the currently active user interface controller.
+ * <p>
+ * This class implements the {@link ChatIF} interface to intercept all incoming 
+ * network messages. It decouples the networking layer from the UI logic by:
+ * <ol>
+ * <li>Ensuring all message processing occurs on the JavaFX Application Thread 
+ * via {@link Platform#runLater(Runnable)}.</li>
+ * <li>Identifying the active screen/controller based on the application state.</li>
+ * <li>Analyzing the message protocol (prefix) and delegating it to the specific handler method.</li>
+ * </ol>
  */
 public class ClientMessageRouter implements ChatIF {
 
+	/**
+     * Entry point for incoming messages from the network client.
+     * <p>
+     * Logs the message for debugging purposes and schedules the {@link #route(String)} 
+     * method to run on the JavaFX Application Thread. This ensures that any UI 
+     * updates resulting from this message will be thread-safe.
+     *
+     * @param message The raw string message received from the server.
+     */
     @Override
     public void display(String message) {
         System.out.println("ROUTER display(): " + message);
@@ -19,7 +35,21 @@ public class ClientMessageRouter implements ChatIF {
     }
 
     
-    
+    /**
+     * Analyzes the message content and dispatches it to the appropriate active controller.
+     * <p>
+     * The routing logic follows a hierarchy of checks:
+     * <ol>
+     * <li><b>Staff Reservation:</b> Checks if a staff member is currently making a reservation.</li>
+     * <li><b>Customer Reservation:</b> Checks if a customer is currently making a reservation.</li>
+     * <li><b>Table Receipt:</b> Checks if the table allocation screen is active.</li>
+     * <li><b>Representative View:</b> Routes administrative data (waiting lists, reports).</li>
+     * <li><b>Main Controller:</b> Fallback for general login/navigation messages.</li>
+     * </ol>
+     * If no suitable controller is found, the message is logged to the console.
+     *
+     * @param message The message to parse and route.
+     */
     private void route(String message) {
         if (message == null) return;
 
@@ -71,7 +101,6 @@ public class ClientMessageRouter implements ChatIF {
         ReceiveTableUIController t = ClientUIController.getActiveReceiveTableController();
         if (t != null) {
 
-            // --- התוספת החדשה מתחילה כאן ---
             if (message.startsWith("SUBSCRIBER_DATA_RESPONSE|")) {
                 t.onSubscriberDataReceived(message);
                 return;
@@ -80,7 +109,7 @@ public class ClientMessageRouter implements ChatIF {
                     || message.equals("INVALID_CONFIRMATION_CODE") 
             	|| message.equals("RESERVATION_ALREADY_USED") 
             	|| message.equals("RESERVATION_ALREADY_USED")
-                || message.equals("RESERVATION_NOT_FOR_TODAY")) { // הוספתי גם את המקרה של תאריך שגוי ליתר ביטחון{
+                || message.equals("RESERVATION_NOT_FOR_TODAY")) { 
                 t.onReceiveTableResponse(message);
                 return;
             }

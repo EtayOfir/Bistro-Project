@@ -32,9 +32,24 @@ public class BillPaymentController implements ChatIF {
 	@FXML
 	private TextArea resultArea;
 
+	/**
+     * The instance of the network client used to communicate with the server.
+     * Initialized lazily in {@link #ensureConnected()}.
+     */
 	private ChatClient client;
+	/**
+     * Stores the confirmation code of the currently visible bill.
+     * <p>
+     * Used as a safety guard in {@link #onPay()} to ensure the user is paying 
+     * for the bill currently displayed on the screen, preventing stale data payments.
+     * If null, no bill is legally loaded for payment.
+     */
 	private String loadedCode = null;
 
+	/**
+     * JavaFX initialization phase.
+     * Populates the payment method combo box and resets the UI state to a clean slate.
+     */
 	@FXML
 	public void initialize() {
 		// UI only (no server connection here)
@@ -45,6 +60,12 @@ public class BillPaymentController implements ChatIF {
 		resultArea.setText("");
 	}
 
+	/**
+     * Triggered when the "Load Bill" button is clicked.
+     * <p>
+     * Validates the input code, ensures a server connection exists, and sends 
+     * a {@code #GET_BILL <code field>} request to the server.
+     */
 	@FXML
 	private void onLoadBill() {
 		String code = safe(codeField.getText());
@@ -62,6 +83,16 @@ public class BillPaymentController implements ChatIF {
 		resultArea.setText("OK: Loading bill...");
 	}
 
+	/**
+     * Triggered when the "Pay" button is clicked.
+     * <p>
+     * Performs several validation checks:
+     * <ul>
+     * <li>Ensures a bill is currently loaded and matches the input code.</li>
+     * <li>Ensures a payment method is selected.</li>
+     * </ul>
+     * If valid, sends a {@code #PAY_BILL <code> <method>} request to the server.
+     */
 	@FXML
 	private void onPay() {
 		String code = safe(codeField.getText());
@@ -117,11 +148,35 @@ public class BillPaymentController implements ChatIF {
 		}
 	}
 
+	/**
+     * Callback method called by the {@code ChatClient} when a message arrives from the server.
+     * <p>
+     * Since network operations happen on a background thread, this method wraps the 
+     * processing logic in {@link Platform#runLater} to safely update the JavaFX UI.
+     *
+     * @param message The message received from the server.
+     */
 	@Override
 	public void display(String message) {
 		Platform.runLater(() -> handleServerMessage(message));
 	}
 
+	/**
+     * Updates the UI based on messages received from the server.
+     * <p>
+     * This method runs on the JavaFX Application Thread via {@link Platform#runLater(Runnable)}
+     * (invoked by {@link #display(String)}).
+     * <p>
+     * Supported Protocol Messages:
+     * <ul>
+     * <li>{@code ERROR|<message>} - Displays an error message.</li>
+     * <li>{@code BILL_NOT_FOUND} - Clears the view and shows a not-found error.</li>
+     * <li>{@code BILL|<code...>} - Parses bill details (diners, subtotal, etc.) and updates labels.</li>
+     * <li>{@code BILL_PAID|<code...>} - Confirms payment success and resets state.</li>
+     * </ul>
+     *
+     * @param msg The raw string message received from the server.
+     */
 	private void handleServerMessage(String msg) {
 		if (msg == null)
 			return;
@@ -173,6 +228,17 @@ public class BillPaymentController implements ChatIF {
 		resultArea.setText(msg);
 	}
 
+	/**
+     * Resets the bill display area to its default, empty state.
+     * <p>
+     * This method performs two main actions:
+     * <ol>
+     * <li>Clears the {@link #loadedCode} to prevent operations on stale data.</li>
+     * <li>Sets all relevant UI labels (diners, subtotal, etc.) to a placeholder ("-").</li>
+     * </ol>
+     * Includes null-checks for UI components to ensure safety if called before 
+     * the FXML injection is fully complete.
+     */
 	private void clearBillView() {
 		loadedCode = null;
 		if (dinersLabel != null)
@@ -185,6 +251,16 @@ public class BillPaymentController implements ChatIF {
 			totalLabel.setText("-");
 	}
 
+	/**
+     * A utility method to safely process input strings.
+     * <p>
+     * It handles null values by converting them to empty strings and removes 
+     * leading/trailing whitespace from valid strings.
+     *
+     * @param s The raw string to process (can be null).
+     * @return The trimmed string, or an empty string ("") if the input was null. 
+     * This method never returns {@code null}.
+     */
 	private static String safe(String s) {
 		return s == null ? "" : s.trim();
 	}

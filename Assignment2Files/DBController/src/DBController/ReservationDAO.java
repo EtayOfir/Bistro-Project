@@ -1561,7 +1561,6 @@ public class ReservationDAO {
     public Map<Integer, Integer> getHourlyArrivals(int month, int year) {
         Map<Integer, Integer> resultMap = new HashMap<>();
         
-        // אתחול שעות הפעילות (למשל 12 עד 23) ב-0
         for (int h = 0; h < 24; h++) {
             resultMap.put(h, 0);
         }
@@ -1612,7 +1611,6 @@ public class ReservationDAO {
     public Map<Integer, Integer> getHourlyDepartures(int month, int year) {
         Map<Integer, Integer> resultMap = new HashMap<>();
         
-        // אתחול שעות
         for (int h = 0; h < 24; h++) resultMap.put(h, 0);
 
         try (Connection conn = dataSource.getConnection();

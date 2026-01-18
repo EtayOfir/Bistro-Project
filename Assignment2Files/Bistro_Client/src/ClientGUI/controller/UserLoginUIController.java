@@ -25,7 +25,13 @@ import javafx.stage.Stage;
 /**
  * Controller for the main User Login screen.
  * <p>
- * Handles authentication, role-based navigation, and server settings.
+ * This class is the entry point for the client application's UI. It is responsible for:
+ * <ul>
+ * <li>Establishing the initial connection to the server.</li>
+ * <li>Authenticating users via the {@code #LOGIN} protocol.</li>
+ * <li>Routing users to different dashboards based on their role (Subscriber, Manager, Representative, etc.).</li>
+ * <li>Providing access to the "Guest" view and "Restaurant Terminal" view.</li>
+ * </ul>
  * </p>
  */
 public class UserLoginUIController {
@@ -46,6 +52,8 @@ public class UserLoginUIController {
     
     /**
      * Initializes the controller class.
+     * Sets up the initial UI state, hides the server settings panel by default,
+     * and pre-fills default connection values (localhost:5555).
      */
     @FXML
     private void initialize() {
@@ -63,7 +71,10 @@ public class UserLoginUIController {
     }
 
     /**
-     * Toggles the visibility of the server settings panel.
+     * Toggles the visibility of the server settings panel (Host/Port configuration).
+     * Adjusts the window size dynamically to fit the new content.
+     *
+     * @param event The ActionEvent triggered by the toggle button.
      */
     @FXML
     private void onServerSettingsToggle(ActionEvent event) {
@@ -81,7 +92,18 @@ public class UserLoginUIController {
 
     /**
      * Handles the main Login button click.
-     * Uses #LOGIN protocol to validate user with server.
+     * <p>
+     * The login process involves:
+     * <ol>
+     * <li>Validating that input fields are not empty.</li>
+     * <li>Establishing a connection to the server (if not already connected).</li>
+     * <li>Sending the {@code #LOGIN <user> <pass>} command.</li>
+     * <li>Waiting for the server's response.</li>
+     * <li>If successful, identifying the user role and fetching specific subscriber details if necessary.</li>
+     * <li>Navigating to the appropriate dashboard via {@link #navigateBasedOnRole}.</li>
+     * </ol>
+     *
+     * @param event The ActionEvent triggered by the login button.
      */
     @FXML
     private void onLoginClicked(ActionEvent event) {
@@ -180,7 +202,13 @@ public class UserLoginUIController {
     }
 
     /**
-     * Helper to navigate to the correct dashboard based on the Role.
+     * Helper method to navigate to the correct dashboard based on the user's role.
+     * Loads the specific FXML file and passes the necessary data (user context, subscriber object) to the controller.
+     *
+     * @param event      The event used to retrieve the current Stage.
+     * @param username   The username of the logged-in user.
+     * @param role       The role of the logged-in user (Manager, Subscriber, Representative).
+     * @param subscriber The detailed subscriber entity object (can be null for regular clients).
      */
     private void navigateBasedOnRole(ActionEvent event, String username, String role, Subscriber subscriber) {
         try {
@@ -256,6 +284,10 @@ public class UserLoginUIController {
 
     /**
      * Handles the "Restaurant Terminal" button click.
+     * Used for physical kiosks inside the restaurant. Connects as a "Guest" initially
+     * but identifies specially as "GuestTerminal" for server tracking.
+     *
+     * @param event The ActionEvent triggered by the button.
      */
     @FXML
     private void onTerminal(ActionEvent event) {
@@ -287,6 +319,10 @@ public class UserLoginUIController {
     
     /**
      * Handles the "Login as guest" button click.
+     * Allows anonymous access to the system (e.g., to view the menu).
+     * Connects to the server and identifies as a simple "Guest".
+     *
+     * @param event The ActionEvent triggered by the button.
      */
     @FXML
     private void onLoginGuest(ActionEvent event) {
@@ -321,7 +357,9 @@ public class UserLoginUIController {
     
     
     /**
-     * Helper to show a popup error message.
+     * Helper method to display a modal error alert to the user.
+     *
+     * @param message The error message to be displayed.
      */
     private void showError(String message) {
         Alert alert = new Alert(AlertType.ERROR);
@@ -331,6 +369,12 @@ public class UserLoginUIController {
         alert.showAndWait();
     }
     
+    /**
+     * Handles the "Exit" button click.
+     * Closes the window and terminates the application process.
+     *
+     * @param event The ActionEvent triggered by the button.
+     */
     @FXML
     private void onExitClicked(ActionEvent event) {
         Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
