@@ -71,10 +71,23 @@ public class ReceiveTableUIController {
     @FXML private TableColumn<ResItem, String> colStatus;
     @FXML private TableColumn<ResItem, String> colCode;
 
+    /**
+     * The currently logged-in subscriber (if any).
+     * Used to fetch and display relevant reservations for quick selection.
+     */
     private Subscriber currentSubscriber;
+    
+    /**
+     * The data model for the reservations table view.
+     */
     private ObservableList<ResItem> tableData = FXCollections.observableArrayList();
 
-    // מחלקה פנימית לייצוג שורה בטבלה
+    /**
+     * A lightweight data model class representing a single reservation row in the UI table.
+     * <p>
+     * Wraps raw data in JavaFX {@link Property} objects to enable automatic binding 
+     * with the {@link TableView}.
+     */
     public static class ResItem {
         private final SimpleStringProperty time;
         private final SimpleIntegerProperty guests;
@@ -101,14 +114,19 @@ public class ReceiveTableUIController {
     
     /**
      * JavaFX initialization hook.
-     *
-     * <p>Registers this controller as the currently active "Receive Table" screen so that
-     * {@link ClientUIController} can route server responses to it.</p>
+     * <p>
+     * <b>Key Actions:</b>
+     * <ul>
+     * <li>Registers this controller instance with {@link ClientUIController} to receive asynchronous server responses.</li>
+     * <li>Configures the TableView columns.</li>
+     * <li>Adds a listener to the table selection model: selecting a row automatically 
+     * populates the {@code confirmationCodeField}.</li>
+     * <li><b>UI State:</b> Initially hides the reservations table (it is only revealed for Subscribers).</li>
+     * </ul>
      */
     @FXML
     private void initialize() {
         ClientUIController.setActiveReceiveTableController(this);
-     // 1. הגדרת עמודות הטבלה
         if (reservationsTable != null) {
             colTime.setCellValueFactory(cell -> cell.getValue().timeProperty());
             colGuests.setCellValueFactory(cell -> cell.getValue().guestsProperty().asObject());
@@ -117,15 +135,12 @@ public class ReceiveTableUIController {
 
             reservationsTable.setItems(tableData);
 
-            // 2. הוספת מאזין לבחירה בטבלה
             reservationsTable.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
                 if (newVal != null) {
-                    // ברגע שנבחרה שורה - מעתיקים את הקוד לשדה הטקסט
                     confirmationCodeField.setText(newVal.getCode());
                 }
             });
 
-            // ברירת מחדל: מוסתר
             reservationsTable.setVisible(false);
             reservationsTable.setManaged(false);
             if (lblSelectRes != null) {
@@ -134,13 +149,25 @@ public class ReceiveTableUIController {
             }
         }
     }
+    
+    /**
+     * Sets the current subscriber context and initiates data loading.
+     * <p>
+     * If a valid subscriber is passed:
+     * <ol>
+     * <li>The UI updates to reveal the reservations table and label.</li>
+     * <li>A request is sent to the server ({@code #GET_SUBSCRIBER_DATA}) to fetch relevant booking history.</li>
+     * </ol>
+     * If the user is a guest (subscriber is null), the table remains hidden.
+     *
+     * @param sub The subscriber object containing ID and personal details.
+     */
     public void setSubscriber(Subscriber sub) {
         this.currentSubscriber = sub;
 
         if (sub != null) {
             System.out.println("DEBUG: Subscriber set in ReceiveTable: " + sub.getUserName());
 
-            // חשיפת הטבלה והכותרת
             if (reservationsTable != null) {
                 reservationsTable.setVisible(true);
                 reservationsTable.setManaged(true);
@@ -149,12 +176,26 @@ public class ReceiveTableUIController {
                 reservationsTable.setPlaceholder(new Label("Loading reservations..."));
             }
 
-            // בקשת נתונים מהשרת
             if (ClientUI.chat != null) {
                 ClientUI.chat.handleMessageFromClientUI("#GET_SUBSCRIBER_DATA " + sub.getSubscriberId());
             }
         }
     }
+    
+    /**
+     * Processes the subscriber's data received from the server.
+     * <p>
+     * <b>Protocol Format:</b>
+     * {@code ...|ACTIVE:date,time,diners,code,status;...}
+     * <p>
+     * <b>Filtering Logic:</b>
+     * The method parses the "ACTIVE" section and filters for reservations that match <b>today's date</b>
+     * and have a valid status ("Confirmed" or "Late").
+     * <p>
+     * Valid reservations are added to {@link #tableData}, which updates the UI table immediately.
+     *
+     * @param msg The raw protocol string containing the subscriber's full history.
+     */
     public void onSubscriberDataReceived(String msg) {
         Platform.runLater(() -> {
             try {
@@ -186,7 +227,6 @@ public class ReceiveTableUIController {
                         LocalDate resDate = LocalDate.parse(cols[0]);
                         String status = cols[4];
 
-                        // סינון: רק הזמנות של היום, ורק כאלו שאפשר לקבל שולחן עבורן
                         if (resDate.equals(today) && 
                            (status.equalsIgnoreCase("Confirmed") || status.equalsIgnoreCase("Late"))) {
 
@@ -201,10 +241,7 @@ public class ReceiveTableUIController {
 
                 if (tableData.isEmpty()) {
                     reservationsTable.setPlaceholder(new Label("No reservations for today"));
-                } else {
-                    // אופציונלי: בחירה אוטומטית של הראשון
-                    // reservationsTable.getSelectionModel().selectFirst();
-                }
+                } 
 
             } catch (Exception e) {
                 e.printStackTrace();

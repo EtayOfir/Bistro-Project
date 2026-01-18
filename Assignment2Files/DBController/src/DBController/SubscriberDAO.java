@@ -11,13 +11,36 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Data Access Object (DAO) for managing Subscriber entities in the database.
+ * <p>
+ * This class handles all CRUD operations related to subscribers, including:
+ * <ul>
+ * <li>Authentication and retrieval by username or ID.</li>
+ * <li>Registration of new subscribers with role-based permission checks.</li>
+ * <li>Updating contact information.</li>
+ * <li>Retrieving associated data like visit history and active reservations.</li>
+ * </ul>
+ * </p>
+ */
 public class SubscriberDAO {
     private final DataSource dataSource;
 
+    /**
+     * Constructs a new SubscriberDAO.
+     *
+     * @param dataSource The {@link DataSource} used for database connections.
+     */
     public SubscriberDAO(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
+    /**
+     * Retrieves a list of all registered subscribers.
+     *
+     * @return A list of {@link Subscriber} objects.
+     * @throws SQLException If a database access error occurs.
+     */
     public List<Subscriber> getAllSubscribers() throws SQLException {
         List<Subscriber> subscribers = new ArrayList<>();
         try (Connection conn = dataSource.getConnection();
@@ -36,7 +59,18 @@ public class SubscriberDAO {
         return subscribers;
     }
 
-    // Uses the 6-parameter query (includes Role)
+    /**
+     * Inserts a new subscriber directly into the database (low-level insert).
+     *
+     * @param fullName The full name.
+     * @param phone    The phone number.
+     * @param email    The email address.
+     * @param userName The username.
+     * @param qrCode   The QR code string.
+     * @param role     The role (Subscriber/Representative/Manager).
+     * @return The generated SubscriberID, or -1 if insertion failed.
+     * @throws SQLException If a database error occurs.
+     */
     public int insert(String fullName, String phone, String email, String userName, String qrCode, String role) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_SUBSCRIBER, Statement.RETURN_GENERATED_KEYS)) {
@@ -53,6 +87,14 @@ public class SubscriberDAO {
         }
     }
 
+    /**
+     * Retrieves a subscriber by their username.
+     * Used primarily during the login process to fetch password and role.
+     *
+     * @param username The username to search for.
+     * @return A populated {@link Subscriber} object, or {@code null} if not found.
+     * @throws SQLException If a database error occurs.
+     */
     public Subscriber getByUsername(String username) throws SQLException {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_SUBSCRIBER_BY_USERNAME)) {
@@ -72,6 +114,25 @@ public class SubscriberDAO {
         }
     }
     
+    /**
+     * Registers a new subscriber with business logic validation.
+     * 
+
+[Image of User Registration Flowchart]
+
+     * <p>
+     * This method enforces role-based permissions:
+     * <ul>
+     * <li><b>Representatives</b> can only create regular Subscribers.</li>
+     * <li><b>Managers</b> can create Managers, Representatives, or Subscribers.</li>
+     * </ul>
+     * It also automatically generates a QR code string for the new user.
+     * </p>
+     *
+     * @param newSub      The subscriber object containing the new user's details.
+     * @param creatorRole The role of the user performing the registration.
+     * @return The registered {@link Subscriber} object with its new ID, or {@code null} if permission denied or failure.
+     */
     public Subscriber register(Subscriber newSub, String creatorRole) {
 	    // Representative can only create Subscribers
 	    if ("Representative".equalsIgnoreCase(creatorRole)) {
@@ -124,7 +185,15 @@ public class SubscriberDAO {
 	    }
 	}
     
- // 1. עדכון פרטי קשר (טלפון ומייל)
+    /**
+     * Updates the contact information for a specific subscriber.
+     *
+     * @param id    The ID of the subscriber.
+     * @param phone The new phone number.
+     * @param email The new email address.
+     * @return {@code true} if the update was successful.
+     * @throws SQLException If a database error occurs.
+     */
     public boolean updateContactInfo(int id, String phone, String email) throws SQLException {
         // SQLQueries.UPDATE_SUBSCRIBER_CONTACT_INFO = "UPDATE Subscribers SET PhoneNumber = ?, Email = ? WHERE SubscriberID = ?"
         try (Connection conn = dataSource.getConnection();
@@ -136,7 +205,13 @@ public class SubscriberDAO {
         }
     }
 
-    // 2. שליפת היסטוריית ביקורים
+    /**
+     * Retrieves the visit history for a specific subscriber.
+     *
+     * @param subscriberId The ID of the subscriber.
+     * @return A list of {@link entities.VisitHistory} objects.
+     * @throws SQLException If a database error occurs.
+     */
     public List<entities.VisitHistory> getSubscriberVisitHistory(int subscriberId) throws SQLException {
         List<entities.VisitHistory> history = new ArrayList<>();
         // SQLQueries.GET_SUBSCRIBER_VISIT_HISTORY
@@ -145,8 +220,6 @@ public class SubscriberDAO {
             ps.setInt(1, subscriberId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    // יצירת אובייקט VisitHistory מה-ResultSet
-                    // יש לוודא שסדר הפרמטרים תואם לקונסטרקטור ב-VisitHistory.java
                     entities.VisitHistory vh = new entities.VisitHistory(
                         rs.getDate("OriginalReservationDate").toLocalDate(),
                         rs.getTimestamp("ActualArrivalTime") != null ? rs.getTimestamp("ActualArrivalTime").toLocalDateTime() : null,
@@ -162,7 +235,13 @@ public class SubscriberDAO {
         return history;
     }
 
-    // 3. שליפת הזמנות פעילות (Active Reservations)
+    /**
+     * Retrieves the active (future) reservations for a specific subscriber.
+     *
+     * @param subscriberId The ID of the subscriber.
+     * @return A list of {@link entities.ActiveReservation} objects.
+     * @throws SQLException If a database error occurs.
+     */
     public List<entities.ActiveReservation> getSubscriberActiveReservations(int subscriberId) throws SQLException {
         List<entities.ActiveReservation> list = new ArrayList<>();
         // SQLQueries.GET_SUBSCRIBER_ACTIVE_RESERVATIONS
@@ -185,6 +264,13 @@ public class SubscriberDAO {
         return list;
     }
     
+    /**
+     * Retrieves a subscriber's basic details by their unique ID.
+     *
+     * @param id The subscriber ID.
+     * @return A {@link Subscriber} object with basic details (ID, Phone, Email), or {@code null} if not found.
+     * @throws SQLException If a database error occurs.
+     */
     public Subscriber getSubscriberById(int id) throws SQLException {
         try (Connection conn = dataSource.getConnection();
         		PreparedStatement ps = conn.prepareStatement(SQLQueries.GET_SUBSCRIBER_BY_ID)) {            ps.setInt(1, id);

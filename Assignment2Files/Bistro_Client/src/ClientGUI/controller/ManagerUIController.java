@@ -15,14 +15,27 @@ import ClientGUI.util.ViewLoader;
 import ClientGUI.util.SceneUtil;
 
 /**
- * Controller class for the Manager Dashboard.
- * Includes operational buttons, management buttons, and access to Reports.
+ * The main dashboard controller for the Branch Manager.
+ * <p>
+ * This class acts as a central navigation hub, allowing the manager to access:
+ * <ul>
+ * <li><b>Operational Tasks:</b> Making reservations, viewing waiting lists, assigning tables.</li>
+ * <li><b>Management Tasks:</b> Generating reports, viewing staff details, configuring branch settings.</li>
+ * </ul>
+ * <p>
+ * It maintains the session context (user identity) and passes it forward to sub-screens.
  */
 public class ManagerUIController {
 
     @FXML private Label welcomeLabel;
     
     private String currentUserName;
+    /**
+     * Stores the full profile of the logged-in manager.
+     * <p>
+     * This object is essential for passing the manager's contact details (phone, email)
+     * to screens like {@link ReservationUIController} to auto-fill forms.
+     */
     private Subscriber currentSubscriber = null;
 
     /**
@@ -34,8 +47,12 @@ public class ManagerUIController {
     }
 
     /**
-     * Sets the subscriber object for the manager.
-     * This allows access to the manager's contact information and other details.
+     * Injects the subscriber object containing the manager's details.
+     * <p>
+     * Called by the Login controller upon successful authentication. 
+     * Updates the UI welcome message and stores the object for downstream usage.
+     *
+     * @param subscriber The subscriber entity representing the manager.
      */
     public void setSubscriber(Subscriber subscriber) {
         this.currentSubscriber = subscriber;
@@ -49,35 +66,81 @@ public class ManagerUIController {
 
     // --- Basic Actions ---
 
+    /**
+     * JavaFX lifecycle method called after the FXML file has been loaded.
+     * <p>
+     * Responsible for initializing the UI state, specifically updating the 
+     * welcome label with the logged-in manager's name.
+     */
     @FXML
     public void initialize() {
         updateWelcomeLabel();
     }
 
+    /**
+     * Updates the GUI header with the current user's name.
+     * <p>
+     * Includes a null-check to prevent exceptions if the FXML label hasn't been injected yet
+     * or if the username is not set.
+     */
     private void updateWelcomeLabel() {
         if (welcomeLabel != null && currentUserName != null && !currentUserName.isBlank()) {
             welcomeLabel.setText("Welcome " + currentUserName);
         }
     }
     
+    /**
+     * Navigates to the Personal Reservation screen.
+     * <p>
+     * <b>Side Effect:</b> Triggers {@link #triggerExpiredReservationsCleanup()} before navigation.
+     * This ensures that when the manager views the availability map, any old "No-Show" 
+     * reservations are already removed from the database, reflecting true table availability.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onMakeReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
         navigate(event, "ReservationUI.fxml");
     }
 
+    /**
+     * Navigates to the Staff Reservation screen.
+     * <p>
+     * This screen allows the manager to create reservations <i>on behalf of</i> other customers.
+     * Unlike the personal reservation flow, this action does not trigger an immediate cleanup 
+     * to avoid slowing down the staff workflow.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onMakeCustomerReservation(ActionEvent event) {
         // Don't delete expired - just mark as expired (ReservationUI logic)
         navigate(event, "StaffReservationUI.fxml");
     }
 
+    /**
+     * Navigates to the "My Reservations" / Client View screen for cancellation.
+     * <p>
+     * Also triggers a cleanup of expired reservations to ensure the list displayed 
+     * is up-to-date.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onCancelReservation(ActionEvent event) {
         triggerExpiredReservationsCleanup();
         navigate(event, "ClientUIView.fxml");
     }
 
+    /**
+     * Navigates to the Waiting List management screen.
+     * <p>
+     * The destination controller ({@code ClientWaitingListController}) handles both 
+     * entering and leaving the list logic.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onEnterWaitingList(ActionEvent event) {
         navigate(event, "ClientWaitingList.fxml");
@@ -88,16 +151,37 @@ public class ManagerUIController {
         navigate(event, "ClientWaitingList.fxml");
     }
 
+    /**
+     * Navigates to the Table Allocation screen ("Receive Table").
+     * <p>
+     * Used when customers physically arrive at the restaurant and need to be assigned 
+     * a specific table number.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onGetTable(ActionEvent event) {
         navigate(event, "ReceiveTableUI.fxml");
     }
+    
+    /**
+     * Navigates to the User Registration screen.
+     * <p>
+     * Allows the manager to register new customers as Subscribers.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onRegister(ActionEvent event) {
         navigate(event, "RegisterUI.fxml");
     }
 
 
+    /**
+     * Navigates to the Bill Payment screen.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onPayBill(ActionEvent event) {
         navigate(event, "BillPayment.fxml");
@@ -105,6 +189,13 @@ public class ManagerUIController {
 
     // --- Management Actions ---
 
+    /**
+     * Navigates to the Administrative Data View.
+     * <p>
+     * Allows the manager to view raw lists of clients, active reservations, and waiting lists.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onViewDetails(ActionEvent event) {
     	navigate(event, "RepresentativeViewDetails.fxml");
@@ -113,13 +204,24 @@ public class ManagerUIController {
    
 
     /**
-     * Handles the "View Reports" button click.
-     * Navigates to the ReportsUI screen.
+     * Navigates to the Reports Generation screen.
+     * <p>
+     * Allows the manager to request monthly/quarterly reports from the server.
+     *
+     * @param event The button click event.
      */
     @FXML
     void onViewReports(ActionEvent event) {
         navigate(event, "ReportsUI.fxml");
     }
+    
+    /**
+     * Navigates to the Branch Configuration screen.
+     * <p>
+     * Allows editing of opening hours, special holidays, and table layout configurations.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onBranchSettings(ActionEvent event) {
         navigate(event, "BranchSettingsUI.fxml");
@@ -137,12 +239,9 @@ public class ManagerUIController {
 
             HostDashboardController controller = loader.getController();
             
-            // הגדרת הקשר (שם ותפקיד) לתצוגה
             controller.setUserContext(currentUserName, "Manager"); 
 
-            // --- הוספי את השורה הזו: הגדרת נתיב חזרה למנהל ---
             controller.setReturnPath("ManagerUI.fxml", "Manager Dashboard", currentUserName, "Manager");
-            // ----------------------------------------------------
 
             Stage stage = (Stage)((Node)event.getSource()).getScene().getWindow();
             stage.setTitle("Host Dashboard - Manager (" + currentUserName + ")");
@@ -157,6 +256,15 @@ public class ManagerUIController {
 
     // --- Navigation ---
 
+    /**
+     * Handles the secure sign-off process.
+     * <p>
+     * 1. Sends a {@code LOGOUT} command to the server to update the login status in the DB.
+     * 2. Closes the physical network connection.
+     * 3. Redirects the user back to the main Login screen.
+     *
+     * @param event The event triggered by the "Sign Off" button.
+     */
     @FXML
     private void onSignOff(ActionEvent event) {
         try {
@@ -181,12 +289,36 @@ public class ManagerUIController {
         }
     }
 
+    /**
+     * Terminates the entire application.
+     * <p>
+     * Invokes {@link System#exit(0)} to immediately shut down the Java Virtual Machine (JVM).
+     * Note that this does not perform a graceful logout sequence regarding the server;
+     * use {@link #onSignOff(ActionEvent)} for that purpose.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onExit(ActionEvent event) {
         System.exit(0);
     }
     
 
+    /**
+     * A utility factory method for creating {@link FXMLLoader} instances.
+     * <p>
+     * This method centralizes the logic for resolving FXML file paths, ensuring consistency
+     * across the application. It assumes all views are located in {@code /ClientGUI/view/}.
+     * <p>
+     * <b>Fail-Fast Behavior:</b>
+     * If the specified FXML file cannot be found in the classpath, this method throws an 
+     * {@link IllegalStateException} immediately, preventing difficult-to-debug 
+     * {@code NullPointerException}s later during the load process.
+     *
+     * @param fxmlFileName The name of the FXML file (e.g., "Login.fxml").
+     * @return A new {@code FXMLLoader} instance configured with the correct resource location.
+     * @throws IllegalStateException If the FXML file does not exist at the expected path.
+     */
     private FXMLLoader loaderFor(String fxmlFileName) {
         String path = "/ClientGUI/view/" + fxmlFileName;
         var url = getClass().getResource(path);
@@ -198,12 +330,12 @@ public class ManagerUIController {
     }
     
     /**
-     * Triggers a cleanup of expired reservations.
+     * Initiates a background maintenance task to clean up stale data.
      * <p>
-     * This method sends a command to the server via {@code ClientUI.chat} requesting
-     * that any reservations that have expired be removed, and logs the outcome.
-     * If the client connection is not available, the cleanup request is skipped.
-     * </p>
+     * Sends the command {@code #DELETE_EXPIRED_RESERVATIONS} to the server.
+     * This is triggered before entering reservation-related screens to ensure the 
+     * manager sees the most up-to-date availability, removing any "No-Show" 
+     * reservations that have passed their time limit.
      */
     private void triggerExpiredReservationsCleanup() {
         try {

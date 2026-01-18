@@ -13,8 +13,12 @@ import javafx.scene.control.Label;
 import javafx.stage.Stage;
 
 /**
- * Controller for the Server Settings window.
- * Allows users to configure the server host and port before connecting.
+ * Controller for the Server Configuration View.
+ * <p>
+ * This is the entry point of the client application. It allows the user to specify
+ * the IP address and Port of the backend server before attempting to log in.
+ * <p>
+ * This step ensures the client is dynamic and not hardcoded to "localhost".
  */
 public class ServerSettingsUIController {
 
@@ -26,6 +30,12 @@ public class ServerSettingsUIController {
     private int port;
     private boolean connected = false;
 
+    /**
+     * Initializes the controller class.
+     * <p>
+     * Pre-fills the input fields with default values ("localhost" : "5555") 
+     * for easier testing and local development.
+     */
     @FXML
     private void initialize() {
         // Set default values
@@ -35,8 +45,18 @@ public class ServerSettingsUIController {
     }
 
     /**
-     * Handles the Connect button click.
-     * Validates the input and stores server settings without connecting.
+     * Validates input and saves the server configuration.
+     * <p>
+     * <b>Logic Flow:</b>
+     * <ol>
+     * <li><b>Validation:</b> Checks that Host is not empty and Port is a valid integer between 1 and 65535.</li>
+     * <li><b>Configuration:</b> Saves the valid settings into the static fields of {@code ClientUI}. 
+     * This makes the settings available globally for the {@code ChatClient} later.</li>
+     * <li><b>Navigation:</b> Loads the {@code UserLoginUIView.fxml} to proceed to authentication.</li>
+     * </ol>
+     * Note: This method does <b>not</b> open the network socket yet; it only prepares the settings.
+     *
+     * @param event The button click event.
      */
     @FXML
     private void onConnectClicked(ActionEvent event) {
@@ -100,8 +120,12 @@ public class ServerSettingsUIController {
     }
 
     /**
-     * Handles the Cancel button click.
-     * Exits the application since this is the entry screen.
+     * Terminates the application.
+     * <p>
+     * Since this is the initial screen, clicking "Cancel" implies the user 
+     * does not wish to proceed with the application at all.
+     *
+     * @param event The button click event.
      */
     @FXML
     private void onCancelClicked(ActionEvent event) {
@@ -109,14 +133,23 @@ public class ServerSettingsUIController {
         System.exit(0);
     }
 
+    /**
+     * @return {@code true} if settings were successfully saved (logically connected), {@code false} otherwise.
+     */
     public boolean isConnected() {
         return connected;
     }
 
+    /**
+     * @return The configured host address (e.g., "127.0.0.1").
+     */
     public String getHost() {
         return host;
     }
 
+    /**
+     * @return The configured port number.
+     */
     public int getPort() {
         return port;
     }

@@ -12,8 +12,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Controller class for the Server UI
- * Handles all user interactions and communication with the server
+ * Controller class for the Server-side Graphical User Interface.
+ * <p>
+ * This class manages the interaction between the user (Server Administrator) and the
+ * backend {@link EchoServer}. It is responsible for:
+ * <ul>
+ * <li>Starting and stopping the server listening thread.</li>
+ * <li>Displaying real-time logs with timestamps.</li>
+ * <li>Showing the list of currently connected clients.</li>
+ * <li>Handling configuration inputs (Port, DB Credentials).</li>
+ * </ul>
+ * </p>
  */
 public class ServerUIController {
 
@@ -45,10 +54,26 @@ public class ServerUIController {
     private static final String SERVER_RUNNING = "Server Running";
     private static final String SERVER_STOPPED = "Server Stopped";
 
+    /**
+     * Default constructor.
+     * Initializes the date-time formatter used for log timestamps.
+     */
     public ServerUIController() {
         dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     }
 
+    /**
+     * JavaFX initialization method.
+     * <p>
+     * Called automatically after the FXML file is loaded. It sets up:
+     * <ul>
+     * <li>Port selection logic (ComboBox and Spinner synchronization).</li>
+     * <li>Default database credentials.</li>
+     * <li>Button event handlers.</li>
+     * <li>TableView columns and data binding.</li>
+     * </ul>
+     * </p>
+     */
     @FXML
     public void initialize() {
         // Initialize UI components
@@ -66,15 +91,21 @@ public class ServerUIController {
     }
 
     /**
-     * Set the EchoServer reference
+     * Injects the reference to the backend server instance.
+     * This allows the controller to trigger server actions (listen, close, etc.).
+     *
+     * @param server The instance of {@link EchoServer}.
      */
     public void setEchoServer(EchoServer server) {
         this.echoServer = server;
     }
 
     /**
-     * Refreshes the client table with the latest list from the server.
-     * This is called by EchoServer when a client identifies themselves.
+     * Refreshes the client table with the latest list of connected clients from the server.
+     * <p>
+     * This method is thread-safe and uses {@link Platform#runLater} to update the UI
+     * from the server's background thread.
+     * </p>
      */
     public void refreshClientTable() {
         Platform.runLater(() -> {
@@ -86,7 +117,8 @@ public class ServerUIController {
     }
 
     /**
-     * Setup port selector options
+     * Configures the port selector UI elements.
+     * Syncs the ComboBox preset values with the custom Spinner value.
      */
     private void setupPortSelector() {
         if (portComboBox != null) {
@@ -130,7 +162,7 @@ public class ServerUIController {
     }
 
     /**
-     * Setup table columns for client display
+     * Configures the TableView columns to bind to the properties of {@link GetClientInfo}.
      */
     private void setupTableColumns() {
         if (clientIPColumn != null)
@@ -142,7 +174,10 @@ public class ServerUIController {
     }
 
     /**
-     * Add a client to the table view (Called by EchoServer)
+     * Adds a single client to the connected clients table.
+     * Thread-safe execution via {@link Platform#runLater}.
+     *
+     * @param clientInfo The client information object to add.
      */
     public void addClientToTable(GetClientInfo clientInfo) {
         Platform.runLater(() -> {
@@ -156,7 +191,10 @@ public class ServerUIController {
     }
 
     /**
-     * Remove a client from the table view (Called by EchoServer)
+     * Removes a single client from the connected clients table.
+     * Thread-safe execution via {@link Platform#runLater}.
+     *
+     * @param clientInfo The client information object to remove.
      */
     public void removeClientFromTable(GetClientInfo clientInfo) {
         Platform.runLater(() -> {
@@ -167,7 +205,11 @@ public class ServerUIController {
     }
 
     /**
-     * Start the server
+     * Handles the "Start Server" button action.
+     * <p>
+     * Retrieves the port configuration, sets it to the server instance,
+     * and starts the server listening thread.
+     * </p>
      */
     @FXML
     private void startServer() {
@@ -203,7 +245,8 @@ public class ServerUIController {
     }
 
     /**
-     * Stop the server
+     * Handles the "Stop Server" button action.
+     * Closes the server connection and updates the UI state.
      */
     @FXML
     private void stopServer() {
@@ -224,7 +267,7 @@ public class ServerUIController {
     }
 
     /**
-     * Clear the log display
+     * Clears the text from the server log area.
      */
     @FXML
     private void clearLogs() {
@@ -232,7 +275,8 @@ public class ServerUIController {
     }
 
     /**
-     * Close the server and exit the program
+     * Handles the "Done" / "Exit" button action.
+     * Gracefully shuts down the server and exits the application.
      */
     @FXML
     private void done() {
@@ -258,7 +302,13 @@ public class ServerUIController {
     }
 
     /**
-     * Add a message to the server log (Called by EchoServer via reflection)
+     * Appends a message to the server log display.
+     * <p>
+     * This method adds a timestamp to the message and ensures the text area scrolls
+     * to the bottom. It is thread-safe and can be called from the server's background thread.
+     * </p>
+     *
+     * @param message The message string to log.
      */
     public void addLog(String message) {
         if (message == null) return;
@@ -286,7 +336,9 @@ public class ServerUIController {
     }
 
     /**
-     * Update server status indicator
+     * Updates the visual indicator of the server status (Running/Stopped).
+     *
+     * @param isRunning {@code true} if the server is listening, {@code false} otherwise.
      */
     private void updateServerStatus(boolean isRunning) {
         Platform.runLater(() -> {
@@ -305,7 +357,10 @@ public class ServerUIController {
     }
 
     /**
-     * Update connected clients count (Called by EchoServer via reflection)
+     * Updates the label displaying the count of connected clients.
+     * Thread-safe execution via {@link Platform#runLater}.
+     *
+     * @param count The number of currently connected clients.
      */
     public void updateClientCount(int count) {
         Platform.runLater(() -> {
@@ -315,6 +370,9 @@ public class ServerUIController {
         });
     }
 
+    /**
+     * Performs cleanup operations when the application window is closed.
+     */
     public void shutdown() {
         if (echoServer != null) {
             try {
@@ -325,6 +383,10 @@ public class ServerUIController {
         }
     }
 
+    /**
+     * Retrieves the database username entered by the user.
+     * @return The username (defaults to "root" if empty).
+     */
     public String getDbUser() {
         if (dbUserField != null && !dbUserField.getText().trim().isEmpty()) {
             return dbUserField.getText().trim();
@@ -332,6 +394,10 @@ public class ServerUIController {
         return "root";
     }
 
+    /**
+     * Retrieves the database password entered by the user.
+     * @return The password string.
+     */
     public String getDbPassword() {
         if (dbPasswordField != null) {
             return dbPasswordField.getText();

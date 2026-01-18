@@ -19,6 +19,19 @@ import javafx.stage.Stage;
 import java.time.YearMonth;
 import java.util.*;
 
+/**
+ * Controller for the Reports & Analytics screen.
+ * <p>
+ * This class allows the Branch Manager to generate monthly performance reports.
+ * It visualizes data using two main charts:
+ * <ul>
+ * <li><b>Subscriber Chart (LineChart):</b> Compares daily active reservations vs. waiting list demand.</li>
+ * <li><b>Punctuality/Flow Chart (StackedBarChart):</b> Analyzes hourly customer arrivals and departures.</li>
+ * </ul>
+ * <p>
+ * The controller fetches raw data strings from the server, parses them into local maps, 
+ * and renders the UI dynamically.
+ */
 public class ReportsUIController {
 
     @FXML private ComboBox<String> monthCombo;
@@ -35,10 +48,26 @@ public class ReportsUIController {
     @FXML private Button btnBack;
 
     // Data Structures
+    /**
+     * Stores hourly arrival counts (Key: Hour 0-23, Value: Count).
+     * Used for the Punctuality StackedBarChart.
+     */
     private Map<Integer, Integer> hourlyArrivalsData = new HashMap<>(); 
-    private Map<Integer, Integer> hourlyDeparturesData = new HashMap<>(); // <--- חדש
     
+    /**
+     * Stores hourly departure counts (Key: Hour 0-23, Value: Count).
+     * Used for the Punctuality StackedBarChart.
+     */
+    private Map<Integer, Integer> hourlyDeparturesData = new HashMap<>(); 
+    
+    /**
+     * Stores daily active reservation counts for the selected month (Key: Day 1-31).
+     */
     private Map<Integer, Integer> subscriberDailyData = new HashMap<>();
+    
+    /**
+     * Stores daily waiting list entries for the selected month (Key: Day 1-31).
+     */
     private Map<Integer, Integer> waitingDailyData = new HashMap<>();
     
     private int totalReservations = 0;
@@ -48,6 +77,12 @@ public class ReportsUIController {
     private int expiredReservations = 0;
     private int totalGuests = 0;
 
+    /**
+     * Initializes the report screen.
+     * <p>
+     * Sets up the month/year combo boxes with default values (current date) 
+     * and triggers an initial report generation for the current month.
+     */
     @FXML
     public void initialize() {
         monthCombo.setItems(FXCollections.observableArrayList(
@@ -65,6 +100,16 @@ public class ReportsUIController {
         Platform.runLater(() -> onGenerateReport(null));
     }
     
+    /**
+     * Sends a request to the server to generate a report for the selected month and year.
+     * <p>
+     * Sends command: {@code #GET_REPORTS_DATA <month> <year>}
+     * <p>
+     * It also registers this instance as the {@code activeReportsController} in the main 
+     * {@link ClientUIController} to ensure the asynchronous response is routed back here.
+     *
+     * @param event The button click event.
+     */
     @FXML
     void onGenerateReport(ActionEvent event) {
         int monthIndex = monthCombo.getSelectionModel().getSelectedIndex() + 1;
@@ -76,6 +121,23 @@ public class ReportsUIController {
         }
     }
 
+    /**
+     * Parses the raw report data received from the server and updates the UI.
+     * <p>
+     * <b>Protocol Structure:</b>
+     * The message is pipe-separated ({@code |}) into sections:
+     * <ul>
+     * <li>{@code STATS:Total,Confirmed,Arrived,Late,Expired,TotalGuests} - Summary metrics.</li>
+     * <li>{@code HOURLY_ARRIVALS:Hour,Count;...} - Data for the bar chart.</li>
+     * <li>{@code HOURLY_DEPARTURES:Hour,Count;...} - Data for the bar chart.</li>
+     * <li>{@code SUBSCRIBER_STATS:Day,ActiveCount,WaitingCount;...} - Data for the line chart.</li>
+     * </ul>
+     * <p>
+     * This method runs on the JavaFX Application Thread, clears previous data, 
+     * populates the local maps, and calls {@link #renderCharts()}.
+     *
+     * @param msg The raw protocol string from the server.
+     */
     public void updateReportsData(String msg) {
         Platform.runLater(() -> {
             try {
@@ -106,7 +168,7 @@ public class ReportsUIController {
                     else if (sec.startsWith("HOURLY_ARRIVALS:")) {
                         parseHourData(sec.substring("HOURLY_ARRIVALS:".length()), hourlyArrivalsData);
                     }
-                    else if (sec.startsWith("HOURLY_DEPARTURES:")) { // <--- קריאת נתוני עזיבה
+                    else if (sec.startsWith("HOURLY_DEPARTURES:")) { 
                         parseHourData(sec.substring("HOURLY_DEPARTURES:".length()), hourlyDeparturesData);
                     }
                     else if (sec.startsWith("SUBSCRIBER_STATS:")) {
@@ -134,6 +196,11 @@ public class ReportsUIController {
         });
     }
 
+    /**
+     * Utility helper to parse comma-separated hour/value pairs into a map.
+     * * @param content   The raw string content (e.g., "12,5;13,8").
+     * @param targetMap The map to populate.
+     */
     private void parseHourData(String content, Map<Integer, Integer> targetMap) {
         if (!content.isEmpty()) {
             for (String entry : content.split(";")) {
@@ -145,6 +212,16 @@ public class ReportsUIController {
         }
     }
 
+    /**
+     * Refreshes the summary statistic labels at the top of the report view.
+     * <p>
+     * This method is called immediately after the server response has been parsed 
+     * and the internal integer counters ({@link #totalReservations}, {@link #confirmedCount}, etc.) 
+     * have been populated.
+     * <p>
+     * It performs the necessary {@code int} to {@code String} conversion and updates 
+     * the UI to reflect the latest metrics for the selected month.
+     */
     private void updateLabels() {
         totalReservationsLabel.setText(String.valueOf(totalReservations));
         confirmedReservationsLabel.setText(String.valueOf(confirmedCount));
@@ -152,6 +229,24 @@ public class ReportsUIController {
         totalGuestsLabel.setText(String.valueOf(totalGuests));
     }
 
+    /**
+     * Renders the charts based on the parsed data maps.
+     * <p>
+     * <b>Charts Rendered:</b>
+     * <ol>
+     * <li><b>Subscriber Chart (Line):</b> Plots 'Active Reservations' vs 'Waiting List'.</li>
+     * <li><b>Punctuality Chart (Stacked Bar):</b> Plots 'Arrivals' vs 'Departures' per hour.</li>
+     * </ol>
+     * <p>
+     * <b>Styling:</b>
+     * This method manually applies CSS styles to the chart nodes (lines, symbols, bars, legend items) 
+     * after they are added to the scene graph. This ensures consistent branding colors:
+     * <ul>
+     * <li>Blue (#2196F3 / #3b82f6) for Subscribers/Arrivals.</li>
+     * <li>Red (#F44336) for Waiting List.</li>
+     * <li>Orange (#f97316) for Departures.</li>
+     * </ul>
+     */
     private void renderCharts() {
         int month = monthCombo.getSelectionModel().getSelectedIndex() + 1;
         int year = yearCombo.getValue();
@@ -245,9 +340,19 @@ public class ReportsUIController {
     }
 
     // Navigation & Helpers...
+    /**
+     * Navigates back to the Manager Dashboard.
+     *
+     * @param event The button click event.
+     */
     @FXML private void onBackClicked(ActionEvent event) { navigate(event); }
     @FXML private void onExitClicked(ActionEvent event) { Platform.exit(); System.exit(0); }
     
+    /**
+     * Helper method to load the Manager Dashboard scene.
+     *
+     * @param event The event used to access the current stage.
+     */
     private void navigate(ActionEvent event) {
         try {
             FXMLLoader loader = ViewLoader.fxml("ManagerUI.fxml");
@@ -258,6 +363,18 @@ public class ReportsUIController {
         } catch (Exception e) { e.printStackTrace(); }
     }
     
+    /**
+     * Displays a modal alert dialog to the user.
+     * <p>
+     * A utility method to simplify the creation of JavaFX {@link Alert} popups.
+     * It uses {@link Alert#showAndWait()}, which blocks the current thread (and user interaction)
+     * untill the user dismisses the dialog.
+     *
+     * @param type    The specific type of alert (e.g., {@code AlertType.ERROR}, {@code AlertType.INFORMATION}).
+     * This determines the icon and default title behavior.
+     * @param title   The text to display in the window's title bar.
+     * @param message The main content text to display in the dialog body.
+     */
     private void showAlert(Alert.AlertType type, String title, String message) {
         Alert alert = new Alert(type);
         alert.setTitle(title);

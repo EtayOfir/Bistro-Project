@@ -236,8 +236,10 @@ public class EchoServer extends AbstractServer {
 			// Space format
 			String[] parts = trimmed.split("\\s+");
 
-			String command = trimmed.contains("|") ? pipeParts[0] : parts[0];
-			System.out.println("DEBUG: command parsed = " + command);
+			String command = parts[0];
+			if (command.contains("|")) {
+			    command = pipeParts[0];
+			}			System.out.println("DEBUG: command parsed = " + command);
 
 			// --- Check if DB is ready for specific commands ---
 			boolean needsReservationDao =
@@ -336,14 +338,12 @@ public class EchoServer extends AbstractServer {
 			                int updated = ps.executeUpdate();
 			                System.out.println("DEBUG rowsUpdated=" + updated);
 
-			                // ======= זה החלק החדש =======
 			                if (updated > 0) {
 			                    int canceled = cancelReservationsOutsideNewHoursForDay(con, day, open, close);
 			                    ans = "BRANCH_DAY_UPDATED|CANCELED=" + canceled;
 			                } else {
 			                    ans = "DAY_NOT_FOUND";
 			                }
-			                // ============================
 			            }
 			        }
 			    } catch (Exception e) {
@@ -376,12 +376,10 @@ public class EchoServer extends AbstractServer {
 
 			            int affected = ps.executeUpdate();
 
-			            // ======= זה החלק החדש =======
 			            int canceled = cancelReservationsOutsideNewHoursForDate(
 			                con, java.sql.Date.valueOf(dateStr), open, close
 			            );
 			            ans = "BRANCH_DATE_SAVED|" + affected + "|CANCELED=" + canceled;
-			            // ============================
 
 			        }
 
@@ -1059,48 +1057,82 @@ public class EchoServer extends AbstractServer {
 			// --- REPORTS ---
 
 			case "#GET_REPORTS_DATA": {
-				if (parts.length < 3) {
-					ans = "ERROR|BAD_FORMAT|GET_REPORTS_DATA";
-					break;
-				}
 				try {
-					Date start = Date.valueOf(parts[1]);
-					Date end = Date.valueOf(parts[2]);
-					Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(start, end);
-					Map<Integer, Integer> timeDist = reservationDAO.getReservationTimeDistribution(start, end);
-					List<Map<String, Object>> waitData = waitingListDAO.getWaitingListByDateRange(start, end);
+			        int month = Integer.parseInt(parts[1]);
+			        int year = Integer.parseInt(parts[2]);
 
-					StringBuilder sb = new StringBuilder("REPORTS_DATA|STATS:");
-					sb.append(stats.getOrDefault("total", 0)).append(",")
-					.append(stats.getOrDefault("confirmed", 0)).append(",")
-					.append(stats.getOrDefault("arrived", 0)).append(",")
-					.append(stats.getOrDefault("late", 0)).append(",")
-					.append(stats.getOrDefault("expired", 0)).append(",")
-					.append(stats.getOrDefault("totalGuests", 0)).append("|TIME_DIST:");
+			        java.time.LocalDate start = java.time.LocalDate.of(year, month, 1);
+			        java.time.LocalDate end = start.with(java.time.temporal.TemporalAdjusters.lastDayOfMonth());
+			        Date sqlStart = Date.valueOf(start);
+			        Date sqlEnd = Date.valueOf(end);
 
-					boolean first = true;
-					for (Map.Entry<Integer, Integer> entry : timeDist.entrySet()) {
-						if (!first) sb.append(";");
-						sb.append(entry.getKey()).append(",").append(entry.getValue());
-						first = false;
-					}
-					sb.append("|WAITING:");
-					first = true;
-					for (Map<String, Object> row : waitData) {
-						if (!first) sb.append(";");
-						sb.append(row.get("EntryDate")).append(",")
-						.append(row.get("WaitingCount")).append(",")
-						.append(row.get("ServedCount"));
-						first = false;
-					}
-					ans = sb.toString();
-				} catch (Exception e) {
-					ans = "ERROR|REPORTS_FAILED";
-					e.printStackTrace();
-				}
-				break;
+
+			        Map<String, Integer> stats = reservationDAO.getReservationStatsByDateRange(sqlStart, sqlEnd);
+
+			        Map<Integer, Integer> hourlyData = reservationDAO.getHourlyArrivals(month, year);
+			        Map<Integer, Integer> departureData = reservationDAO.getHourlyDepartures(month, year);
+			        Map<Integer, Integer> subDaily = reservationDAO.getDailyStats(month, year, "SUBSCRIBER");
+			        Map<Integer, Integer> waitDaily = reservationDAO.getDailyStats(month, year, "WAITING");
+
+			        StringBuilder sb = new StringBuilder("REPORTS_DATA");
+
+			        // Format: total,confirmed,arrived,late,expired,totalGuests
+			        sb.append("|STATS:");
+			        sb.append(stats.getOrDefault("total", 0)).append(",")
+			          .append(stats.getOrDefault("confirmed", 0)).append(",")
+			          .append(stats.getOrDefault("arrived", 0)).append(",")
+			          .append(stats.getOrDefault("late", 0)).append(",")
+			          .append(stats.getOrDefault("expired", 0)).append(",")
+			          .append(stats.getOrDefault("totalGuests", 0));
+
+			        // Format: hour,count;hour,count...
+			        sb.append("|HOURLY_ARRIVALS:");
+			        boolean first = true;
+			        for (Map.Entry<Integer, Integer> entry : hourlyData.entrySet()) {
+			            int hour = entry.getKey();
+			            int count = entry.getValue();
+			            if (count > 0) { 
+			                if (!first) sb.append(";");
+			                sb.append(hour).append(",").append(count);
+			                first = false;
+			            }
+			        }
+			        sb.append("|HOURLY_DEPARTURES:");
+			        first = true;
+			        for (Map.Entry<Integer, Integer> entry : departureData.entrySet()) {
+			            int hour = entry.getKey();
+			            int count = entry.getValue();
+			            if (count > 0) {
+			                if (!first) sb.append(";");
+			                sb.append(hour).append(",").append(count);
+			                first = false;
+			            }
+			        }
+
+			        // Format: day,subCount,waitCount;...
+			        sb.append("|SUBSCRIBER_STATS:");
+			        first = true;
+			        int daysInMonth = start.lengthOfMonth();
+
+			        for (int d = 1; d <= daysInMonth; d++) {
+			            int subs = subDaily.getOrDefault(d, 0);
+			            int wait = waitDaily.getOrDefault(d, 0);
+
+			            if (subs > 0 || wait > 0) {
+			                if (!first) sb.append(";");
+			                sb.append(d).append(",").append(subs).append(",").append(wait);
+			                first = false;
+			            }
+			        }
+
+			        ans = sb.toString();
+
+			    } catch (Exception e) {
+			        e.printStackTrace();
+			        ans = "ERROR|REPORTS_FAILED";
+			    }
+			    break;
 			}
-
 			case "#GET_ALL_SUBSCRIBERS": {
 				try {
 					List<Subscriber> subs = subscriberDAO.getAllSubscribers();
@@ -1764,7 +1796,6 @@ public class EchoServer extends AbstractServer {
 	        "      WHERE oh.SpecialDate = ar.ReservationDate " +
 	        "  )";
 
-	    // 2) מבטלים + משחררים שולחן (TableNumber=NULL כדי שלא יופיע ב-SEATED_CUSTOMERS אצלך)
 	    String updateSql =
 	        "UPDATE ActiveReservations " +
 	        "SET Status='Canceled', TableNumber=NULL " +
@@ -1794,7 +1825,6 @@ public class EchoServer extends AbstractServer {
 	    System.out.println("DEBUG canceled outside hours (day=" + dayOfWeek + "): " + canceled);
 	    return canceled;
 	}
-	// מבטל הזמנות עתידיות בתאריך הזה שנופלות מחוץ לטווח השעות החדש
 	private int cancelReservationsOutsideNewHoursForDate(Connection con, java.sql.Date date, String open, String close) throws Exception {
 
 	    java.sql.Time openT = java.sql.Time.valueOf(open);

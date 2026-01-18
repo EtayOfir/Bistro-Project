@@ -10,13 +10,41 @@ import javafx.stage.Stage;
 import server.EchoServer;
 
 /**
- * Main JavaFX Application class for Server UI
- * Loads the FXML file and sets up the primary stage
+ * Main JavaFX Application class for the Server Side of the Bistro System.
+ * <p>
+ * This class is responsible for:
+ * <ul>
+ * <li>Loading the graphical user interface (FXML) for the server.</li>
+ * <li>Initializing the backend {@link EchoServer} logic.</li>
+ * <li>Connecting the UI Controller with the Server logic (MVC binding).</li>
+ * <li>Handling the application lifecycle (start and safe shutdown).</li>
+ * </ul>
+ * </p>
  */
 public class ServerUI extends Application {
 
+	/**
+     * Reference to the main server logic instance.
+     */
     private EchoServer echoServer;
 
+    /**
+     * The main entry point for the JavaFX application thread.
+     * <p>
+     * This method performs the following initialization steps:
+     * <ol>
+     * <li>Loads the {@code ServerUIView.fxml} layout file.</li>
+     * <li>Initializes the {@link ServerUIController}.</li>
+     * <li>Instantiates the {@link EchoServer} on the default port.</li>
+     * <li>Links the Server instance to the Controller and vice-versa.</li>
+     * <li>Sets up the primary stage (window) with specific dimensions (1000x700).</li>
+     * <li>Configures the "On Close" event to ensure the server shuts down gracefully.</li>
+     * </ol>
+     * </p>
+     *
+     * @param primaryStage The primary stage for this application, onto which
+     * the application scene can be set.
+     */
     @Override
     public void start(Stage primaryStage) {
         try {
@@ -66,6 +94,14 @@ public class ServerUI extends Application {
         }
     }
 
+    /**
+     * The main entry point for all JavaFX applications.
+     * <p>
+     * This method calls {@link #launch(String...)} which internally calls {@link #start(Stage)}.
+     * </p>
+     *
+     * @param args Command line arguments passed to the application.
+     */
     public static void main(String[] args) {
         launch(args);
     }

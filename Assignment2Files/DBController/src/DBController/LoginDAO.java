@@ -53,6 +53,18 @@ public class LoginDAO {
         return null;
     }
     
+    /**
+     * Authenticates a user against the database using the provided credentials.
+     * <p>
+     * This method executes a secure prepared statement ({@code SQLQueries.LOGIN_SUB}) to verify
+     * the username and password. If a matching record is found, it maps the database result
+     * set to a {@link Subscriber} entity object.
+     * </p>
+     * * @param username The username submitted by the client.
+     * @param password The password submitted by the client.
+     * @return A populated {@link Subscriber} object if authentication is successful; 
+     * {@code null} if the credentials are invalid or if a database error occurs.
+     */
     public Subscriber doLogin(String username, String password) {
         Subscriber sub = null;
 

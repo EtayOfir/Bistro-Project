@@ -454,7 +454,6 @@ public class ReservationUIController {
                 bookedTimesCache.put(date, s);
             }
 
-            // אם אתה רוצה לרענן מהשרת אחרי יצירה - השאר את זה
             if (date != null) {
                 bookedTimesCache.remove(date);
                 fetchExistingReservations(date);
@@ -493,7 +492,6 @@ public class ReservationUIController {
             String[] p = response.split("\\|", -1);
             String reason = (p.length >= 2) ? p[1] : "";
 
-            // ניקוי שדות במקרה כשל
             reservationIdField.setText("");
             confirmationField.setText("");
 
@@ -513,7 +511,6 @@ public class ReservationUIController {
                             "No available table for this time.\nChoose an alternative time or join the waiting list."));
                 }).start();
 
-                // לפתוח חלון Waiting List
                 try {
                     FXMLLoader loader = ViewLoader.fxml("ClientWaitingList.fxml");
                     Parent root = loader.load();
@@ -558,7 +555,6 @@ public class ReservationUIController {
                 && response.startsWith("ERROR|DB_ERROR")
                 && response.contains("No available table")) {
 
-            // גיבוי (אם נשארו הודעות ישנות מהשרת)
             System.out.println("DEBUG: No available table - opening waiting list");
 
             reservationIdField.setText("");
@@ -942,21 +938,6 @@ public class ReservationUIController {
         return true;
     }
 
-//    private boolean isAvailable(LocalDateTime start, LocalDateTime end) {
-//        for (LocalTime booked : bookedTimesForDate) {
-//            LocalDateTime bookedStart = LocalDateTime.of(start.toLocalDate(), booked);
-//            LocalDateTime bookedEnd = bookedStart.plusMinutes(RES_DURATION_MIN);
-//
-//            if (start.isBefore(bookedEnd) && end.isAfter(bookedStart)) {
-//                System.out.println("DEBUG: Overlap detected - Requested: " + start + " to " + end
-//                        + ", Booked: " + bookedStart + " to " + bookedEnd);
-//                return false;
-//            }
-//        }
-//        System.out.println("DEBUG: No conflicts for slot " + start + " to " + end);
-//        return true;
-//    }
-
     /**
      * Suggests alternative reservation times to the user, attempting same-day first and then
      * the next few days using cached data only.
@@ -1164,6 +1145,7 @@ public class ReservationUIController {
         }
 
         ClientUI.chat.handleMessageFromClientUI(command);
+        System.out.println(command);
         System.out.println("DEBUG onBook: Command sent, waiting for response...");
 
         // Show generated code immediately (server will confirm with reservation id)
@@ -1196,6 +1178,21 @@ public class ReservationUIController {
 
     // Window close
 
+    /**
+     * Handles the user logout sequence.
+     * <p>
+     * This method performs a graceful disconnection from the server before navigating
+     * the user back to the initial Login screen.
+     * <p>
+     * <b>Sequence of Actions:</b>
+     * <ol>
+     * <li><b>Server Notification:</b> Sends the {@code "LOGOUT"} command so the server can mark the user as offline in the database.</li>
+     * <li><b>Connection Cleanup:</b> Closes the active network connection and releases the {@code ClientUI.chat} resource.</li>
+     * <li><b>Navigation:</b> Loads the {@code UserLoginUIView.fxml} scene and resets the primary stage to the login state.</li>
+     * </ol>
+     *
+     * @param event The action event triggered by the exit/logout button.
+     */
     @FXML
     private void onExit(ActionEvent event) {
         try {

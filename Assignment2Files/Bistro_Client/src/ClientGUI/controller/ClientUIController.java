@@ -105,16 +105,48 @@ public class ClientUIController implements ChatIF {
     /** Active "Receive Table" window controller, if open. */
     private static volatile ReceiveTableUIController activeReceiveTableController;
     
+    /**
+     * Holds a reference to the main application controller.
+     * <p>
+     * Marked as {@code volatile} to ensure safe publication across threads,
+     * allowing the message router to reliably check if the main UI is initialized.
+     */
     private static volatile ClientUIController mainController;
 
+    /**
+     * Retrieves the active instance of the main application controller.
+     * <p>
+     * This reference is typically used by the {@link ClientMessageRouter} to pass
+     * general application messages (like login responses or navigation events)
+     * back to the UI layer.
+     *
+     * @return The active {@code ClientUIController} instance, or {@code null} if not initialized.
+     */
     public static ClientUIController getMainController() {
         return mainController;
     }
     
+    /**
+     * Retrieves the currently active reservation screen controller.
+     * <p>
+     * This is part of the application's context-aware routing mechanism. 
+     * If a user is currently in the reservation process, this method returns 
+     * the controller instance to handle availability checks and booking confirmations.
+     *
+     * @return The active {@code ReservationUIController}, or {@code null} if the user is on a different screen.
+     */
     public static ReservationUIController getActiveReservationController() {
         return activeReservationController;
     }
 
+    /**
+     * Retrieves the currently active table allocation screen controller.
+     * <p>
+     * Used by the router to dispatch table assignment messages (e.g., specific table number 
+     * or queue position) directly to the screen where the customer is waiting.
+     *
+     * @return The active {@code ReceiveTableUIController}, or {@code null} if inactive.
+     */
     public static ReceiveTableUIController getActiveReceiveTableController() {
         return activeReceiveTableController;
     }
