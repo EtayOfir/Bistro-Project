@@ -101,6 +101,8 @@ public class UserLoginUIController {
                 String host = ClientUI.serverHost;
                 int port = ClientUI.serverPort;
 
+                System.out.println("DEBUG: Connecting to host=" + host + ", port=" + port);
+
                 ClientUI.chat = new ChatClient(host, port, new ClientMessageRouter());
                 ClientUI.chat.openConnection();
                 System.out.println("✅ Connected to server (" + host + ":" + port + ") on Login click");

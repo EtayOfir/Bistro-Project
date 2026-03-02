@@ -75,6 +75,9 @@ public class ServerSettingsUIController {
         ClientUI.serverHost = hostInput;
         ClientUI.serverPort = portNum;
 
+        System.out.println("DEBUG: ServerSettingsUIController stored settings - host=" + hostInput + ", port=" + portNum);
+        System.out.println("DEBUG: ClientUI.serverHost=" + ClientUI.serverHost + ", ClientUI.serverPort=" + ClientUI.serverPort);
+
         statusLabel.setText("Settings saved!");
         statusLabel.setStyle("-fx-text-fill: #22c55e; -fx-font-size: 12;");
 
